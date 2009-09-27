@@ -18,7 +18,7 @@ Namelist/vegnml/ topofile,albvisout,albnirout, &
                  binlimit,urbanout,month,ozlaipatch, &
                  tile
 
-Write(6,*) 'IGBPVEG - IGBP 1km to CC grid (JUN-09)'
+Write(6,*) 'IGBPVEG - IGBP 1km to CC grid (SEP-09)'
 
 ! Read switches
 nopts=1
@@ -213,7 +213,7 @@ Write(6,*) "Schmidt   : ",schmidt
 Allocate(gridout(1:sibdim(1),1:sibdim(2)),rlld(1:sibdim(1),1:sibdim(2),1:2))
 Allocate(albvisdata(1:sibdim(1),1:sibdim(2)),oceandata(1:sibdim(1),1:sibdim(2)))
 Allocate(albnirdata(1:sibdim(1),1:sibdim(2)))
-Allocate(soildata(1:sibdim(1),1:sibdim(2),0:1),lsdata(1:sibdim(1),1:sibdim(2)))
+Allocate(soildata(1:sibdim(1),1:sibdim(2),0:8),lsdata(1:sibdim(1),1:sibdim(2)))
 Allocate(urbandata(1:sibdim(1),1:sibdim(2)),landdata(1:sibdim(1),1:sibdim(2),0:17+16*mthrng))
 
 ! Determine lat/lon to CC mapping
@@ -221,7 +221,7 @@ Call ccgetgrid(rlld,gridout,sibdim,lonlat,schmidt,ds)
 
 ! Read sib data
 Call getdata(landdata,lonlat,gridout,rlld,sibdim,17+16*mthrng,sibsize,'land',fastigbp,ozlaipatch,binlimit,month)
-Call getdata(soildata,lonlat,gridout,rlld,sibdim,1,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month)
+Call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month)
 Call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month)
 Call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month)
 
@@ -251,7 +251,7 @@ urbandata=min(urbandata,(1.-lsdata))
 
 ! Clean-up soil, lai, veg, albedo and urban data
 Call cleanigbp(landdata,lsdata,rlld,sibdim,mthrng)
-Call cleanreal(soildata,1,lsdata,rlld,sibdim)
+Call cleanreal(soildata,8,lsdata,rlld,sibdim)
 Call cleanreal(albvisdata,0,lsdata,rlld,sibdim)
 Call cleanreal(albnirdata,0,lsdata,rlld,sibdim)
 where (lsdata(:,:).ge.0.5)
@@ -623,7 +623,7 @@ If (ierr.NE.0) then
 End if
 
 lsmsk=Real(1-nint(lsmskin))
-where (((1-nint(oceanin)).eq.0).and.((1-nint(lsmskin)).eq.0))
+where ((nint(oceanin).eq.1).and.(nint(lsmskin).eq.1))
   topo(:,:)=0.
   sd(:,:)=0.
 end where
