@@ -155,7 +155,7 @@ If (fastigbp) then
                   lcj = nint(alcj)
                   lcj = lcj+nface*sibdim(1)
                   If (grid(lci,lcj).GE.real(minscale)) then
-                    If (sum(abs(coverout(i,j,:))).eq.0.) then
+                    If (sum(abs(coverout(i,j,:))).le.0.01) then
 	                  If (countn(lci,lcj).EQ.0) Then
                         dataout(lci,lcj,:)=-1. ! Missing value?
                         countn(lci,lcj)=1
@@ -188,7 +188,7 @@ If (fastigbp) then
                   lcj = nint(alcj)
                   lcj = lcj+nface*sibdim(1)
                   If (grid(lci,lcj).GE.real(minscale)) then
-                    If (sum(abs(coverout(i,j,:))).eq.0.) then
+                    If (sum(abs(coverout(i,j,:))).le.0.01) then
 	                  If (countn(lci,lcj).EQ.0) Then
                         dataout(lci,lcj,:)=-1. ! Missing value?
                         countn(lci,lcj)=1
@@ -199,8 +199,8 @@ If (fastigbp) then
                         countn(lci,lcj)=0
                       End If
                       dataout(lci,lcj,:)=dataout(lci,lcj,:)+coverout(i,j,:)
+                      countn(lci,lcj)=countn(lci,lcj)+1		      
                     End if
-                    countn(lci,lcj)=countn(lci,lcj)+1
                   End If
                 End Do
               End Do
@@ -982,7 +982,7 @@ Do ilat=1,5400
     lcj = lcj+nface*sibdim(1)
     
     cpos=databuffer(ilon)
-    if ((cpos.ge.1).and.(cpos.le.129)) then
+    if ((cpos.ge.1).and.(cpos.le.13)) then
       If (coverout(lci,lcj,0).LT.0.) then
         coverout(lci,lcj,:)=0.
         countn(lci,lcj)=0

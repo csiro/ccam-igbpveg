@@ -18,7 +18,7 @@ Namelist/vegnml/ topofile,albvisout,albnirout, &
                  binlimit,urbanout,month,ozlaipatch, &
                  tile
 
-Write(6,*) 'IGBPVEG - IGBP 1km to CC grid (SEP-09)'
+Write(6,*) 'IGBPVEG - IGBP 1km to CC grid (MAR-10)'
 
 ! Read switches
 nopts=1
@@ -254,15 +254,20 @@ Call cleanigbp(landdata,lsdata,rlld,sibdim,mthrng)
 Call cleanreal(soildata,8,lsdata,rlld,sibdim)
 Call cleanreal(albvisdata,0,lsdata,rlld,sibdim)
 Call cleanreal(albnirdata,0,lsdata,rlld,sibdim)
-where (lsdata(:,:).ge.0.5)
-  albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
-  albnirdata(:,:)=0.08 ! 0.20 in Masson (2003)
-end where
 
 Deallocate(gridout,oceandata)
 Allocate(rdata(1:sibdim(1),1:sibdim(2),1:mthrng),idata(1:sibdim(1),1:sibdim(2)))
 Allocate(vfrac(1:sibdim(1),1:sibdim(2),1:5),vtype(1:sibdim(1),1:sibdim(2),1:5))
 allocate(vlai(1:sibdim(1),1:sibdim(2),1:5,1:mthrng))
+
+Call calsoilnear(landdata,soildata,lsdata,sibdim,idata)
+where (lsdata(:,:).ge.0.5)
+  albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
+  albnirdata(:,:)=0.08 ! 0.20 in Masson (2003)
+else where (idata.eq.9)
+  albvisdata(:,:)=0.80
+  albnirdata(:,:)=0.40
+end where
 
 ! Prep nc output
 dimnum(1:2)=sibdim(1:2) ! CC grid dimensions
@@ -302,13 +307,13 @@ Call ncaddvargen(ncidarr,outputdesc,5,2,varid(15),1.,0.)
 outputdesc=(/ 'vfrac5', 'Land-use cover fraction (tile5)', 'none' /)
 Call ncaddvargen(ncidarr,outputdesc,5,2,varid(16),1.,0.)
 outputdesc=(/ 'lai2', 'Leaf Area Index (tile2)', '' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(17),1.,0.)
+Call ncaddvargen(ncidarr,outputdesc,5,3,varid(17),1.,0.)
 outputdesc=(/ 'lai3', 'Leaf Area Index (tile3)', '' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(18),1.,0.)
+Call ncaddvargen(ncidarr,outputdesc,5,3,varid(18),1.,0.)
 outputdesc=(/ 'lai4', 'Leaf Area Index (tile4)', '' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(19),1.,0.)
+Call ncaddvargen(ncidarr,outputdesc,5,3,varid(19),1.,0.)
 outputdesc=(/ 'lai5', 'Leaf Area Index (tile5)', '' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(20),1.,0.)
+Call ncaddvargen(ncidarr,outputdesc,5,3,varid(20),1.,0.)
 Call ncenddef(ncidarr)
 alonlat(:,1)=(/ 1., real(sibdim(1)), 1. /)
 alonlat(:,2)=(/ 1., real(sibdim(2)), 1. /)
@@ -325,7 +330,6 @@ Call nclonlatgen(ncidarr,dimid,alonlat,alvl,atime,dimnum)
 
 ! Write soil type
 Write(6,*) 'Write soil type file.'
-Call calsoilnear(landdata,soildata,lsdata,sibdim,idata)
 Write(formout,'(1h(,i3,2hi3,1h))') sibdim(1)
 Open(1,File=fname(2))
 Write(1,'(i3,i4,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soil'
@@ -339,7 +343,7 @@ Write(6,*) 'Write albedo files.'
 Write(formout,'("(",i3,"f4.0)" )') sibdim(1)
 Open(1,File=fname(3))
 Write(1,'(i3,i4,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soilalbvis'
-Write(1,formout) min(albvisdata(:,:)*100.,99.)
+Write(1,formout) max(min(albvisdata(:,:)*100.,99.),1.)
 Close(1)
 dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
 Call ncwritedatgen(ncidarr,albvisdata,dimcount,varid(3))
@@ -347,7 +351,7 @@ Call ncwritedatgen(ncidarr,albvisdata,dimcount,varid(3))
 Write(formout,'("(",i3,"f4.0)" )') sibdim(1)
 Open(1,File=fname(4))
 Write(1,'(i3,i4,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soilalbnir'
-Write(1,formout) min(albnirdata(:,:)*100.,99.)
+Write(1,formout) max(min(albnirdata(:,:)*100.,99.),1.)
 Close(1)
 dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
 Call ncwritedatgen(ncidarr,albnirdata,dimcount,varid(4))
