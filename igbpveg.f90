@@ -18,7 +18,7 @@ Namelist/vegnml/ topofile,albvisout,albnirout, &
                  binlimit,urbanout,month,ozlaipatch, &
                  tile
 
-Write(6,*) 'IGBPVEG - IGBP 1km to CC grid (MAR-10)'
+Write(6,*) 'IGBPVEG - IGBP 1km to CC grid (MAY-10)'
 
 ! Read switches
 nopts=1
@@ -404,7 +404,7 @@ do k=1,mthrng
   write(1,'(i3,i4,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'land'
   Do j=1,sibdim(2)
     Do i=1,sibdim(1)
-      write(1,'(I5,F8.2,F7.2,I3,2F6.2,I3,2F6.2,I3,2F6.2,I3,2F6.2,I3,2F6.2)') &
+      write(1,'(I10,F8.2,F7.2,I3,2F6.2,I3,2F6.2,I3,2F6.2,I3,2F6.2,I3,2F6.2)') &
           i+(j-1)*sibdim(1),rlld(i,j,1),rlld(i,j,2), &
           vtype(i,j,1),vfrac(i,j,1),vlai(i,j,1,k), &
           vtype(i,j,2),vfrac(i,j,2),vlai(i,j,2,k), &
