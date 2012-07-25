@@ -1,7 +1,7 @@
 FF = ifort
 XFLAGS = -O
-INC = -I /tools/netcdf/3.6.1/include
-LIBS = -L /tools/netcdf/3.6.1/lib -lnetcdf
+INC = -I /apps/netcdf/4.1.3/include
+LIBS = -L /apps/netcdf/4.1.3/lib -lnetcdf -lnetcdff
 
 
 OBJT = igbpveg.o igbpread.o readswitch.o ncwrite.o misc.o ccinterp.o\

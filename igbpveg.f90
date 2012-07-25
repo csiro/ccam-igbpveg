@@ -18,7 +18,7 @@ Namelist/vegnml/ topofile,albvisout,albnirout, &
                  binlimit,urbanout,month,ozlaipatch, &
                  tile
 
-Write(6,*) 'IGBPVEG - IGBP 1km to CC grid (MAY-10)'
+Write(6,*) 'IGBPVEG - IGBP 1km to CC grid (JUL-12)'
 
 ! Read switches
 nopts=1
@@ -332,7 +332,7 @@ Call nclonlatgen(ncidarr,dimid,alonlat,alvl,atime,dimnum)
 Write(6,*) 'Write soil type file.'
 Write(formout,'(1h(,i3,2hi3,1h))') sibdim(1)
 Open(1,File=fname(2))
-Write(1,'(i3,i4,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soil'
+Write(1,'(i4,i5,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soil'
 Write(1,formout) idata
 Close(1)
 dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
@@ -342,7 +342,7 @@ Call ncwritedatgen(ncidarr,Real(idata),dimcount,varid(2))
 Write(6,*) 'Write albedo files.'
 Write(formout,'("(",i3,"f4.0)" )') sibdim(1)
 Open(1,File=fname(3))
-Write(1,'(i3,i4,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soilalbvis'
+Write(1,'(i4,i5,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soilalbvis'
 Write(1,formout) max(min(albvisdata(:,:)*100.,99.),1.)
 Close(1)
 dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
@@ -350,7 +350,7 @@ Call ncwritedatgen(ncidarr,albvisdata,dimcount,varid(3))
 
 Write(formout,'("(",i3,"f4.0)" )') sibdim(1)
 Open(1,File=fname(4))
-Write(1,'(i3,i4,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soilalbnir'
+Write(1,'(i4,i5,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soilalbnir'
 Write(1,formout) max(min(albnirdata(:,:)*100.,99.),1.)
 Close(1)
 dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
@@ -401,7 +401,7 @@ do k=1,mthrng
   else
     open(1,File=fname(5))
   end if
-  write(1,'(i3,i4,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'land'
+  write(1,'(i4,i5,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'land'
   Do j=1,sibdim(2)
     Do i=1,sibdim(1)
       write(1,'(I10,F8.2,F7.2,I3,2F6.2,I3,2F6.2,I3,2F6.2,I3,2F6.2,I3,2F6.2)') &
@@ -438,7 +438,7 @@ Write(6,*) 'Write urban fraction'
 urbanfrac=1.0 ! veg now included in urban scheme
 Write(formout,'("(",i3,"f5.0)" )') sibdim(1)
 Open(1,File=fname(6))
-Write(1,'(i3,i4,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'urban'
+Write(1,'(i4,i5,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'urban'
 Write(1,formout) urbandata(:,:)*urbanfrac*100.
 Close(1)
 dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
