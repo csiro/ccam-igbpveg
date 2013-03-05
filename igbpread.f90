@@ -146,8 +146,8 @@ If (fastigbp) then
 
             Write(6,*) 'Start bin'
             if (datatype.eq.'land') then
-              Do i=1,lldim(1)
-                Do j=1,lldim(2)
+              Do j=1,lldim(2)
+                Do i=1,lldim(1)              
                   aglon=callon(latlon(1),i,nscale)
                   aglat=callat(latlon(2),j,nscale)
                   Call lltoijmod(aglon,aglat,alci,alcj,nface)
@@ -179,8 +179,8 @@ If (fastigbp) then
                 End Do
               End Do
             else
-              Do i=1,lldim(1)
-                Do j=1,lldim(2)
+              Do j=1,lldim(2)
+                Do i=1,lldim(1)              
                   aglon=callon(latlon(1),i,nscale)
                   aglat=callat(latlon(2),j,nscale)
                   Call lltoijmod(aglon,aglat,alci,alcj,nface)
@@ -199,7 +199,7 @@ If (fastigbp) then
                         countn(lci,lcj)=0
                       End If
                       dataout(lci,lcj,:)=dataout(lci,lcj,:)+coverout(i,j,:)
-                      countn(lci,lcj)=countn(lci,lcj)+1		      
+                      countn(lci,lcj)=countn(lci,lcj)+1                      
                     End if
                   End If
                 End Do
@@ -300,24 +300,23 @@ If (subsec.NE.0) then
             Stop
         End Select
 
-        Do lci=1,sibdim(1)
-          Do lcj=1,sibdim(2)
+        Do lcj=1,sibdim(2)
+          Do lci=1,sibdim(1)        
             If (countn(lci,lcj).EQ.0) then
               aglon=rlld(lci,lcj,1)
               aglat=rlld(lci,lcj,2)
               serlon=indexlon(aglon,latlon(1),nscale)
               serlat=indexlat(aglat,latlon(2),nscale)
               i=nint(serlon)
-              j=nint(serlat)
-              If ((i.GE.1).AND.(i.LE.lldim(1)).AND.(j.GE.1).AND.(j.LE.lldim(2))) Then
-	            if (any(coverout(i,j,:).gt.0.)) then
-	              dataout(lci,lcj,:)=coverout(i,j,:)
-	              countn(lci,lcj)=1
-	            else
-	              dataout(lci,lcj,:)=-1.
-	              countn(lci,lcj)=1
-	            end if
-              End if
+              if (i>lldim(1)) i=i-lldim(1)
+              j=min(max(nint(serlat),1),lldim(2))
+              if (any(coverout(i,j,:).gt.0.)) then
+                dataout(lci,lcj,:)=coverout(i,j,:)
+                countn(lci,lcj)=1
+              else
+                dataout(lci,lcj,:)=-1.
+                countn(lci,lcj)=1
+              end if
             End If
           End Do
         End Do
@@ -911,8 +910,8 @@ Do ilat=1,21600
     
   End Do
 End Do
-do lci=1,sibdim(1)
-  do lcj=1,sibdim(2)
+do lcj=1,sibdim(2)
+  do lci=1,sibdim(1)
     ntmp=sum(ncount(lci,lcj,0:17))
     ncount(lci,lcj,0:17)=ntmp
   end do
@@ -1137,8 +1136,8 @@ Integer i,j,datatmp
 ! Aggregate land use
 ! Faster to step over grid once
 raw=0.
-Do i=1,nscale
-  Do j=1,nscale
+Do j=1,nscale
+  Do i=1,nscale
     datatmp=datain(i,j)
     datatmp=mod(datatmp+256,256)
     raw(datatmp)=raw(datatmp)+1.
