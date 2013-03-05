@@ -4,51 +4,46 @@ Program igbpveg
 
 Implicit None
 
-Character*80, dimension(:,:), allocatable :: options
-Character*80, dimension(1:7) :: fname
-Character*80 topofile,albvisout,albnirout
-Character*80 soilout,landtypeout
-Character*80 newtopofile,urbanout
-Integer binlimit, nopts, month
-Logical fastigbp,igbplsmask,ozlaipatch,tile
+character*80, dimension(:,:), allocatable :: options
+character*80, dimension(3) :: fname
+character*80 topofile
+character*80 landtypeout
+character*80 newtopofile
+integer binlimit, nopts, month
+logical fastigbp,igbplsmask,ozlaipatch,tile
 
-Namelist/vegnml/ topofile,albvisout,albnirout, &
-                 soilout,fastigbp, &
+namelist/vegnml/ topofile,fastigbp,                  &
                  landtypeout,igbplsmask,newtopofile, &
-                 binlimit,urbanout,month,ozlaipatch, &
+                 binlimit,month,ozlaipatch,          &
                  tile
 
-Write(6,*) 'IGBPVEG - IGBP 1km to CC grid (JUL-12)'
+write(6,*) 'IGBPVEG - IGBP 1km to CC grid (FEB-13)'
 
 ! Read switches
 nopts=1
-Allocate (options(nopts,2))
+allocate (options(nopts,2))
 options(:,1) = (/ '-s' /)
 options(:,2) = ''
 
-Call readswitch(options,nopts)
-Call defaults(options,nopts)
+call readswitch(options,nopts)
+call defaults(options,nopts)
 
 ! Read namelist
-Write(6,*) 'Input &vegnml namelist'
-Read(5,NML=vegnml)
-Write(6,*) 'Namelist accepted'
+write(6,*) 'Input &vegnml namelist'
+read(5,NML=vegnml)
+write(6,*) 'Namelist accepted'
 
 ! Generate veg data
 fname(1)=topofile
-fname(2)=soilout
-fname(3)=albvisout
-fname(4)=albnirout
-fname(5)=landtypeout
-fname(6)=urbanout
-fname(7)=newtopofile
+fname(2)=landtypeout
+fname(3)=newtopofile
 
-Call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit)
+call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit)
 
-Deallocate(options)
+deallocate(options)
 
-Stop
-End
+stop
+end
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine displays the help message
@@ -75,10 +70,6 @@ Write(6,*) '  &vegnml'
 Write(6,*) '    month=0'
 Write(6,*) '    topofile="topout"'
 Write(6,*) '    newtopofile="topoutb"'
-Write(6,*) '    soilout="soil"'
-Write(6,*) '    albvisout="albvis"'
-Write(6,*) '    albnirout="albnir"'
-Write(6,*) '    urbanout="urban"'
 Write(6,*) '    landtypeout="veg"'
 Write(6,*) '    fastigbp=t'
 Write(6,*) '    igbplsmask=t'
@@ -92,11 +83,7 @@ Write(6,*) '    month         = the month to process (1-12, 0=all)'
 Write(6,*) '    topofile      = topography (input) file'
 Write(6,*) '    newtopofile   = Output topography file name'
 Write(6,*) '                    (if igbplsmask=t)'
-Write(6,*) '    soilout       = Soil filename (Zobler)'
-Write(6,*) '    albvisout     = Soil albedo (VIS) filename'
-Write(6,*) '    albnirout     = Soil albedo (NIR) filename'
-Write(6,*) '    urbanout      = Urban cover fraction filename'
-Write(6,*) '    landtypeout   = Land-use classification filename'
+Write(6,*) '    landtypeout   = Land-use filename'
 Write(6,*) '    fastigbp      = Turn on fastigbp mode (see notes below)'
 Write(6,*) '    igbplsmask    = Define land/sea mask from IGBP dataset'
 Write(6,*) '    ozlaipath     = Use CSIRO LAI dataset for Australia'
@@ -143,7 +130,7 @@ Integer locate
 
 siz=locate('-s',options(:,1),nopts)
 
-If (options(siz,2).EQ.'') then
+If (options(siz,2)=='') then
   options(siz,2)='500'
 End if
 
@@ -163,84 +150,85 @@ Implicit None
 
 Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile
 Integer, intent(in) :: nopts,binlimit,month
-Character(len=*), dimension(1:nopts,1:2), intent(in) :: options
-Character(len=*), dimension(1:7), intent(in) :: fname
+Character(len=*), dimension(nopts,2), intent(in) :: options
+Character(len=*), dimension(3), intent(in) :: fname
+character*90 filename
 Character*80, dimension(1:3) :: outputdesc
 Character*80 returnoption,csize,filedesc
 Character*45 header
 Character*9 formout
 Character*2 monthout
-real, dimension(:,:,:,:), allocatable :: vlai
+real, dimension(:,:,:), allocatable :: vlai
 Real, dimension(:,:,:), allocatable :: landdata,soildata,rlld,rdata,vfrac
 Real, dimension(:,:), allocatable :: gridout,lsdata,urbandata,oceandata,albvisdata,albnirdata
-Real, dimension(1:3,1:2) :: alonlat
-Real, dimension(1:2) :: lonlat
-Real, dimension(1:12) :: atime
+Real, dimension(3,2) :: alonlat
+Real, dimension(2) :: lonlat
+Real, dimension(12) :: atime
 Real, dimension(1) :: alvl
 Real schmidt,dsx,ds,urbanfrac
 integer, dimension(:,:), allocatable :: idata
 integer, dimension(:,:,:), allocatable :: vtype
-Integer, dimension(1:2) :: sibdim
-Integer, dimension(1:4) :: dimnum,dimid,dimcount
+Integer, dimension(2) :: sibdim
+Integer, dimension(4) :: dimnum,dimid,dimcount
 Integer, dimension(0:4) :: ncidarr
-Integer, dimension(1:6) :: adate
+Integer, dimension(6) :: adate
 Integer, dimension(2:20) :: varid
 Integer sibsize,tunit,i,j,k,ierr,sibmax(1),mthrng
-logical, dimension(1:16) :: sermsk
+integer tt
+logical, dimension(16) :: sermsk
 
 mthrng=1
-if (month.eq.0) then
+if (month==0) then
   mthrng=12
 end if
-if ((month.lt.0).or.(month.gt.12)) then
+if ((month<0).or.(month>12)) then
   write(6,*) "ERROR: Invalid month ",month
+  write(6,*) "Must be between 0 and 12"
   stop
 end if
 
 csize=returnoption('-s',options,nopts)
-Read(csize,FMT=*,IOSTAT=ierr) sibsize
-If (ierr.NE.0) then
-  Write(6,*) 'ERROR: Invalid array size.  Must be an integer.'
-  Stop
-End if
+read(csize,FMT=*,IOSTAT=ierr) sibsize
+if (ierr.NE.0) then
+  write(6,*) 'ERROR: Invalid array size.  Must be an integer.'
+  stop
+end if
 
 ! Read topography file
 tunit=1
-Call readtopography(tunit,fname(1),sibdim,lonlat,schmidt,dsx,header)
-Write(6,*) "Dimension : ",sibdim
-Write(6,*) "lon0,lat0 : ",lonlat
-Write(6,*) "Schmidt   : ",schmidt
-Allocate(gridout(1:sibdim(1),1:sibdim(2)),rlld(1:sibdim(1),1:sibdim(2),1:2))
-Allocate(albvisdata(1:sibdim(1),1:sibdim(2)),oceandata(1:sibdim(1),1:sibdim(2)))
-Allocate(albnirdata(1:sibdim(1),1:sibdim(2)))
-Allocate(soildata(1:sibdim(1),1:sibdim(2),0:8),lsdata(1:sibdim(1),1:sibdim(2)))
-Allocate(urbandata(1:sibdim(1),1:sibdim(2)),landdata(1:sibdim(1),1:sibdim(2),0:17+16*mthrng))
+call readtopography(tunit,fname(1),sibdim,lonlat,schmidt,dsx,header)
+write(6,*) "Dimension : ",sibdim
+write(6,*) "lon0,lat0 : ",lonlat
+write(6,*) "Schmidt   : ",schmidt
+allocate(gridout(1:sibdim(1),1:sibdim(2)),rlld(1:sibdim(1),1:sibdim(2),1:2))
+allocate(albvisdata(1:sibdim(1),1:sibdim(2)),oceandata(1:sibdim(1),1:sibdim(2)))
+allocate(albnirdata(1:sibdim(1),1:sibdim(2)))
+allocate(soildata(1:sibdim(1),1:sibdim(2),0:8),lsdata(1:sibdim(1),1:sibdim(2)))
+allocate(urbandata(1:sibdim(1),1:sibdim(2)),landdata(1:sibdim(1),1:sibdim(2),0:17+16*mthrng))
 
 ! Determine lat/lon to CC mapping
-Call ccgetgrid(rlld,gridout,sibdim,lonlat,schmidt,ds)
+call ccgetgrid(rlld,gridout,sibdim,lonlat,schmidt,ds)
 
 ! Read sib data
-Call getdata(landdata,lonlat,gridout,rlld,sibdim,17+16*mthrng,sibsize,'land',fastigbp,ozlaipatch,binlimit,month)
-Call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month)
-Call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month)
-Call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month)
+call getdata(landdata,lonlat,gridout,rlld,sibdim,17+16*mthrng,sibsize,'land',fastigbp,ozlaipatch,binlimit,month)
+call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month)
+call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month)
+call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month)
 
 write(6,*) "Preparing data..."
-! extract urban cover
+! extract urban cover and remove from landdata
 urbandata(:,:)=landdata(:,:,13)
-
-! remove IGBP urban classes 13
-Call igbpfix(landdata,rlld,sibdim,mthrng)
+call igbpfix(landdata,rlld,sibdim,mthrng)
 
 if (igbplsmask) then
   write(6,*) "Using IGBP land/sea mask"
-  where ((landdata(:,:,0)+landdata(:,:,17)).gt.0.)
+  where ((landdata(:,:,0)+landdata(:,:,17))>0.)
     oceandata=landdata(:,:,0)/(landdata(:,:,0)+landdata(:,:,17))
   else where
     oceandata=0.
   end where
   lsdata=real(nint(landdata(:,:,0)+landdata(:,:,17)))
-  call cleantopo(tunit,fname(1),fname(7),lsdata,oceandata,sibdim)
+  call cleantopo(tunit,fname(1),fname(3),lsdata,oceandata,sibdim)
 else
   write(6,*) "Using topography land/sea mask"
   call gettopols(tunit,fname(1),lsdata,sibdim)
@@ -250,207 +238,181 @@ end if
 urbandata=min(urbandata,(1.-lsdata))
 
 ! Clean-up soil, lai, veg, albedo and urban data
-Call cleanigbp(landdata,lsdata,rlld,sibdim,mthrng)
-Call cleanreal(soildata,8,lsdata,rlld,sibdim)
-Call cleanreal(albvisdata,0,lsdata,rlld,sibdim)
-Call cleanreal(albnirdata,0,lsdata,rlld,sibdim)
+call cleanigbp(landdata,lsdata,rlld,sibdim,mthrng)
+call cleanreal(soildata,8,lsdata,rlld,sibdim)
+call cleanreal(albvisdata,0,lsdata,rlld,sibdim)
+call cleanreal(albnirdata,0,lsdata,rlld,sibdim)
 
-Deallocate(gridout,oceandata)
-Allocate(rdata(1:sibdim(1),1:sibdim(2),1:mthrng),idata(1:sibdim(1),1:sibdim(2)))
-Allocate(vfrac(1:sibdim(1),1:sibdim(2),1:5),vtype(1:sibdim(1),1:sibdim(2),1:5))
-allocate(vlai(1:sibdim(1),1:sibdim(2),1:5,1:mthrng))
+deallocate(gridout,oceandata)
+allocate(rdata(sibdim(1),sibdim(2),mthrng),idata(sibdim(1),sibdim(2)))
+allocate(vfrac(sibdim(1),sibdim(2),5),vtype(sibdim(1),sibdim(2),5))
+allocate(vlai(sibdim(1),sibdim(2),5))
 
-Call calsoilnear(landdata,soildata,lsdata,sibdim,idata)
-where (lsdata(:,:).ge.0.5)
+call calsoilnear(landdata,soildata,lsdata,sibdim,idata)
+where (lsdata(:,:)>=0.5)
   albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
   albnirdata(:,:)=0.08 ! 0.20 in Masson (2003)
-else where (idata.eq.9)
+else where (idata==9)
   albvisdata(:,:)=0.80
   albnirdata(:,:)=0.40
 end where
 
-! Prep nc output
 dimnum(1:2)=sibdim(1:2) ! CC grid dimensions
 dimnum(3)=1 ! Turn off level
-dimnum(4)=mthrng ! Number of months in a year
+dimnum(4)=1 ! Number of months in a year
 adate=0 ! Turn off date
 adate(2)=1 ! time units=months
-Call ncinitcc(ncidarr,'veg.nc',dimnum(1:3),dimid,adate)
-outputdesc=(/ 'soilt', 'Soil classification', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(2),1.,0.)
-outputdesc=(/ 'albvis', 'Soil albedo (VIS)', '' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(3),1.,0.)
-outputdesc=(/ 'albnir', 'Soil albedo (NIR)', '' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(4),1.,0.)
-outputdesc=(/ 'lai1', 'Leaf Area Index (tile1)', '' /)
-Call ncaddvargen(ncidarr,outputdesc,5,3,varid(5),1.,0.)
-outputdesc=(/ 'vegt1', 'Land-use classification (tile1)', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(6),1.,0.)
-outputdesc=(/ 'urban', 'Urban fraction', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(7),1.,0.)
-outputdesc=(/ 'vegt2', 'Land-use classification (tile2)', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(8),1.,0.)
-outputdesc=(/ 'vegt3', 'Land-use classification (tile3)', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(9),1.,0.)
-outputdesc=(/ 'vegt4', 'Land-use classification (tile4)', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(10),1.,0.)
-outputdesc=(/ 'vegt5', 'Land-use classification (tile5)', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(11),1.,0.)
-outputdesc=(/ 'vfrac1', 'Land-use cover fraction (tile1)', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(12),1.,0.)
-outputdesc=(/ 'vfrac2', 'Land-use cover fraction (tile2)', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(13),1.,0.)
-outputdesc=(/ 'vfrac3', 'Land-use cover fraction (tile3)', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(14),1.,0.)
-outputdesc=(/ 'vfrac4', 'Land-use cover fraction (tile4)', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(15),1.,0.)
-outputdesc=(/ 'vfrac5', 'Land-use cover fraction (tile5)', 'none' /)
-Call ncaddvargen(ncidarr,outputdesc,5,2,varid(16),1.,0.)
-outputdesc=(/ 'lai2', 'Leaf Area Index (tile2)', '' /)
-Call ncaddvargen(ncidarr,outputdesc,5,3,varid(17),1.,0.)
-outputdesc=(/ 'lai3', 'Leaf Area Index (tile3)', '' /)
-Call ncaddvargen(ncidarr,outputdesc,5,3,varid(18),1.,0.)
-outputdesc=(/ 'lai4', 'Leaf Area Index (tile4)', '' /)
-Call ncaddvargen(ncidarr,outputdesc,5,3,varid(19),1.,0.)
-outputdesc=(/ 'lai5', 'Leaf Area Index (tile5)', '' /)
-Call ncaddvargen(ncidarr,outputdesc,5,3,varid(20),1.,0.)
-Call ncenddef(ncidarr)
-alonlat(:,1)=(/ 1., real(sibdim(1)), 1. /)
-alonlat(:,2)=(/ 1., real(sibdim(2)), 1. /)
-alvl=1.
-if (mthrng.eq.12) then
-  Do i=1,12
-    atime(i)=Real(i) ! Define Months
-  End do
-else
-  atime(1)=real(month)
-end if
-Call nclonlatgen(ncidarr,dimid,alonlat,alvl,atime,dimnum)
 
+! Prep nc output
+do tt=1,mthrng
 
-! Write soil type
-Write(6,*) 'Write soil type file.'
-Write(formout,'(1h(,i3,2hi3,1h))') sibdim(1)
-Open(1,File=fname(2))
-Write(1,'(i4,i5,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soil'
-Write(1,formout) idata
-Close(1)
-dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
-Call ncwritedatgen(ncidarr,Real(idata),dimcount,varid(2))
-
-! Write albedo file
-Write(6,*) 'Write albedo files.'
-Write(formout,'("(",i3,"f4.0)" )') sibdim(1)
-Open(1,File=fname(3))
-Write(1,'(i4,i5,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soilalbvis'
-Write(1,formout) max(min(albvisdata(:,:)*100.,99.),1.)
-Close(1)
-dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
-Call ncwritedatgen(ncidarr,albvisdata,dimcount,varid(3))
-
-Write(formout,'("(",i3,"f4.0)" )') sibdim(1)
-Open(1,File=fname(4))
-Write(1,'(i4,i5,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'soilalbnir'
-Write(1,formout) max(min(albnirdata(:,:)*100.,99.),1.)
-Close(1)
-dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
-Call ncwritedatgen(ncidarr,albnirdata,dimcount,varid(4))
-
-write(6,*) 'Write land-use type'
-Do j=1,sibdim(2)
-  Do i=1,sibdim(1)
-    if (lsdata(i,j).ge.0.5) then
-      vtype(i,j,1:5)=0
-      vfrac(i,j,1)=1.
-      vfrac(i,j,2:5)=0.
-      vlai(i,j,:,:)=0.
-    else
-      sermsk=.true.
-      do k=1,5
-        sibmax=Maxloc(landdata(i,j,1:16),sermsk)
-        sermsk(sibmax(1))=.false.
-        vtype(i,j,k)=sibmax(1)
-        vfrac(i,j,k)=landdata(i,j,sibmax(1))
-        vlai(i,j,k,1:mthrng)=landdata(i,j,17+(sibmax(1)-1)*mthrng+1:17+(sibmax(1)-1)*mthrng+mthrng)
-      end do
-      if (.not.tile) then
-        do k=1,mthrng
-          vlai(i,j,1,k)=sum(vlai(i,j,:,k)*vfrac(i,j,:))/sum(vfrac(i,j,:))
-        end do
-        vlai(i,j,2:5,1:mthrng)=0.
-        vfrac(i,j,1)=1.
-        vfrac(i,j,2:5)=0.        
-      end if
-      vfrac(i,j,:)=vfrac(i,j,:)/sum(vfrac(i,j,:))
-      vfrac(i,j,1:4)=real(nint(100.*vfrac(i,j,1:4)))/100.
-      vfrac(i,j,5)=1.-sum(vfrac(i,j,1:4))
-      do k=5,2,-1
-        if ((vfrac(i,j,k).lt.0.).or.(vfrac(i,j,k-1).lt.vfrac(i,j,k))) then
-          vfrac(i,j,k-1)=vfrac(i,j,k-1)+vfrac(i,j,k)
-          vfrac(i,j,k)=0.
-        end if
-      end do
-    end if
-  End do
-End do
-do k=1,mthrng
-  if (mthrng.eq.12) then
-    Write(monthout,'(I2.2)') k
-    filedesc=trim(fname(5))//'.'//trim(monthout)
-    open(1,file=filedesc)
+  if (mthrng==1) then
+    filename=fname(2)
   else
-    open(1,File=fname(5))
+    write(filename,"(A,'.',I2.2)") trim(fname(2)),tt
   end if
-  write(1,'(i4,i5,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'land'
-  Do j=1,sibdim(2)
-    Do i=1,sibdim(1)
-      write(1,'(I10,F8.2,F7.2,I3,2F6.2,I3,2F6.2,I3,2F6.2,I3,2F6.2,I3,2F6.2)') &
-          i+(j-1)*sibdim(1),rlld(i,j,1),rlld(i,j,2), &
-          vtype(i,j,1),vfrac(i,j,1),vlai(i,j,1,k), &
-          vtype(i,j,2),vfrac(i,j,2),vlai(i,j,2,k), &
-          vtype(i,j,3),vfrac(i,j,3),vlai(i,j,3,k), &
-          vtype(i,j,4),vfrac(i,j,4),vlai(i,j,4,k), &
-          vtype(i,j,5),vfrac(i,j,5),vlai(i,j,5,k)
-    End do
-  End do
-  Close(1)
+
+  call ncinitcc(ncidarr,filename,dimnum(1:3),dimid,adate)
+  outputdesc=(/ 'soilt', 'Soil classification', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(2),1.,0.)
+  outputdesc=(/ 'albvis', 'Soil albedo (VIS)', '' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(3),1.,0.)
+  outputdesc=(/ 'albnir', 'Soil albedo (NIR)', '' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(4),1.,0.)
+  outputdesc=(/ 'lai1', 'Leaf Area Index (tile1)', '' /)
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(5),1.,0.)
+  outputdesc=(/ 'vegt1', 'Land-use classification (tile1)', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(6),1.,0.)
+  outputdesc=(/ 'vfrac1', 'Land-use cover fraction (tile1)', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(12),1.,0.)
+
+  outputdesc=(/ 'lai2', 'Leaf Area Index (tile2)', '' /)
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(17),1.,0.)
+  outputdesc=(/ 'vegt2', 'Land-use classification (tile2)', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(8),1.,0.)
+  outputdesc=(/ 'vfrac2', 'Land-use cover fraction (tile2)', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(13),1.,0.)
+
+  outputdesc=(/ 'lai3', 'Leaf Area Index (tile3)', '' /)
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(18),1.,0.)
+  outputdesc=(/ 'vegt3', 'Land-use classification (tile3)', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(9),1.,0.)
+  outputdesc=(/ 'vfrac3', 'Land-use cover fraction (tile3)', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(14),1.,0.)
+
+  outputdesc=(/ 'lai4', 'Leaf Area Index (tile4)', '' /)
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(19),1.,0.)
+  outputdesc=(/ 'vegt4', 'Land-use classification (tile4)', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(10),1.,0.)
+  outputdesc=(/ 'vfrac4', 'Land-use cover fraction (tile4)', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(15),1.,0.)
+
+  outputdesc=(/ 'lai5', 'Leaf Area Index (tile5)', '' /)
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(20),1.,0.)
+  outputdesc=(/ 'vegt5', 'Land-use classification (tile5)', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(11),1.,0.)
+  outputdesc=(/ 'vfrac5', 'Land-use cover fraction (tile5)', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(16),1.,0.)
+
+  outputdesc=(/ 'urban', 'Urban fraction', 'none' /)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(7),1.,0.)
+
+  call ncatt(ncidarr,'lon0',lonlat(1))
+  call ncatt(ncidarr,'lat0',lonlat(2))
+  call ncatt(ncidarr,'schmidt',schmidt)
+
+  call ncenddef(ncidarr)
+  alonlat(:,1)=(/ 1., real(sibdim(1)), 1. /)
+  alonlat(:,2)=(/ 1., real(sibdim(2)), 1. /)
+  alvl=1.
+  if (mthrng==12) then
+    atime(1)=Real(tt) ! Define Months
+  else
+    atime(1)=real(month)
+  end if
+  call nclonlatgen(ncidarr,dimid,alonlat,alvl,atime,dimnum)
+
+
+  ! Write soil type
+  write(6,*) 'Write soil type file.'
+  dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
+  call ncwritedatgen(ncidarr,Real(idata),dimcount,varid(2))
+
+  ! Write albedo file
+  write(6,*) 'Write albedo files.'
+  dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
+  call ncwritedatgen(ncidarr,albvisdata,dimcount,varid(3))
+
+  write(formout,'("(",i3,"f4.0)" )') sibdim(1)
+  dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
+  call ncwritedatgen(ncidarr,albnirdata,dimcount,varid(4))
+
+  write(6,*) 'Write land-use'
+  do j=1,sibdim(2)
+    do i=1,sibdim(1)
+      if (lsdata(i,j)>=0.5) then
+        vtype(i,j,1:5)=0
+        vfrac(i,j,1)=1.
+        vfrac(i,j,2:5)=0.
+        vlai(i,j,:)=0.
+      else
+        sermsk=.true.
+        do k=1,5
+          sibmax=Maxloc(landdata(i,j,1:16),sermsk)
+          sermsk(sibmax(1))=.false.
+          vtype(i,j,k)=sibmax(1)
+          vfrac(i,j,k)=landdata(i,j,sibmax(1))
+          vlai(i,j,k)=landdata(i,j,17+(sibmax(1)-1)*mthrng+tt)
+        end do
+        if (.not.tile) then
+          vlai(i,j,1)=sum(vlai(i,j,:)*vfrac(i,j,:))/sum(vfrac(i,j,:))
+          vlai(i,j,2:5)=0.
+          vfrac(i,j,1)=1.
+          vfrac(i,j,2:5)=0.        
+        end if
+        vfrac(i,j,:)=vfrac(i,j,:)/sum(vfrac(i,j,:))
+        vfrac(i,j,1:4)=real(nint(100.*vfrac(i,j,1:4)))/100.
+        vfrac(i,j,5)=1.-sum(vfrac(i,j,1:4))
+        do k=5,2,-1
+          if ((vfrac(i,j,k)<0.).or.(vfrac(i,j,k-1)<vfrac(i,j,k))) then
+            vfrac(i,j,k-1)=vfrac(i,j,k-1)+vfrac(i,j,k)
+            vfrac(i,j,k)=0.
+          end if
+        end do
+      end if
+    end do
+  end do
+  dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
+  call ncwritedatgen(ncidarr,Real(vtype(:,:,1)),dimcount,varid(6))
+  call ncwritedatgen(ncidarr,Real(vtype(:,:,2)),dimcount,varid(8))
+  call ncwritedatgen(ncidarr,Real(vtype(:,:,3)),dimcount,varid(9))
+  call ncwritedatgen(ncidarr,Real(vtype(:,:,4)),dimcount,varid(10))
+  call ncwritedatgen(ncidarr,Real(vtype(:,:,5)),dimcount,varid(11))
+  call ncwritedatgen(ncidarr,vfrac(:,:,1),dimcount,varid(12))
+  call ncwritedatgen(ncidarr,vfrac(:,:,2),dimcount,varid(13))
+  call ncwritedatgen(ncidarr,vfrac(:,:,3),dimcount,varid(14))
+  call ncwritedatgen(ncidarr,vfrac(:,:,4),dimcount,varid(15))
+  call ncwritedatgen(ncidarr,vfrac(:,:,5),dimcount,varid(16))
+  call ncwritedatgen(ncidarr,vlai(:,:,1),dimcount,varid(5))
+  call ncwritedatgen(ncidarr,vlai(:,:,2),dimcount,varid(17))
+  call ncwritedatgen(ncidarr,vlai(:,:,3),dimcount,varid(18))
+  call ncwritedatgen(ncidarr,vlai(:,:,4),dimcount,varid(19))
+  call ncwritedatgen(ncidarr,vlai(:,:,5),dimcount,varid(20))
+
+  ! Urban
+  write(6,*) 'Write urban fraction'
+  dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
+  urbanfrac=1.
+  call ncwritedatgen(ncidarr,urbandata*urbanfrac,dimcount,varid(7))
 end do
-dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
-Call ncwritedatgen(ncidarr,Real(vtype(:,:,1)),dimcount,varid(6))
-Call ncwritedatgen(ncidarr,Real(vtype(:,:,2)),dimcount,varid(8))
-Call ncwritedatgen(ncidarr,Real(vtype(:,:,3)),dimcount,varid(9))
-Call ncwritedatgen(ncidarr,Real(vtype(:,:,4)),dimcount,varid(10))
-Call ncwritedatgen(ncidarr,Real(vtype(:,:,5)),dimcount,varid(11))
-Call ncwritedatgen(ncidarr,vfrac(:,:,1),dimcount,varid(12))
-Call ncwritedatgen(ncidarr,vfrac(:,:,2),dimcount,varid(13))
-Call ncwritedatgen(ncidarr,vfrac(:,:,3),dimcount,varid(14))
-Call ncwritedatgen(ncidarr,vfrac(:,:,4),dimcount,varid(15))
-Call ncwritedatgen(ncidarr,vfrac(:,:,5),dimcount,varid(16))
-dimcount=(/ sibdim(1), sibdim(2), mthrng, 1 /)
-Call ncwritedatgen(ncidarr,vlai(:,:,1,:),dimcount,varid(5))
-Call ncwritedatgen(ncidarr,vlai(:,:,2,:),dimcount,varid(17))
-Call ncwritedatgen(ncidarr,vlai(:,:,3,:),dimcount,varid(18))
-Call ncwritedatgen(ncidarr,vlai(:,:,4,:),dimcount,varid(19))
-Call ncwritedatgen(ncidarr,vlai(:,:,5,:),dimcount,varid(20))
 
-! Urban
-Write(6,*) 'Write urban fraction'
-urbanfrac=1.0 ! veg now included in urban scheme
-Write(formout,'("(",i3,"f5.0)" )') sibdim(1)
-Open(1,File=fname(6))
-Write(1,'(i4,i5,2f8.3,f6.3,f8.0," ",a39)') sibdim(1),sibdim(2),lonlat(1),lonlat(2),schmidt,ds,'urban'
-Write(1,formout) urbandata(:,:)*urbanfrac*100.
-Close(1)
-dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
-Call ncwritedatgen(ncidarr,urbandata*urbanfrac,dimcount,varid(7))
+call ncclose(ncidarr)
 
-Call ncclose(ncidarr)
+deallocate(landdata,soildata,rdata,urbandata,lsdata)
+deallocate(vfrac,vtype,rlld,idata,vlai)
 
-Deallocate(landdata,soildata,rdata,urbandata,lsdata)
-Deallocate(vfrac,vtype,rlld,idata,vlai)
-
-Return
-End
+return
+end
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Fix IGBP data
@@ -633,7 +595,7 @@ where ((nint(oceanin).eq.1).and.(nint(lsmskin).eq.1))
 end where
 
 Open(topounit,FILE=topoout,FORM='formatted',STATUS='replace',IOSTAT=ierr)
-Write(topounit,'(i3,i4,2f10.3,f6.3,f8.0," ",a39)',IOSTAT=ierr) ia,ib,ra,rb,rc,rd,dc
+Write(topounit,'(i4,i6,2f10.3,f6.3,f10.0," ",a39)',IOSTAT=ierr) ia,ib,ra,rb,rc,rd,dc
 Write(formout,'("(",i3,"f7.0)")',IOSTAT=ierr) ilout
 Write(topounit,formout,IOSTAT=ierr) topo ! Topography data
 Write(formout,'("(",i3,"f4.1)")',IOSTAT=ierr) ilout
