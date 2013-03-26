@@ -163,7 +163,7 @@ Real, dimension(:,:,:), allocatable :: landdata,soildata,rlld,rdata,vfrac
 Real, dimension(:,:), allocatable :: gridout,lsdata,urbandata,oceandata,albvisdata,albnirdata
 Real, dimension(3,2) :: alonlat
 Real, dimension(2) :: lonlat
-Real, dimension(12) :: atime
+Real, dimension(1) :: atime
 Real, dimension(1) :: alvl
 Real schmidt,dsx,ds,urbanfrac
 integer, dimension(:,:), allocatable :: idata
@@ -405,9 +405,10 @@ do tt=1,mthrng
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
   urbanfrac=1.
   call ncwritedatgen(ncidarr,urbandata*urbanfrac,dimcount,varid(7))
-end do
 
-call ncclose(ncidarr)
+  call ncclose(ncidarr)
+
+end do
 
 deallocate(landdata,soildata,rdata,urbandata,lsdata)
 deallocate(vfrac,vtype,rlld,idata,vlai)
@@ -441,9 +442,9 @@ if (.not.any(sermsk)) return
 do ilon=1,sibdim(1)
   do ilat=1,sibdim(2)
     wsum=landdata(ilon,ilat,0)+landdata(ilon,ilat,17) ! water
-    if (wsum.lt.1.) then
+    if (wsum<1.) then
       nsum=sum(landdata(ilon,ilat,1:16)) ! land
-      if (nsum.le.0.) then
+      if (nsum<=0.) then
         call findnear(pxy,ilon,ilat,sermsk,rlld,sibdim)
         landdata(ilon,ilat,1:16)=landtemp(pxy(1),pxy(2),1:16)  
         landdata(ilon,ilat,18:)=landtemp(pxy(1),pxy(2),18:)
