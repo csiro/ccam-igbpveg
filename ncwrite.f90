@@ -490,13 +490,10 @@ If (dimnum(3)/=1) Then
   End If
 End If
 
-print *,"hi a",atime
 status=nf_inq_vartype(ncidarr(0),dimid(4),vtype)
-print *,"hi b",vtype
 select case(vtype)
   case(nf_float)
     status = nf_put_vara_real(ncidarr(0),dimid(4),1,dimnum(4),atime)
-    print *,"hi c ",status
   case(nf_int)
     status = nf_put_vara_int(ncidarr(0),dimid(4),1,dimnum(4),nint(atime))
   case DEFAULT
