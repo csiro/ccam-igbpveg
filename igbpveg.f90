@@ -197,6 +197,7 @@ end if
 ! Read topography file
 tunit=1
 call readtopography(tunit,fname(1),sibdim,lonlat,schmidt,dsx,header)
+
 write(6,*) "Dimension : ",sibdim
 write(6,*) "lon0,lat0 : ",lonlat
 write(6,*) "Schmidt   : ",schmidt
@@ -563,25 +564,51 @@ Subroutine cleantopo(topounit,toponame,topoout,lsmskin,oceanin,sibdim)
 
 Implicit None
 
+include 'netcdf.inc'
+
 Integer, intent(in) :: topounit
-Integer, dimension(1:2), intent(in) :: sibdim
-Integer ilout,ierr,ia,ib
+Integer, dimension(2), intent(in) :: sibdim
+integer, dimension(3) :: spos,npos
+integer, dimension(3) :: dimid
+Integer ilout,ierr,ia,ib,i
+integer ncid,lnctopo,varid
 Character(len=*), intent(in) :: toponame,topoout
 Character*80 formout
 Character*47 dc
-Real, dimension(1:sibdim(1),1:sibdim(2)), intent(in) :: lsmskin,oceanin
-Real, dimension(1:sibdim(1),1:sibdim(2)) :: topo,sd,lsmsk
+Real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsmskin,oceanin
+Real, dimension(sibdim(1),sibdim(2)) :: topo,sd,lsmsk
+real, dimension(sibdim(2)) :: dum
 Real ra,rb,rc,rd
 ilout=Min(sibdim(1),30) ! To be compatiable with terread
 
 Write(6,*) "Adjust topography data for consistancy with land-sea mask"
 
-Open(topounit,FILE=toponame,FORM='formatted',STATUS='old',IOSTAT=ierr)
-Read(topounit,*,IOSTAT=ierr) ia,ib,ra,rb,rc,rd,dc
-Read(topounit,*,IOSTAT=ierr) topo ! Topography data
-Read(topounit,*,IOSTAT=ierr) lsmsk ! land/sea mask (to be replaced)
-Read(topounit,*,IOSTAT=ierr) sd ! Topography standard deviation
-Close(topounit)
+ierr=nf_open(toponame,nf_nowrite,ncid)
+if (ierr==0) then
+  lnctopo=1
+  spos=1
+  npos(1)=sibdim(1)
+  npos(2)=sibdim(2)
+  npos(3)=1
+  ierr=nf_get_att_real(ncid,nf_global,'lon0',ra)
+  ierr=nf_get_att_real(ncid,nf_global,'lat0',rb)
+  ierr=nf_get_att_real(ncid,nf_global,'schmidt',rc)
+  ierr=nf_inq_varid(ncid,'zs',varid)
+  ierr=nf_get_vara_real(ncid,varid,spos,npos,topo)
+  ierr=nf_inq_varid(ncid,'lsm',varid)
+  ierr=nf_get_vara_real(ncid,varid,spos,npos,lsmsk)
+  ierr=nf_inq_varid(ncid,'tsd',varid)
+  ierr=nf_get_vara_real(ncid,varid,spos,npos,sd)
+  ierr=nf_close(ncid)
+else
+  lnctopo=0
+  Open(topounit,FILE=toponame,FORM='formatted',STATUS='old',IOSTAT=ierr)
+  Read(topounit,*,IOSTAT=ierr) ia,ib,ra,rb,rc,rd,dc
+  Read(topounit,*,IOSTAT=ierr) topo ! Topography data
+  Read(topounit,*,IOSTAT=ierr) lsmsk ! land/sea mask (to be replaced)
+  Read(topounit,*,IOSTAT=ierr) sd ! Topography standard deviation
+  Close(topounit)
+end if
 
 If (ierr.NE.0) then
   Write(6,*) "ERROR: Cannot read file ",trim(toponame)
@@ -589,23 +616,61 @@ If (ierr.NE.0) then
 End if
 
 lsmsk=Real(1-nint(lsmskin))
-where ((nint(oceanin).eq.1).and.(nint(lsmskin).eq.1))
+where ((nint(oceanin)==1).and.(nint(lsmskin)==1))
   topo(:,:)=0.
   sd(:,:)=0.
 end where
 
-Open(topounit,FILE=topoout,FORM='formatted',STATUS='replace',IOSTAT=ierr)
-Write(topounit,'(i4,i6,2f10.3,f6.3,f10.0," ",a39)',IOSTAT=ierr) ia,ib,ra,rb,rc,rd,dc
-Write(formout,'("(",i3,"f7.0)")',IOSTAT=ierr) ilout
-Write(topounit,formout,IOSTAT=ierr) topo ! Topography data
-Write(formout,'("(",i3,"f4.1)")',IOSTAT=ierr) ilout
-Write(topounit,formout,IOSTAT=ierr) lsmsk ! land/sea mask
-Write(formout,'("(",i3,"f6.0)")',IOSTAT=ierr) ilout
-Write(topounit,formout,IOSTAT=ierr) sd ! Topography standard deviation
-Close(topounit)
+if (lnctopo==1) then
+  ierr=nf_create(topoout,nf_clobber,ncid)
+  if (ierr/=0) then
+    write(6,*) "ERROR creating output topography file ",ierr
+    stop
+  end if
+  ierr=nf_def_dim(ncid,'longitude',sibdim(1),dimid(1))
+  ierr=nf_def_dim(ncid,'latitude',sibdim(2),dimid(2))
+  ierr=nf_def_dim(ncid,'time',nf_unlimited,dimid(3))
+  ierr=nf_def_var(ncid,'longitude',nf_float,1,dimid(1),varid)
+  ierr=nf_def_var(ncid,'latitude',nf_float,1,dimid(2),varid)
+  ierr=nf_def_var(ncid,'time',nf_float,1,dimid(3),varid)
+  ierr=nf_def_var(ncid,'zs',nf_float,3,dimid(1:3),varid)
+  ierr=nf_def_var(ncid,'lsm',nf_float,3,dimid(1:3),varid)
+  ierr=nf_def_var(ncid,'tsd',nf_float,3,dimid(1:3),varid)
+  ierr=nf_put_att_real(ncid,nf_global,'lon0',nf_real,1,ra)
+  ierr=nf_put_att_real(ncid,nf_global,'lat0',nf_real,1,rb)
+  ierr=nf_put_att_real(ncid,nf_global,'schmidt',nf_real,1,rc)
+  ierr=nf_enddef(ncid)
+  do i=1,sibdim(2)
+    dum(i)=real(i)
+  end do
+  ierr=nf_inq_varid(ncid,'longitude',varid)
+  ierr=nf_put_vara_real(ncid,varid,spos(1),npos(1),dum)
+  ierr=nf_inq_varid(ncid,'latitude',varid)
+  ierr=nf_put_vara_real(ncid,varid,spos(2),npos(2),dum)
+  ierr=nf_inq_varid(ncid,'time',varid)
+  dum(1)=0.
+  ierr=nf_put_vara_real(ncid,varid,spos(3),npos(3),dum(1))
+  ierr=nf_inq_varid(ncid,'zs',varid)
+  ierr=nf_put_vara_real(ncid,varid,spos,npos,topo)
+  ierr=nf_inq_varid(ncid,'lsm',varid)
+  ierr=nf_put_vara_real(ncid,varid,spos,npos,lsmsk)
+  ierr=nf_inq_varid(ncid,'tsd',varid)
+  ierr=nf_put_vara_real(ncid,varid,spos,npos,sd)
+  ierr=nf_close(ncid)
+else
+  Open(topounit,FILE=topoout,FORM='formatted',STATUS='replace',IOSTAT=ierr)
+  Write(topounit,'(i4,i6,2f10.3,f6.3,f10.0," ",a39)',IOSTAT=ierr) ia,ib,ra,rb,rc,rd,dc
+  Write(formout,'("(",i3,"f7.0)")',IOSTAT=ierr) ilout
+  Write(topounit,formout,IOSTAT=ierr) topo ! Topography data
+  Write(formout,'("(",i3,"f4.1)")',IOSTAT=ierr) ilout
+  Write(topounit,formout,IOSTAT=ierr) lsmsk ! land/sea mask
+  Write(formout,'("(",i3,"f6.0)")',IOSTAT=ierr) ilout
+  Write(topounit,formout,IOSTAT=ierr) sd ! Topography standard deviation
+  Close(topounit)
+end if
 
 If (ierr.NE.0) then
-  Write(6,*) "ERROR: Cannot write file ",trim(toponame)
+  Write(6,*) "ERROR: Cannot write file ",trim(topoout)
   Stop
 End if
 
