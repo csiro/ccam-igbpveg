@@ -622,6 +622,8 @@ xmsk=.false.
 xmsk(nxa:nxb,nya:nyb)=sermsk(nxa:nxb,nya:nyb)
 if (nxc<nxd) then
   xmsk(nxc:nxd,nya:nyb)=xmsk(nxc:nxd,nya:nyb).or.sermsk(nxc:nxd,nya:nyb)
+  nxa=min(nxa,nxc)
+  nxb=max(nxb,nxd)
 end if
 where(xmsk(nxa:nxb,nya:nyb))
   dismsk(nxa:nxb,nya:nyb)=abs(rlld(i,j,1)-rlld(nxa:nxb,nya:nyb,1))
