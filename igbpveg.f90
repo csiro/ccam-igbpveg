@@ -201,11 +201,11 @@ call readtopography(tunit,fname(1),sibdim,lonlat,schmidt,dsx,header)
 write(6,*) "Dimension : ",sibdim
 write(6,*) "lon0,lat0 : ",lonlat
 write(6,*) "Schmidt   : ",schmidt
-allocate(gridout(1:sibdim(1),1:sibdim(2)),rlld(1:sibdim(1),1:sibdim(2),1:2))
-allocate(albvisdata(1:sibdim(1),1:sibdim(2)),oceandata(1:sibdim(1),1:sibdim(2)))
-allocate(albnirdata(1:sibdim(1),1:sibdim(2)))
-allocate(soildata(1:sibdim(1),1:sibdim(2),0:8),lsdata(1:sibdim(1),1:sibdim(2)))
-allocate(urbandata(1:sibdim(1),1:sibdim(2)),landdata(1:sibdim(1),1:sibdim(2),0:17+16*mthrng))
+allocate(gridout(sibdim(1),sibdim(2)),rlld(sibdim(1),sibdim(2),1:2))
+allocate(albvisdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
+allocate(albnirdata(sibdim(1),sibdim(2)))
+allocate(soildata(sibdim(1),sibdim(2),0:8),lsdata(sibdim(1),sibdim(2)))
+allocate(urbandata(sibdim(1),sibdim(2)),landdata(sibdim(1),sibdim(2),0:17+16*mthrng))
 
 ! Determine lat/lon to CC mapping
 call ccgetgrid(rlld,gridout,sibdim,lonlat,schmidt,ds)
@@ -237,30 +237,18 @@ else
 end if
 
 
-write(6,*) "clean urban data"
+write(6,*) "Clean urban data"
 urbandata=min(urbandata,(1.-lsdata))
 
 ! Clean-up soil, lai, veg, albedo and urban data
 write(6,*) "Clean landuse data"
-call cleanigbp(landdata,lsdata,rlld,sibdim,mthrng,soildata,albvisdata,albnirdata)
+call cleanigbp(landdata,lsdata,rlld,sibdim,mthrng)
 write(6,*) "Clean soil data"
 call cleanreal(soildata,8,lsdata,rlld,sibdim)
-write(6,*) "Clean albedo data"
-allocate(tmp(sibdim(1),sibdim(2),0:1))
-tmp(:,:,0)=albvisdata
-tmp(:,:,1)=albnirdata
-call cleanreal(tmp,1,lsdata,rlld,sibdim)
-albvisdata=tmp(:,:,0)
-albnirdata=tmp(:,:,1)
-deallocate(tmp)
-
-deallocate(gridout,oceandata)
-allocate(rdata(sibdim(1),sibdim(2),mthrng),idata(sibdim(1),sibdim(2)))
-allocate(vfrac(sibdim(1),sibdim(2),5),vtype(sibdim(1),sibdim(2),5))
-allocate(vlai(sibdim(1),sibdim(2),5))
-
 write(6,*) "Calculate soil texture"
+allocate(idata(sibdim(1),sibdim(2)),tmp(sibdim(1),sibdim(2),0:1))
 call calsoilnear(landdata,soildata,lsdata,sibdim,idata)
+write(6,*) "Clean albedo data"
 where (lsdata(:,:)>=0.5)
   albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
   albnirdata(:,:)=0.08 ! 0.20 in Masson (2003)
@@ -268,6 +256,16 @@ else where (idata==9)
   albvisdata(:,:)=0.80
   albnirdata(:,:)=0.40
 end where
+tmp(:,:,0)=albvisdata
+tmp(:,:,1)=albnirdata
+call cleanreal(tmp,1,lsdata,rlld,sibdim)
+albvisdata=tmp(:,:,0)
+albnirdata=tmp(:,:,1)
+
+deallocate(tmp,gridout,oceandata)
+allocate(rdata(sibdim(1),sibdim(2),mthrng))
+allocate(vfrac(sibdim(1),sibdim(2),5),vtype(sibdim(1),sibdim(2),5))
+allocate(vlai(sibdim(1),sibdim(2),5))
 
 write(6,*) "Ceate output file"
 dimnum(1:2)=sibdim(1:2) ! CC grid dimensions
@@ -490,17 +488,13 @@ end
 ! clean land data
 !
 
-subroutine cleanigbp(dataout,lsdata,rlld,sibdim,mthrng, &
-                     soildata,visdata,nirdata)
+subroutine cleanigbp(dataout,lsdata,rlld,sibdim,mthrng)
 
 implicit none
 
 integer, intent(in) :: mthrng
 integer, dimension(2), intent(in) :: sibdim
 real, dimension(sibdim(1),sibdim(2),0:17+16*mthrng), intent(inout) :: dataout
-real, dimension(sibdim(1),sibdim(2),0:8), intent(inout) :: soildata
-real, dimension(sibdim(1),sibdim(2)), intent(inout) :: visdata
-real, dimension(sibdim(1),sibdim(2)), intent(inout) :: nirdata
 real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsdata
 real, dimension(sibdim(1),sibdim(2),2), intent(in) :: rlld
 real, dimension(sibdim(1),sibdim(2),0:17+16*mthrng) :: datain
@@ -524,15 +518,6 @@ do ilon=1,sibdim(1)
         call findnear(pxy,ilon,ilat,sermsk,rlld,sibdim)
         dataout(ilon,ilat,1:16)=datain(pxy(1),pxy(2),1:16)
         dataout(ilon,ilat,18:)=datain(pxy(1),pxy(2),18:)
-        if (sum(soildata(ilon,ilat,:))<=0.) then
-          soildata(ilon,ilat,:)=soildata(pxy(1),pxy(2),:)
-        end if
-        if (visdata(ilon,ilat)<=0.) then
-          visdata(ilon,ilat)=visdata(pxy(1),pxy(2))
-        end if
-        if (nirdata(ilon,ilat)<=0.) then
-          nirdata(ilon,ilat)=nirdata(pxy(1),pxy(2))
-        end if
       end if
       nsum=sum(dataout(ilon,ilat,1:16))
       dataout(ilon,ilat,1:16)=dataout(ilon,ilat,1:16)*max(1.-lsdata(ilon,ilat),0.)/nsum
@@ -569,10 +554,10 @@ implicit none
 
 integer, intent(in) :: num
 integer, dimension(1:2), intent(in) :: sibdim
-real, dimension(1:sibdim(1),1:sibdim(2),0:num), intent(inout) :: dataout
-real, dimension(1:sibdim(1),1:sibdim(2)), intent(in) :: lsdata
-real, dimension(1:sibdim(1),1:sibdim(2),1:2), intent(in) :: rlld
-real, dimension(1:sibdim(1),1:sibdim(2),0:num) :: datain
+real, dimension(sibdim(1),sibdim(2),0:num), intent(inout) :: dataout
+real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsdata
+real, dimension(sibdim(1),sibdim(2),1:2), intent(in) :: rlld
+real, dimension(sibdim(1),sibdim(2),0:num) :: datain
 logical, dimension(1:sibdim(1),1:sibdim(2)) :: sermsk
 integer ilon,ilat,pxy(2)
 real nsum

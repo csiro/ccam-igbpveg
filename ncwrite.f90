@@ -173,7 +173,11 @@ Else
 End if
 
 ! Create NetCDF file
+#ifdef usenc3
 status=nf_create(outfile,nf_clobber,ncidarr(0))
+#else
+status=nf_create(outfile,nf_netcdf4,ncidarr(0))
+#endif
 If (status /= nf_noerr) Then
   Write(6,*) "ERROR: Error opening NetCDF file (",status,")"
   Stop
