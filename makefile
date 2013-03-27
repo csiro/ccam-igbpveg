@@ -1,5 +1,5 @@
 FF = ifort
-XFLAGS = -O
+XFLAGS = -O -xHost
 INC = -I $(NETCDF_ROOT)/include
 LIBS = -L $(NETCDF_ROOT)/lib -L $(HDF5_HOME)/lib -lnetcdf -lnetcdff -lhdf5 -lhdf5_hl
 

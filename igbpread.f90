@@ -1515,7 +1515,7 @@ Return
 End
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate zobler soil texture from fao
+! Calculate zobler soil texture from FAO
 !
 
 subroutine calsoilnear(landdata,soildata,lsdata,sibdim,tdata)
