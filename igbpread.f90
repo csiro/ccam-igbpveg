@@ -14,19 +14,19 @@ Use ccinterp
 Implicit None
 
 Integer, intent(in) :: sibsize,num,binlimit,month
-Integer, dimension(1:2), intent(in) :: sibdim
-Integer, dimension(1:sibdim(1),1:sibdim(2)) :: countn
-Integer, dimension(1:2) :: lldim,lldim_x,llstore,pxy
+Integer, dimension(2), intent(in) :: sibdim
+Integer, dimension(sibdim(1),sibdim(2)) :: countn
+Integer, dimension(2) :: lldim,lldim_x,llstore,pxy
 Integer nscale,nscale_x,nface,subsec,mode,tmp
 Integer i,j,k,lci,lcj,nx,ny,imth,mthrng,netcount
 Integer basesize,scalelimit,minscale
 Character(len=*), intent(in) :: datatype
-Real, dimension(1:sibdim(1),1:sibdim(2),0:num), intent(out) :: dataout
-Real, dimension(1:sibdim(1),1:sibdim(2)), intent(in) :: grid
-Real, dimension(1:sibdim(1),1:sibdim(2),1:2), intent(in) :: tlld
-Real, dimension(1:sibdim(1),1:sibdim(2),1:2) :: rlld
-Real, dimension(1:sibdim(1),1:sibdim(2)) :: zsum
-Real, dimension(1:2), intent(in) :: glonlat
+Real, dimension(sibdim(1),sibdim(2),0:num), intent(out) :: dataout
+Real, dimension(sibdim(1),sibdim(2)), intent(in) :: grid
+Real, dimension(sibdim(1),sibdim(2),2), intent(in) :: tlld
+Real, dimension(sibdim(1),sibdim(2),2) :: rlld
+Real, dimension(sibdim(1),sibdim(2)) :: zsum
+Real, dimension(2), intent(in) :: glonlat
 Real, dimension(:,:,:), allocatable :: coverout
 Real, dimension(1:2) :: latlon
 Real, dimension(1:2,1:2) :: sll
@@ -36,8 +36,9 @@ Real aglon,aglat,alci,alcj,serlon,serlat,slonn,slatx,elon,elat,tscale,baselon
 Real ipol,callon,callat,indexlon,indexlat
 Logical, intent(in) :: fastigbp,ozlaipatch
 Logical, dimension(:,:), allocatable :: sermask,sermask2
+logical, dimension(sibdim(1),sibdim(2)) :: ltest
 
-if (month.eq.0) then
+if (month==0) then
   mthrng=12
 else
   mthrng=1
@@ -51,13 +52,13 @@ nscale=999
 
 baselon=real(int(glonlat(1)-180.))
 rlld=tlld
-Do While (Any(rlld(:,:,1).LT.baselon))
-  Where (rlld(:,:,1).LT.baselon)
+Do While (Any(rlld(:,:,1)<baselon))
+  Where (rlld(:,:,1)<baselon)
     rlld(:,:,1)=rlld(:,:,1)+360.
   End where
 End do
-Do While (Any(rlld(:,:,1).GT.(baselon+360.)))
-  Where (rlld(:,:,1).GT.(baselon+360.))
+Do While (Any(rlld(:,:,1)>(baselon+360.)))
+  Where (rlld(:,:,1)>(baselon+360.))
     rlld(:,:,1)=rlld(:,:,1)-360.
   End where
 End do
@@ -84,10 +85,11 @@ If (fastigbp) then
 
   ! Step over scales
   mode=0
-  Do While (Any(countn.EQ.0).AND.(nscale.GT.scalelimit))
+  Do While (Any(countn==0).AND.nscale>scalelimit)
 
     latlon=(/ baselon, 90. /)
-    Call findsmallscale(nscale,scalelimit,latlon,llstore,grid,(countn.EQ.0),rlld,subsec,sll,sibsize,sibdim)
+    ltest=countn==0
+    Call findsmallscale(nscale,scalelimit,latlon,llstore,grid,ltest,rlld,subsec,sll,sibsize,sibdim)
 
     slonn=sll(1,1)
     slatx=sll(2,2)
@@ -100,7 +102,7 @@ If (fastigbp) then
     Write(6,*) 'sll          = ',sll
     Write(6,*) 'llstore      = ',llstore
 
-    If (subsec.NE.0) then
+    If (subsec/=0) then
 
       Do nx=1,subsec
         Do ny=1,subsec
@@ -115,7 +117,8 @@ If (fastigbp) then
           Write(6,*) 'orig lldim   = ',lldim
 
           ! Check if there are any points of interest on this tile
-          Call searchdim(mode,sll,nscale,real(nscale),latlon,lldim,grid,(countn.EQ.0),rlld,sibdim)
+	  ltest=countn==0
+          Call searchdim(mode,sll,nscale,real(nscale),latlon,lldim,grid,ltest,rlld,sibdim)
           Call scaleconvert(nscale,tmp,lldim,sll,sibsize)
           mode=2
       
@@ -126,18 +129,18 @@ If (fastigbp) then
           Write(6,*) 'mod lldim    = ',lldim
 
           ! Bin
-          If (All(lldim.GT.0)) then
+          If (All(lldim>0)) then
 
             Allocate(coverout(lldim(1),lldim(2),0:num))
 	  
             Select Case(datatype)
-	          Case('land')
+              Case('land')
                 Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch)
               Case('soil')
-	            Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
+                Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
                 Call soilread(latlon,nscale_x,lldim_x,coverout)
               Case('albvis','albnir')
-	            Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
+                Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
                 Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype)
               Case DEFAULT
                 Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
@@ -145,7 +148,7 @@ If (fastigbp) then
             End Select
 
             Write(6,*) 'Start bin'
-            if (datatype.eq.'land') then
+            if (datatype=='land') then
               Do j=1,lldim(2)
                 Do i=1,lldim(1)              
                   aglon=callon(latlon(1),i,nscale)
@@ -154,21 +157,21 @@ If (fastigbp) then
                   lci = nint(alci)
                   lcj = nint(alcj)
                   lcj = lcj+nface*sibdim(1)
-                  If (grid(lci,lcj).GE.real(minscale)) then
-                    If (sum(abs(coverout(i,j,:))).le.0.01) then
-	                  If (countn(lci,lcj).EQ.0) Then
+                  If (grid(lci,lcj)>=real(minscale)) then
+                    If (sum(abs(coverout(i,j,:)))<=0.01) then
+                      If (countn(lci,lcj)==0) Then
                         dataout(lci,lcj,:)=-1. ! Missing value?
                         countn(lci,lcj)=1
                       End if
                     Else
-                      If (dataout(lci,lcj,0).LT.0.) Then
+                      If (dataout(lci,lcj,0)<0.) Then
                         dataout(lci,lcj,:)=0. ! reset missing point after finding non-trival data
                         countn(lci,lcj)=0
                       End If
                       dataout(lci,lcj,:17)=dataout(lci,lcj,:17)+coverout(i,j,:17)
-                      where(coverout(i,j,18:).eq.0..and.countn(lci,lcj).gt.0)
+                      where(coverout(i,j,18:)==0..and.countn(lci,lcj)>0)
                         dataout(lci,lcj,18:)=dataout(lci,lcj,18:)*real(countn(lci,lcj)+1)/real(countn(lci,lcj))
-                      elsewhere (dataout(lci,lcj,18:).eq.0.)
+                      elsewhere (dataout(lci,lcj,18:)==0.)
                         dataout(lci,lcj,18:)=coverout(i,j,18:)*real(countn(lci,lcj)+1)
                       elsewhere
                         dataout(lci,lcj,18:)=dataout(lci,lcj,18:)+coverout(i,j,18:)
@@ -187,14 +190,14 @@ If (fastigbp) then
                   lci = nint(alci)
                   lcj = nint(alcj)
                   lcj = lcj+nface*sibdim(1)
-                  If (grid(lci,lcj).GE.real(minscale)) then
-                    If (sum(abs(coverout(i,j,:))).le.0.01) then
-	                  If (countn(lci,lcj).EQ.0) Then
+                  If (grid(lci,lcj)>=real(minscale)) then
+                    If (sum(abs(coverout(i,j,:)))<=0.01) then
+                      If (countn(lci,lcj)==0) Then
                         dataout(lci,lcj,:)=-1. ! Missing value?
                         countn(lci,lcj)=1
                       End if
                     Else
-                      If (dataout(lci,lcj,0).LT.0.) Then
+                      If (dataout(lci,lcj,0)<0.) Then
                         dataout(lci,lcj,:)=0. ! reset missing point after finding non-trival data
                         countn(lci,lcj)=0
                       End If
@@ -245,7 +248,8 @@ nscale=scalelimit
 
 latlon=(/ baselon, 90. /)
 llstore=(/ 43200/nscale , 21600/nscale /)
-Call searchdim(4,sll,nscale,0.,latlon,llstore,grid,(countn.EQ.0),rlld,sibdim)
+ltest=countn==0
+Call searchdim(4,sll,nscale,0.,latlon,llstore,grid,ltest,rlld,sibdim)
 Call scaleconvert(nscale,subsec,llstore,sll,sibsize)
 slonn=sll(1,1)
 slatx=sll(2,2)
@@ -255,7 +259,7 @@ Write(6,*) 'subsec       = ',subsec
 Write(6,*) 'sll          = ',sll
 Write(6,*) 'llstore      = ',llstore
 
-If (subsec.NE.0) then
+If (subsec/=0) then
   Do nx=1,subsec
     Do ny=1,subsec
 
@@ -268,13 +272,14 @@ If (subsec.NE.0) then
       Write(6,*) 'orig lldim   = ',lldim
 
       ! overlap tiles for interpolation
-      If (nx.NE.subsec) lldim(1)=lldim(1)+1
-      If (ny.NE.subsec) lldim(2)=lldim(2)+1
+      If (nx/=subsec) lldim(1)=lldim(1)+1
+      If (ny/=subsec) lldim(2)=lldim(2)+1
     
       ! Check if there are any points of interest on this tile
-      Call searchdim(4,sll,nscale,0.,latlon,lldim,grid,(countn.EQ.0),rlld,sibdim)
+      ltest=countn==0
+      Call searchdim(4,sll,nscale,0.,latlon,lldim,grid,ltest,rlld,sibdim)
       Call scaleconvert(nscale,tmp,lldim,sll,sibsize)
-      If (Any(lldim(:).EQ.1)) lldim=0
+      If (Any(lldim(:)==1)) lldim=0
       
       latlon(1)=sll(1,1)
       latlon(2)=sll(2,2)
@@ -282,7 +287,7 @@ If (subsec.NE.0) then
       Write(6,*) 'mod latlon   = ',latlon
       Write(6,*) 'mod lldim    = ',lldim
 
-      If ((lldim(1).GT.0).AND.(lldim(2).GT.0)) then
+      If (lldim(1)>0.AND.lldim(2)>0) then
 
         Allocate(coverout(lldim(1),lldim(2),0:num))
 	
@@ -302,20 +307,22 @@ If (subsec.NE.0) then
 
         Do lcj=1,sibdim(2)
           Do lci=1,sibdim(1)        
-            If (countn(lci,lcj).EQ.0) then
+            If (countn(lci,lcj)==0) then
               aglon=rlld(lci,lcj,1)
               aglat=rlld(lci,lcj,2)
               serlon=indexlon(aglon,latlon(1),nscale)
               serlat=indexlat(aglat,latlon(2),nscale)
               i=nint(serlon)
-              if (i>lldim(1)) i=i-lldim(1)
-              j=min(max(nint(serlat),1),lldim(2))
-              if (any(coverout(i,j,:).gt.0.)) then
-                dataout(lci,lcj,:)=coverout(i,j,:)
-                countn(lci,lcj)=1
-              else
-                dataout(lci,lcj,:)=-1.
-                countn(lci,lcj)=1
+	      j=nint(serlat)
+	      if (i>0.and.i<=lldim(1).and.j>0.and.j<=lldim(2)) then
+                if (any(coverout(i,j,:)>0.)) then
+                  dataout(lci,lcj,:)=coverout(i,j,:)
+                  countn(lci,lcj)=1
+                else
+                  ! missing
+                  dataout(lci,lcj,:)=-1.
+                  countn(lci,lcj)=1
+                end if
               end if
             End If
           End Do
@@ -334,45 +341,35 @@ End If
 
 Deallocate(sermask)
 
-
-If (Any(countn.LT.1)) then
-  Write(6,*) "Replace missing points"
-  Allocate(sermask(1:sibdim(1),1:sibdim(2)))
-  sermask(:,:)=countn(:,:).GT.0
-  If (Any(sermask)) then
-    Do lci=1,sibdim(1)
-      Do lcj=1,sibdim(2)
-        If (countn(lci,lcj).EQ.0) then
-          call findnear(pxy,lci,lcj,sermask,rlld,sibdim)
-          dataout(lci,lcj,:)=dataout(pxy(1),pxy(2),:)
-     	  countn(lci,lcj)=countn(pxy(1),pxy(2))
-        End if
-      End do
-    End Do
-  Else
-    Write(6,*) 'WARN: Cannot find any non-trivial points'
-    Write(6,*) '      Assume data is trivial'
-    dataout=0.
-    countn=1
-  End if	
-  Deallocate(sermask)
+If (Any(countn<1)) then
+  Write(6,*) "Mark missing points"
+  Do lci=1,sibdim(1)
+    Do lcj=1,sibdim(2)
+      If (countn(lci,lcj)==0) then
+        dataout(lci,lcj,:)=-1.
+        countn(lci,lcj)=1.
+      End if
+    End do
+  End Do
 End If
 
-where (dataout.lt.0.) dataout=0.
+! clear missing values (e.g., ocean points)
+! These values should be fixed in igbpveg.f90
+dataout=max(dataout,0.)
 
 Do k=0,num
   dataout(:,:,k)=dataout(:,:,k)/Real(countn)
 End Do
 
-if (datatype.eq.'land') then
+if (datatype=='land') then
   Allocate(sermask(1:sibdim(1),1:sibdim(2)),sermask2(1:sibdim(1),1:sibdim(2)))
   do k=1,16
-    sermask=dataout(:,:,k).gt.0.
+    sermask=dataout(:,:,k)>0.
     sermask2=sermask
     do lci=1,sibdim(1)
       do lcj=1,sibdim(2)
         if (sermask(lci,lcj)) then
-          if (any(dataout(lci,lcj,17+(k-1)*mthrng+1:17+k*mthrng).eq.0.)) then
+          if (any(dataout(lci,lcj,17+(k-1)*mthrng+1:17+k*mthrng)==0.)) then
             sermask2(lci,lcj)=.false.
           else
             sermask(lci,lcj)=.false.
@@ -396,8 +393,8 @@ if (datatype.eq.'land') then
         do lci=1,sibdim(1)
           do lcj=1,sibdim(2)
             i=1
-            do while(i.le.16.or..not.sermask2(lci,lcj))
-              if (all(dataout(lci,lcj,17+(i-1)*mthrng+1:17+i*mthrng).gt.0.)) then
+            do while(i<=16.or..not.sermask2(lci,lcj))
+              if (all(dataout(lci,lcj,17+(i-1)*mthrng+1:17+i*mthrng)>0.)) then
                 sermask2(lci,lcj)=.true.
               end if
               i=i+1
@@ -413,7 +410,7 @@ if (datatype.eq.'land') then
                 netlai=0.
                 netcount=0
                 do i=1,16
-                  if (all(dataout(pxy(1),pxy(2),17+(i-1)*mthrng+1:17+i*mthrng).gt.0.)) then
+                  if (all(dataout(pxy(1),pxy(2),17+(i-1)*mthrng+1:17+i*mthrng)>0.)) then
                     netlai(1:mthrng)=netlai(1:mthrng)+dataout(pxy(1),pxy(2),17+(i-1)*mthrng+1:17+i*mthrng)
                     netcount=netcount+1
                   end if
@@ -1193,7 +1190,7 @@ i=nint((sll(1,2)-sll(1,1))*120./Real(nscale))
 j=nint((sll(2,2)-sll(2,1))*120./Real(nscale))
 
 subsec=int(sqrt(real(i)*real(j)/(real(sibsize)**2)))+1
-If (subsec.LT.1) subsec=1
+subsec=max(subsec,1)
   
 lldim(1)=nint(real(i)/real(subsec))
 lldim(2)=nint(real(j)/real(subsec))
@@ -1259,7 +1256,7 @@ Implicit None
 Real, intent(in) :: x
 
 rndup=int(x)
-if (x.GT.real(rndup)) rndup=rndup+1
+if (x>real(rndup)) rndup=rndup+1
 
 Return
 End
@@ -1400,8 +1397,8 @@ sll(2,2)=-real(int((latlon(2)-sll(2,2))*120./real(nscale)))*real(nscale)/120.+la
 
 ! Check bounds
 Do i=1,2
-  If (sll(i,1).LT.templl(i,1)) sll(i,1)=templl(i,1)
-  If (sll(i,2).GT.templl(i,2)) sll(i,2)=templl(i,2)
+  sll(i,1)=max(sll(i,1),templl(i,1))
+  sll(i,2)=min(sll(i,2),templl(i,2))
 End Do
 
 ! Consistancy check
@@ -1439,7 +1436,7 @@ Logical, dimension(1:sibdim(1),1:sibdim(2)), intent(in) :: maskn
 tscale=Maxval(grid,maskn)
 
 mode=1
-If (nscale.EQ.999) mode=0
+If (nscale==999) mode=0
 
 maxscale=Int(0.5*real(nscale)/Real(scalelimit))*scalelimit
 maxscale=findfact(21600,maxscale,-scalelimit)
@@ -1449,31 +1446,31 @@ llstore=(/ 43200/maxscale , 21600/maxscale /)
 Call searchdim(mode,sll,maxscale,tscale,latlon,llstore,grid,maskn,rlld,sibdim)
 Call scaleconvert(maxscale,subsecmax,llstore,sll,sibsize)
 
-If (subsecmax.LT.1) Then
+If (subsecmax<1) Then
   Write(6,*) "WARN: Cannot locate unassigned points in findsmallscale"
   mode=0
   nscale=maxscale
 Else
   nscale=Int(Minval(grid,maskn)/Real(scalelimit))*scalelimit
   nscale=findfact(21600,nscale,-scalelimit)
-  If (nscale.LT.scalelimit) nscale=scalelimit
+  nscale=max(nscale,scalelimit)
   subsec=subsecmax+1
-  Do While (subsec.GT.subsecmax)
+  Do While (subsec>subsecmax)
     ! Get estimate of array size
     llstore=(/ 43200/nscale , 21600/nscale /)
     ! Calculate domain for search
     Call searchdim(mode,sll,nscale,tscale,latlon,llstore,grid,maskn,rlld,sibdim)
     ! Define number of points in domain and subdivide into tiles if array is too big
     Call scaleconvert(nscale,subsec,llstore,sll,sibsize)
-    If (subsec.GT.subsecmax) Then
+    If (subsec>subsecmax) Then
       nscale=nscale+scalelimit
       nscale=findfact(21600,nscale,scalelimit)
     End If
   End Do
 End If
 
-If (nscale.GT.maxscale) nscale=maxscale
-If (nscale.LT.scalelimit) nscale=scalelimit
+nscale=min(nscale,maxscale)
+nscale=max(nscale,scalelimit)
 
 
 llstore=(/ 43200/nscale , 21600/nscale /)
@@ -1498,15 +1495,15 @@ Integer z
 
 z=y
 
-If (z.EQ.0) Then
+If (z==0) Then
   findfact=1
   Return
 End If
 
-Do While (Mod(x,z).NE.0.)
+Do While (Mod(x,z)/=0.)
   z=z+delta
-  If (z.LT.1) z=1
-  If (z.GT.x) z=x
+  z=max(z,1)
+  z=min(z,x)
 End Do
 
 findfact=z
@@ -1532,7 +1529,7 @@ integer ilon,ilat,pos(1),i
 do ilon=1,sibdim(1)
   do ilat=1,sibdim(2)
     pos=Maxloc(landdata(ilon,ilat,1:17))
-    if (1-nint(lsdata(ilon,ilat)).eq.0) then
+    if (1-nint(lsdata(ilon,ilat))==0) then
       tdata(ilon,ilat)=0 ! water
     else if (pos(1).eq.15) then
       tdata(ilon,ilat)=9 ! ice

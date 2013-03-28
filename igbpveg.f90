@@ -17,7 +17,7 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  binlimit,month,ozlaipatch,          &
                  tile
 
-write(6,*) 'IGBPVEG - IGBP 1km to CC grid (FEB-13)'
+write(6,*) 'IGBPVEG - IGBP 1km to CC grid (MAR-13)'
 
 ! Read switches
 nopts=1
@@ -189,7 +189,7 @@ end if
 
 csize=returnoption('-s',options,nopts)
 read(csize,FMT=*,IOSTAT=ierr) sibsize
-if (ierr.NE.0) then
+if (ierr/=0) then
   write(6,*) 'ERROR: Invalid array size.  Must be an integer.'
   stop
 end if
@@ -201,16 +201,17 @@ call readtopography(tunit,fname(1),sibdim,lonlat,schmidt,dsx,header)
 write(6,*) "Dimension : ",sibdim
 write(6,*) "lon0,lat0 : ",lonlat
 write(6,*) "Schmidt   : ",schmidt
-allocate(gridout(sibdim(1),sibdim(2)),rlld(sibdim(1),sibdim(2),1:2))
+allocate(gridout(sibdim(1),sibdim(2)),rlld(sibdim(1),sibdim(2),2))
 allocate(albvisdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
 allocate(albnirdata(sibdim(1),sibdim(2)))
 allocate(soildata(sibdim(1),sibdim(2),0:8),lsdata(sibdim(1),sibdim(2)))
 allocate(urbandata(sibdim(1),sibdim(2)),landdata(sibdim(1),sibdim(2),0:17+16*mthrng))
+allocate(idata(sibdim(1),sibdim(2)),tmp(sibdim(1),sibdim(2),0:1))
 
 ! Determine lat/lon to CC mapping
 call ccgetgrid(rlld,gridout,sibdim,lonlat,schmidt,ds)
 
-! Read sib data
+! Read igbp data
 call getdata(landdata,lonlat,gridout,rlld,sibdim,17+16*mthrng,sibsize,'land',fastigbp,ozlaipatch,binlimit,month)
 call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month)
 call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month)
@@ -246,10 +247,9 @@ call cleanigbp(landdata,lsdata,rlld,sibdim,mthrng)
 write(6,*) "Clean soil data"
 call cleanreal(soildata,8,lsdata,rlld,sibdim)
 write(6,*) "Calculate soil texture"
-allocate(idata(sibdim(1),sibdim(2)),tmp(sibdim(1),sibdim(2),0:1))
 call calsoilnear(landdata,soildata,lsdata,sibdim,idata)
 write(6,*) "Clean albedo data"
-where (lsdata(:,:)>=0.5)
+where (lsdata>=0.5)
   albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
   albnirdata(:,:)=0.08 ! 0.20 in Masson (2003)
 else where (idata==9)
@@ -262,7 +262,7 @@ call cleanreal(tmp,1,lsdata,rlld,sibdim)
 albvisdata=tmp(:,:,0)
 albnirdata=tmp(:,:,1)
 
-deallocate(tmp,gridout,oceandata)
+deallocate(gridout,oceandata,soildata,tmp)
 allocate(rdata(sibdim(1),sibdim(2),mthrng))
 allocate(vfrac(sibdim(1),sibdim(2),5),vtype(sibdim(1),sibdim(2),5))
 allocate(vlai(sibdim(1),sibdim(2),5))
@@ -421,7 +421,7 @@ do tt=1,mthrng
 
 end do
 
-deallocate(landdata,soildata,rdata,urbandata,lsdata)
+deallocate(landdata,rdata,urbandata,lsdata)
 deallocate(vfrac,vtype,rlld,idata,vlai)
 
 return
@@ -438,48 +438,32 @@ implicit none
 integer, intent(in) :: mthrng
 integer, dimension(1:2), intent(in) :: sibdim
 real, dimension(sibdim(1),sibdim(2),1:2), intent(in) :: rlld
-real, dimension(1:sibdim(1),1:sibdim(2),0:17+16*mthrng), intent(inout) :: landdata
-real, dimension(:,:,:), allocatable :: landtemp
-logical, dimension(1:sibdim(1),1:sibdim(2)) :: sermsk
+real, dimension(sibdim(1),sibdim(2),0:17+16*mthrng), intent(inout) :: landdata
+logical, dimension(1:sibdim(1),1:sibdim(2)) :: allmsk
 integer i,ilon,ilat,pxy(2)
 real nsum,wsum
 
-! this array is generally too large for the stack
-allocate(landtemp(sibdim(1),sibdim(2),0:17+16*mthrng))
-
 landdata(:,:,13)=0. ! remove urban
-landtemp=landdata
 
-sermsk=sum(landdata(:,:,1:16),3)>0.
-if (.not.any(sermsk)) return
+allmsk=sum(landdata(:,:,0:17),3)>0.
+if (.not.any(allmsk)) return
 
-do ilon=1,sibdim(1)
-  do ilat=1,sibdim(2)
+do ilat=1,sibdim(2)
+  do ilon=1,sibdim(1)
     wsum=landdata(ilon,ilat,0)+landdata(ilon,ilat,17) ! water
     nsum=sum(landdata(ilon,ilat,1:16))                ! land
-    if (nint(wsum)==0) then
-      if (nsum<=0.) then
-        call findnear(pxy,ilon,ilat,sermsk,rlld,sibdim)
-        landdata(ilon,ilat,1:16)=landtemp(pxy(1),pxy(2),1:16)  
-        landdata(ilon,ilat,18:)=landtemp(pxy(1),pxy(2),18:)
-        nsum=sum(landdata(ilon,ilat,1:16))
-      end if
-      landdata(ilon,ilat,1:16)=landdata(ilon,ilat,1:16)*(1.-wsum)/nsum
+    if (wsum+nsum<=0.) then
+      ! missing
+      call findnear(pxy,ilon,ilat,allmsk,rlld,sibdim)    
+      landdata(ilon,ilat,:)=landdata(pxy(1),pxy(2),:)
     else
-      if (nsum>0.) then
-        landdata(ilon,ilat,1:16)=landdata(ilon,ilat,1:16)*(1.-wsum)/nsum
-      else
-        landdata(ilon,ilat,0)=landdata(ilon,ilat,0)/wsum
-        landdata(ilon,ilat,17)=landdata(ilon,ilat,17)/wsum
-      end if
+      landdata(ilon,ilat,1:16)=landdata(ilon,ilat,1:16)*(1.-wsum)/nsum
     end if
   end do
-  if (mod(ilon,10)==0.or.ilon==sibdim(1)) then
-    write(6,*) "Searching ",ilon,"/",sibdim(1)
+  if (mod(ilat,100)==0.or.ilat==sibdim(2)) then
+    write(6,*) "Searching ",ilat,"/",sibdim(2)
   end if
 end do
-
-deallocate (landtemp)
 
 return
 end
@@ -511,21 +495,21 @@ if (.not.any(sermsk)) then
   return
 end if
 
-do ilon=1,sibdim(1)
-  do ilat=1,sibdim(2)
-    if (1-nint(lsdata(ilon,ilat))==1) then
+do ilat=1,sibdim(2)
+  do ilon=1,sibdim(1)
+    if (lsdata(ilon,ilat)<0.5) then
       if (.not.sermsk(ilon,ilat)) then
         call findnear(pxy,ilon,ilat,sermsk,rlld,sibdim)
         dataout(ilon,ilat,1:16)=datain(pxy(1),pxy(2),1:16)
         dataout(ilon,ilat,18:)=datain(pxy(1),pxy(2),18:)
       end if
       nsum=sum(dataout(ilon,ilat,1:16))
-      dataout(ilon,ilat,1:16)=dataout(ilon,ilat,1:16)*max(1.-lsdata(ilon,ilat),0.)/nsum
+      dataout(ilon,ilat,1:16)=dataout(ilon,ilat,1:16)*(1.-lsdata(ilon,ilat))/nsum
     else
       dataout(ilon,ilat,1:16)=0.
       dataout(ilon,ilat,18:)=0.
     end if
-    if (1-nint(lsdata(ilon,ilat))==0) then
+    if (lsdata(ilon,ilat)>=0.5) then
       if (.not.ocnmsk(ilon,ilat)) then
         call findnear(pxy,ilon,ilat,ocnmsk,rlld,sibdim)
         dataout(ilon,ilat,0)=datain(pxy(1),pxy(2),0)
@@ -553,30 +537,30 @@ subroutine cleanreal(dataout,num,lsdata,rlld,sibdim)
 implicit none
 
 integer, intent(in) :: num
-integer, dimension(1:2), intent(in) :: sibdim
+integer, dimension(2), intent(in) :: sibdim
 real, dimension(sibdim(1),sibdim(2),0:num), intent(inout) :: dataout
 real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsdata
-real, dimension(sibdim(1),sibdim(2),1:2), intent(in) :: rlld
-real, dimension(sibdim(1),sibdim(2),0:num) :: datain
-logical, dimension(1:sibdim(1),1:sibdim(2)) :: sermsk
+real, dimension(sibdim(1),sibdim(2),2), intent(in) :: rlld
+logical, dimension(sibdim(1),sibdim(2)) :: sermsk
 integer ilon,ilat,pxy(2)
 real nsum
 
-datain=dataout
-
 sermsk=.true.
 do ilon=0,num
-  sermsk=sermsk.and.(datain(:,:,ilon)>0.)
+  sermsk=sermsk.and.(dataout(:,:,ilon)>0.)
 end do
 if (.not.any(sermsk)) return
 
-do ilon=1,sibdim(1)
-  do ilat=1,sibdim(2)
-    if ((1-nint(lsdata(ilon,ilat))==1).and.(.not.sermsk(ilon,ilat))) then
+do ilat=1,sibdim(2)
+  do ilon=1,sibdim(1)
+    if (lsdata(ilon,ilat)<0.5.and..not.sermsk(ilon,ilat)) then
       call findnear(pxy,ilon,ilat,sermsk,rlld,sibdim)
-      dataout(ilon,ilat,:)=datain(pxy(1),pxy(2),:)
+      dataout(ilon,ilat,:)=dataout(pxy(1),pxy(2),:)
     end if
   end do
+  if (mod(ilat,100)==0.or.ilat==sibdim(2)) then
+    write(6,*) "Cleaning ",ilat,"/",sibdim(2)
+  end if  
 end do
 
 return
