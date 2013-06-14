@@ -362,7 +362,7 @@ Do k=0,num
 End Do
 
 if (datatype=='land') then
-  Allocate(sermask(1:sibdim(1),1:sibdim(2)),sermask2(1:sibdim(1),1:sibdim(2)))
+  Allocate(sermask(sibdim(1),sibdim(2)),sermask2(sibdim(1),sibdim(2)))
   do k=1,16
     sermask=dataout(:,:,k)>0.
     sermask2=sermask

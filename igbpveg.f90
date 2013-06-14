@@ -551,16 +551,8 @@ do ilon=0,num
 end do
 if (.not.any(sermsk)) return
 
-do ilat=1,sibdim(2)
-  do ilon=1,sibdim(1)
-    if (lsdata(ilon,ilat)<0.5.and..not.sermsk(ilon,ilat)) then
-      call findnear(pxy,ilon,ilat,sermsk,rlld,sibdim)
-      dataout(ilon,ilat,:)=dataout(pxy(1),pxy(2),:)
-    end if
-  end do
-  if (mod(ilat,100)==0.or.ilat==sibdim(2)) then
-    write(6,*) "Cleaning ",ilat,"/",sibdim(2)
-  end if  
+do ilon=0,num
+  call fill_cc(dataout(:,:,ilon),sibdim(1),sermsk)
 end do
 
 return
