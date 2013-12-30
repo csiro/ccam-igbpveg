@@ -159,7 +159,7 @@ Character*45 header
 Character*9 formout
 Character*2 monthout
 real, dimension(:,:,:), allocatable :: vlai
-Real, dimension(:,:,:), allocatable :: landdata,soildata,rlld,rdata,vfrac,tmp
+Real, dimension(:,:,:), allocatable :: landdata,soildata,rlld,vfrac,tmp
 Real, dimension(:,:), allocatable :: gridout,lsdata,urbandata,oceandata,albvisdata,albnirdata
 Real, dimension(3,2) :: alonlat
 Real, dimension(2) :: lonlat
@@ -268,7 +268,6 @@ albvisdata=tmp(:,:,0)
 albnirdata=tmp(:,:,1)
 
 deallocate(soildata,tmp,rlld)
-allocate(rdata(sibdim(1),sibdim(2),mthrng))
 allocate(vfrac(sibdim(1),sibdim(2),5),vtype(sibdim(1),sibdim(2),5))
 allocate(vlai(sibdim(1),sibdim(2),5))
 
@@ -426,7 +425,7 @@ do tt=1,mthrng
 
 end do
 
-deallocate(landdata,rdata,urbandata,lsdata)
+deallocate(landdata,urbandata,lsdata)
 deallocate(vfrac,vtype,idata,vlai)
 
 return
