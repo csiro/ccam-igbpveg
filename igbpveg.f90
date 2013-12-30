@@ -201,21 +201,25 @@ call readtopography(tunit,fname(1),sibdim,lonlat,schmidt,dsx,header)
 write(6,*) "Dimension : ",sibdim
 write(6,*) "lon0,lat0 : ",lonlat
 write(6,*) "Schmidt   : ",schmidt
+
 allocate(gridout(sibdim(1),sibdim(2)),rlld(sibdim(1),sibdim(2),2))
-allocate(albvisdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
-allocate(albnirdata(sibdim(1),sibdim(2)))
-allocate(soildata(sibdim(1),sibdim(2),0:8),lsdata(sibdim(1),sibdim(2)))
-allocate(urbandata(sibdim(1),sibdim(2)),landdata(sibdim(1),sibdim(2),0:17+16*mthrng))
-allocate(idata(sibdim(1),sibdim(2)),tmp(sibdim(1),sibdim(2),0:1))
 
 ! Determine lat/lon to CC mapping
 call ccgetgrid(rlld,gridout,sibdim,lonlat,schmidt,ds)
+
+allocate(albvisdata(sibdim(1),sibdim(2)))
+allocate(albnirdata(sibdim(1),sibdim(2)))
+allocate(soildata(sibdim(1),sibdim(2),0:8))
+allocate(landdata(sibdim(1),sibdim(2),0:17+16*mthrng))
 
 ! Read igbp data
 call getdata(landdata,lonlat,gridout,rlld,sibdim,17+16*mthrng,sibsize,'land',fastigbp,ozlaipatch,binlimit,month)
 call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month)
 call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month)
 call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month)
+
+deallocate(gridout)
+allocate(urbandata(sibdim(1),sibdim(2)),lsdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
 
 write(6,*) "Preparing data..."
 ! extract urban cover and remove from landdata
@@ -234,9 +238,10 @@ if (igbplsmask) then
 else
   write(6,*) "Using topography land/sea mask"
   call gettopols(tunit,fname(1),lsdata,sibdim)
-  oceandata=lsdata
 end if
 
+deallocate(oceandata)
+allocate(idata(sibdim(1),sibdim(2)),tmp(sibdim(1),sibdim(2),0:1))
 
 write(6,*) "Clean urban data"
 urbandata=min(urbandata,(1.-lsdata))
@@ -262,7 +267,7 @@ call cleanreal(tmp,1,lsdata,rlld,sibdim)
 albvisdata=tmp(:,:,0)
 albnirdata=tmp(:,:,1)
 
-deallocate(gridout,oceandata,soildata,tmp)
+deallocate(soildata,tmp,rlld)
 allocate(rdata(sibdim(1),sibdim(2),mthrng))
 allocate(vfrac(sibdim(1),sibdim(2),5),vtype(sibdim(1),sibdim(2),5))
 allocate(vlai(sibdim(1),sibdim(2),5))
@@ -422,7 +427,7 @@ do tt=1,mthrng
 end do
 
 deallocate(landdata,rdata,urbandata,lsdata)
-deallocate(vfrac,vtype,rlld,idata,vlai)
+deallocate(vfrac,vtype,idata,vlai)
 
 return
 end
@@ -551,9 +556,7 @@ do ilon=0,num
 end do
 if (.not.any(sermsk)) return
 
-do ilon=0,num
-  call fill_cc(dataout(:,:,ilon),sibdim(1),sermsk)
-end do
+call fill_cc_a(dataout(:,:,:),sibdim(1),num+1,sermsk)
 
 return
 end

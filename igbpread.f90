@@ -117,7 +117,7 @@ If (fastigbp) then
           Write(6,*) 'orig lldim   = ',lldim
 
           ! Check if there are any points of interest on this tile
-	  ltest=countn==0
+          ltest=countn==0
           Call searchdim(mode,sll,nscale,real(nscale),latlon,lldim,grid,ltest,rlld,sibdim)
           Call scaleconvert(nscale,tmp,lldim,sll,sibsize)
           mode=2
@@ -313,8 +313,8 @@ If (subsec/=0) then
               serlon=indexlon(aglon,latlon(1),nscale)
               serlat=indexlat(aglat,latlon(2),nscale)
               i=nint(serlon)
-	      j=nint(serlat)
-	      if (i>0.and.i<=lldim(1).and.j>0.and.j<=lldim(2)) then
+              j=nint(serlat)
+              if (i>0.and.i<=lldim(1).and.j>0.and.j<=lldim(2)) then
                 if (any(coverout(i,j,:)>0.)) then
                   dataout(lci,lcj,:)=coverout(i,j,:)
                   countn(lci,lcj)=1
@@ -341,20 +341,9 @@ End If
 
 Deallocate(sermask)
 
-If (Any(countn<1)) then
-  Write(6,*) "Mark missing points"
-  Do lci=1,sibdim(1)
-    Do lcj=1,sibdim(2)
-      If (countn(lci,lcj)==0) then
-        dataout(lci,lcj,:)=-1.
-        countn(lci,lcj)=1.
-      End if
-    End do
-  End Do
-End If
-
 ! clear missing values (e.g., ocean points)
 ! These values should be fixed in igbpveg.f90
+countn=max(countn,1)
 dataout=max(dataout,0.)
 
 Do k=0,num
@@ -362,68 +351,66 @@ Do k=0,num
 End Do
 
 if (datatype=='land') then
-  Allocate(sermask(sibdim(1),sibdim(2)),sermask2(sibdim(1),sibdim(2)))
+  Allocate(sermask(1:sibdim(1),1:sibdim(2)),sermask2(1:sibdim(1),1:sibdim(2)))
   do k=1,16
-    sermask=dataout(:,:,k)>0.
-    sermask2=sermask
-    do lci=1,sibdim(1)
-      do lcj=1,sibdim(2)
-        if (sermask(lci,lcj)) then
-          if (any(dataout(lci,lcj,17+(k-1)*mthrng+1:17+k*mthrng)==0.)) then
-            sermask2(lci,lcj)=.false.
-          else
-            sermask(lci,lcj)=.false.
-          end if
-        end if
-      end do
-    end do
-    if (any(sermask)) then
-      Write(6,*) "Replace missing LAI for class ",k
-      if (any(sermask2)) then
-        do lci=1,sibdim(1)
-          do lcj=1,sibdim(2)
+    select case(k)
+      case(1:12,14)
+        sermask=dataout(:,:,k)>0.
+        sermask2=sermask
+        do lcj=1,sibdim(2)
+          do lci=1,sibdim(1)
             if (sermask(lci,lcj)) then
-              call findnear(pxy,lci,lcj,sermask2,rlld,sibdim)
-              dataout(lci,lcj,17+(k-1)*mthrng+1:17+k*mthrng)=dataout(pxy(1),pxy(2),17+(k-1)*mthrng+1:17+k*mthrng)
+              if (any(dataout(lci,lcj,17+(k-1)*mthrng+1:17+k*mthrng)==0.)) then
+                sermask2(lci,lcj)=.false.
+              else
+                sermask(lci,lcj)=.false.
+              end if
             end if
           end do
         end do
-      else
-        sermask2=.false.
-        do lci=1,sibdim(1)
-          do lcj=1,sibdim(2)
-            i=1
-            do while(i<=16.or..not.sermask2(lci,lcj))
-              if (all(dataout(lci,lcj,17+(i-1)*mthrng+1:17+i*mthrng)>0.)) then
-                sermask2(lci,lcj)=.true.
-              end if
-              i=i+1
-            end do
-          end do
-        end do
-        if (any(sermask2)) then
-          write(6,*) "Extended replace for missing LAI class ",k
-          do lci=1,sibdim(1)
+        if (any(sermask)) then ! missing LAI data
+          Write(6,*) "Replace missing LAI for class ",k
+          if (any(sermask2)) then
+            call fill_cc_a(dataout(:,:,17+(k-1)*mthrng+1:17+k*mthrng),sibdim(1),mthrng,sermask2)
+          else
+            sermask2=.false.
             do lcj=1,sibdim(2)
-              if (sermask(lci,lcj)) then
-                call findnear(pxy,lci,lcj,sermask2,rlld,sibdim)
-                netlai=0.
-                netcount=0
-                do i=1,16
-                  if (all(dataout(pxy(1),pxy(2),17+(i-1)*mthrng+1:17+i*mthrng)>0.)) then
-                    netlai(1:mthrng)=netlai(1:mthrng)+dataout(pxy(1),pxy(2),17+(i-1)*mthrng+1:17+i*mthrng)
-                    netcount=netcount+1
+              do lci=1,sibdim(1)
+                i=1
+                do while(i<=16.or..not.sermask2(lci,lcj))
+                  if (all(dataout(lci,lcj,17+(i-1)*mthrng+1:17+i*mthrng)>0.)) then
+                    sermask2(lci,lcj)=.true.
+                  end if
+                  i=i+1
+                end do
+              end do
+            end do
+            if (any(sermask2)) then
+              write(6,*) "Extended replace for missing LAI class ",k
+              do lcj=1,sibdim(2)
+                do lci=1,sibdim(1)
+                  if (sermask(lci,lcj)) then
+                    call findnear(pxy,lci,lcj,sermask2,rlld,sibdim)
+                    netlai=0.
+                    netcount=0
+                    do i=1,16
+                      if (all(dataout(pxy(1),pxy(2),17+(i-1)*mthrng+1:17+i*mthrng)>0.)) then
+                        netlai(1:mthrng)=netlai(1:mthrng)+dataout(pxy(1),pxy(2),17+(i-1)*mthrng+1:17+i*mthrng)
+                        netcount=netcount+1
+                      end if
+                    end do
+                    dataout(lci,lcj,17+(k-1)*mthrng+1:17+k*mthrng)=netlai(1:mthrng)/real(netcount)
                   end if
                 end do
-                dataout(lci,lcj,17+(k-1)*mthrng+1:17+k*mthrng)=netlai(1:mthrng)/real(netcount)
-              end if
-            end do
-          end do
-        else
-          write(6,*) "Only trivial LAI found"
+              end do
+            else
+              write(6,*) "Only trivial LAI found"
+            end if
+          end if
         end if
-      end if
-    end if
+      case default
+        dataout(:,:,17+(k-1)*mthrng+1:17+k*mthrng)=0.
+    end select
   end do
   Deallocate(sermask,sermask2)
 end if
@@ -577,27 +564,31 @@ Do ilat=1,lldim(2)
       do i=llint(1)+1,llint(1)+nscale
         ctmp=databuffer(i,j)
         ctmp=mod(ctmp+256,256)
-        if (ctmp.ge.0.and.ctmp.le.17) then
+        if (ctmp>=0.and.ctmp<=17) then
           coverout(ilon,ilat,ctmp)=coverout(ilon,ilat,ctmp)+1.
           ncount(ctmp)=ncount(ctmp)+1
-          if (ctmp.gt.0.and.ctmp.lt.17) then
+          select case(ctmp)
+           case(1:12,14)
             do imth=1,mthrng
               ltmp=lbuff(i,j,imth)
               ltmp=mod(ltmp+256,256)
-              if (ltmp.gt.0.and.ltmp.lt.100) then
+              if (ltmp>0.and.ltmp<100) then
                 coverout(ilon,ilat,17+(ctmp-1)*mthrng+imth)=coverout(ilon,ilat,17+(ctmp-1)*mthrng+imth)+real(ltmp)/10.
                 ncount(17+(ctmp-1)*mthrng+imth)=ncount(17+(ctmp-1)*mthrng+imth)+1
               end if
             end do
-          end if
+          case(13,15:16)
+            ! set LAI to zero
+            do imth=1,mthrng
+              ncount(17+(ctmp-1)*mthrng+imth)=ncount(17+(ctmp-1)*mthrng+imth)+1
+            end do
+          end select
         end if
       end do
     end do
     ntmp=sum(ncount(0:17))
     ncount(0:17)=ntmp
-    where(ncount.gt.0)
-      coverout(ilon,ilat,:)=coverout(ilon,ilat,:)/real(ncount)
-    end where
+    coverout(ilon,ilat,:)=coverout(ilon,ilat,:)/real(max(ncount,1))
   End Do
  
 End Do
@@ -735,7 +726,7 @@ Do ilat=1,lldim_4(2)
     databuffer(jin(2,1):jin(2,2),jlat)=datatemp(jout(2,1):jout(2,2))
   End Do
   
-  where (databuffer.lt.0)
+  where (databuffer<0)
     databuffer=databuffer+256
   end where
   
@@ -891,18 +882,26 @@ Do ilat=1,21600
     
     ctmp=databuffer(ilon)
     ctmp=mod(ctmp+256,256)
-    if (ctmp.ge.0.and.ctmp.le.17) then
+    if (ctmp>=0.and.ctmp<=17) then
       coverout(lci,lcj,ctmp)=coverout(lci,lcj,ctmp)+1.
       ncount(lci,lcj,ctmp)=ncount(lci,lcj,ctmp)+1
       countn(lci,lcj)=1
-      do imth=1,mthrng
-        ltmp=lbuff(ilon,imth)
-        ltmp=mod(ltmp+256,256)
-        if (ltmp.gt.0.and.ltmp.lt.100.and.ctmp.gt.0.and.ctmp.lt.17) then
-          coverout(lci,lcj,17+(ctmp-1)*mthrng+imth)=coverout(lci,lcj,17+(ctmp-1)*mthrng+imth)+real(ltmp)/10.
+      select case(ctmp)
+       case(1:12,14)
+        do imth=1,mthrng
+          ltmp=lbuff(ilon,imth)
+          ltmp=mod(ltmp+256,256)
+          if (ltmp>0.and.ltmp<100) then
+            coverout(lci,lcj,17+(ctmp-1)*mthrng+imth)=coverout(lci,lcj,17+(ctmp-1)*mthrng+imth)+real(ltmp)/10.
+            ncount(lci,lcj,17+(ctmp-1)*mthrng+imth)=ncount(lci,lcj,17+(ctmp-1)*mthrng+imth)+1
+          end if
+        end do
+       case(13,15:16)
+        do imth=1,mthrng
+          ! set LAI to zero
           ncount(lci,lcj,17+(ctmp-1)*mthrng+imth)=ncount(lci,lcj,17+(ctmp-1)*mthrng+imth)+1
-        end if
-      end do
+        end do
+      end select
     end if
     
   End Do
@@ -913,9 +912,7 @@ do lcj=1,sibdim(2)
     ncount(lci,lcj,0:17)=ntmp
   end do
 end do
-where(ncount.gt.0)
-  coverout=coverout/real(ncount)
-end where
+coverout=coverout/real(max(ncount,1))
 
 deallocate(lbuff)
 if (ozlaipatch) deallocate(laiin)
@@ -1051,7 +1048,7 @@ Do ilat=1,5400
   Read(40,REC=ilat) datatemp
   
   databuffer=datatemp
-  where (databuffer.lt.0)
+  where (databuffer<0)
     databuffer=databuffer+256
   end where
   
