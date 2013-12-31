@@ -63,7 +63,11 @@ If (adate(1)/=0) then
 End if
 
 ! Create NetCDF file
+#ifdef usenc3
 status=nf_create(outfile,nf_clobber,ncidarr(0))
+#else
+status=nf_create(outfile,nf_netcdf4,ncidarr(0))
+#endif
 If (status /= nf_noerr) Then
   Write(6,*) "ERROR: Error opening NetCDF file (",status,")"
   Stop
@@ -209,10 +213,10 @@ Do i=1,4
         Stop
       End If
       !status=nf_put_att_text(ncidarr(0),dimvar(i),"positive",4,"down")
-      If (status /= nf_noerr) Then
-        Write(6,*) "ERROR: Error defining dim in NetCDF file (",status,"): ",trim(desc(i,2))
-        Stop
-      End If
+      !If (status /= nf_noerr) Then
+      !  Write(6,*) "ERROR: Error defining dim in NetCDF file (",status,"): ",trim(desc(i,2))
+      !  Stop
+      !End If
     End if
     
     strlen=Len_trim(desc(i,2))

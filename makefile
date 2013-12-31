@@ -1,7 +1,7 @@
 FF = ifort
 XFLAGS = -xHost -fpp
 INC = -I $(NETCDF_ROOT)/include
-LIBS = -L $(NETCDF_ROOT)/lib -L $(HDF5_HOME)/lib -lnetcdf -lnetcdff -lhdf5 -lhdf5_hl
+LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff 
 
 
 OBJT = igbpveg.o igbpread.o readswitch.o ncwrite.o misc.o ccinterp.o\
