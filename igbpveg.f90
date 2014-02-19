@@ -176,6 +176,7 @@ Integer, dimension(2:20) :: varid
 Integer sibsize,tunit,i,j,k,ierr,sibmax(1),mthrng
 integer tt
 logical, dimension(16) :: sermsk
+!integer, parameter :: cropmode=1 ! 0=off, 1=patch
 
 mthrng=1
 if (month==0) then
@@ -219,6 +220,23 @@ call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,o
 call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month)
 
 deallocate(gridout)
+
+!select case(cropmode)
+!  case(1)
+!    write(6,*) "Using South America crop test"
+!    do j=1,sibdim(2)
+!      do i=1,sibdim(1)
+!        if (rlld(i,j,1)>=-63..and.rlld(i,j,1)<=-57.) then
+!          if (rlld(i,j,2)>=-26..and.rlld(i,j,2)<=-19.) then
+!            landdata(i,j,:)=0.
+!            landdata(i,j,12)=1.
+!            landdata(i,j,18:)=0.31
+!          end if
+!        end if
+!      end do
+!    end do
+!end select
+
 allocate(urbandata(sibdim(1),sibdim(2)),lsdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
 
 write(6,*) "Preparing data..."
