@@ -17,7 +17,7 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  binlimit,month,ozlaipatch,          &
                  tile
 
-write(6,*) 'IGBPVEG - IGBP 1km to CC grid (MAR-13)'
+write(6,*) 'IGBPVEG - IGBP 1km to CC grid (MAY-14)'
 
 ! Read switches
 nopts=1
@@ -176,7 +176,6 @@ Integer, dimension(2:20) :: varid
 Integer sibsize,tunit,i,j,k,ierr,sibmax(1),mthrng
 integer tt
 logical, dimension(16) :: sermsk
-!integer, parameter :: cropmode=1 ! 0=off, 1=patch
 
 mthrng=1
 if (month==0) then
@@ -220,23 +219,6 @@ call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,o
 call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month)
 
 deallocate(gridout)
-
-!select case(cropmode)
-!  case(1)
-!    write(6,*) "Using South America crop test"
-!    do j=1,sibdim(2)
-!      do i=1,sibdim(1)
-!        if (rlld(i,j,1)>=-63..and.rlld(i,j,1)<=-57.) then
-!          if (rlld(i,j,2)>=-26..and.rlld(i,j,2)<=-19.) then
-!            landdata(i,j,:)=0.
-!            landdata(i,j,12)=1.
-!            landdata(i,j,18:)=0.31
-!          end if
-!        end if
-!      end do
-!    end do
-!end select
-
 allocate(urbandata(sibdim(1),sibdim(2)),lsdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
 
 write(6,*) "Preparing data..."
@@ -248,7 +230,7 @@ if (igbplsmask) then
   write(6,*) "Using IGBP land/sea mask"
   where ((landdata(:,:,0)+landdata(:,:,17))>0.)
     oceandata=landdata(:,:,0)/(landdata(:,:,0)+landdata(:,:,17))
-  else where
+  elsewhere
     oceandata=0.
   end where
   lsdata=real(nint(landdata(:,:,0)+landdata(:,:,17)))
@@ -275,7 +257,7 @@ write(6,*) "Clean albedo data"
 where (lsdata>=0.5)
   albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
   albnirdata(:,:)=0.08 ! 0.20 in Masson (2003)
-else where (idata==9)
+elsewhere (idata==9)
   albvisdata(:,:)=0.80
   albnirdata(:,:)=0.40
 end where
@@ -289,7 +271,7 @@ deallocate(soildata,tmp,rlld)
 allocate(vfrac(sibdim(1),sibdim(2),5),vtype(sibdim(1),sibdim(2),5))
 allocate(vlai(sibdim(1),sibdim(2),5))
 
-write(6,*) "Ceate output file"
+write(6,*) "Create output file"
 dimnum(1:2)=sibdim(1:2) ! CC grid dimensions
 dimnum(3)=1 ! Turn off level
 dimnum(4)=1 ! Number of months in a year
@@ -392,7 +374,7 @@ do tt=1,mthrng
       else
         sermsk=.true.
         do k=1,5
-          sibmax=Maxloc(landdata(i,j,1:16),sermsk)
+          sibmax=maxloc(landdata(i,j,1:16),sermsk)
           sermsk(sibmax(1))=.false.
           vtype(i,j,k)=sibmax(1)
           vfrac(i,j,k)=landdata(i,j,sibmax(1))

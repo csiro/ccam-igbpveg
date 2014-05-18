@@ -147,27 +147,27 @@ If (fastigbp) then
                 Stop
             End Select
 
-            Write(6,*) 'Start bin'
+            write(6,*) 'Start bin'
             if (datatype=='land') then
-              Do j=1,lldim(2)
-                Do i=1,lldim(1)              
+              do j=1,lldim(2)
+                aglat=callat(latlon(2),j,nscale)
+                do i=1,lldim(1)           
                   aglon=callon(latlon(1),i,nscale)
-                  aglat=callat(latlon(2),j,nscale)
-                  Call lltoijmod(aglon,aglat,alci,alcj,nface)
+                  call lltoijmod(aglon,aglat,alci,alcj,nface)
                   lci = nint(alci)
                   lcj = nint(alcj)
                   lcj = lcj+nface*sibdim(1)
-                  If (grid(lci,lcj)>=real(minscale)) then
-                    If (sum(abs(coverout(i,j,:)))<=0.01) then
-                      If (countn(lci,lcj)==0) Then
+                  if (grid(lci,lcj)>=real(minscale)) then
+                    if (sum(abs(coverout(i,j,:17)))<0.001) then
+                      if (countn(lci,lcj)==0) then
                         dataout(lci,lcj,:)=-1. ! Missing value?
                         countn(lci,lcj)=1
-                      End if
-                    Else
-                      If (dataout(lci,lcj,0)<0.) Then
+                      end if
+                    else
+                      if (dataout(lci,lcj,0)<0.) then
                         dataout(lci,lcj,:)=0. ! reset missing point after finding non-trival data
                         countn(lci,lcj)=0
-                      End If
+                      end if
                       dataout(lci,lcj,:17)=dataout(lci,lcj,:17)+coverout(i,j,:17)
                       where(coverout(i,j,18:)==0..and.countn(lci,lcj)>0)
                         dataout(lci,lcj,18:)=dataout(lci,lcj,18:)*real(countn(lci,lcj)+1)/real(countn(lci,lcj))
@@ -177,15 +177,15 @@ If (fastigbp) then
                         dataout(lci,lcj,18:)=dataout(lci,lcj,18:)+coverout(i,j,18:)
                       end where
                       countn(lci,lcj)=countn(lci,lcj)+1
-                    End If
-                  End if
-                End Do
-              End Do
+                    end if
+                  end if
+                end do
+              end do
             else
               Do j=1,lldim(2)
+                aglat=callat(latlon(2),j,nscale)
                 Do i=1,lldim(1)              
                   aglon=callon(latlon(1),i,nscale)
-                  aglat=callat(latlon(2),j,nscale)
                   Call lltoijmod(aglon,aglat,alci,alcj,nface)
                   lci = nint(alci)
                   lcj = nint(alcj)
@@ -435,8 +435,8 @@ Real, dimension(1:2), intent(in) :: latlon
 Integer, dimension(1:2), intent(in) :: lldim
 Real, dimension(lldim(1),lldim(2),0:num), intent(out) :: coverout
 Integer*1, dimension(1:43200,1:nscale) :: databuffer
-Integer*1, dimension(:,:,:), allocatable :: lbuff
-Integer*1, dimension(:,:), allocatable :: ltemp2
+Integer*1, dimension(1:43200,1:nscale,1:12) :: lbuff
+Integer*1, dimension(1:43200) :: ltemp2
 Integer*1, dimension(1:43200) :: datatemp
 integer, dimension(0:num) :: ncount
 Integer, dimension(1:2,1:2) :: jin,jout
@@ -448,21 +448,19 @@ real bx,by,bdelta,tbx,tby,tbdelta
 character*2 cmth
 Character*10 fname
 
-! Must be compiled using 4 byte record lengths
-Open(10,FILE='gigbp2_0ll.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
-if (month.eq.0) then
+! Must be compiled using 1 byte record lengths
+Open(10,FILE='gigbp2_0ll.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=43200)
+if (month==0) then
   mthrng=12
   do imth=1,mthrng
     write(fname,'("slai",I2.2,".img")') imth
-    open(10+imth,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=2700)
+    open(10+imth,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
   end do
 else
   mthrng=1
   write(fname,'("slai",I2.2,".img")') month
-  open(11,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=2700)  
+  open(11,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)  
 end if
-
-allocate(lbuff(43200,nscale,mthrng),ltemp2(43200,mthrng))
 
 if (ozlaipatch) then
   write(6,*) "CSIRO LAI dataset patch"
@@ -526,35 +524,35 @@ Do ilat=1,lldim(2)
     ! Shift lon to zero
     databuffer(jin(1,1):jin(1,2),jlat)=datatemp(jout(1,1):jout(1,2))
     databuffer(jin(2,1):jin(2,2),jlat)=datatemp(jout(2,1):jout(2,2))
-    
-    ! read corrosponding lai data and fill to 1km grid
-    nlrp=int(real(recpos+3)/4.)
-    if (lrp.ne.nlrp) then
-      lrp=nlrp
-      do imth=1,mthrng
+  End Do
+  
+  do imth=1,mthrng
+    Do jlat=1,nscale
+      recpos=llint(2)+jlat
+      ! read corrosponding lai data and fill to 1km grid
+      nlrp=int(real(recpos+3)/4.)
+      if (lrp/=nlrp) then
+        lrp=nlrp
         read(10+imth,REC=lrp) datatemp(1:10800)
-        do k=1,43200
-          ltemp2(k,imth)=datatemp(int(real(k+3)/4.))
+        do k=1,10800
+          ltemp2(4*k-3:4*k)=datatemp(k)
         end do
         if (ozlaipatch) then
           tiy=nint((by-90.+(real(llint(2)+jlat)-0.5)/120.)/bdelta+0.5)
-          if ((tiy.ge.1).and.(tiy.le.iy)) then
+          if ( tiy>=1 .and. tiy<=iy ) then
             do k=1,43200
               tix=nint(((real(k)-0.5)/120.-180.-bx)/bdelta+0.5)
-              if ((tix.ge.1).and.(tix.le.ix)) then
-                ltemp2(k,imth)=laiin(tix,tiy,imth)
+              if ( tix>=1 .and. tix<=ix ) then
+                ltemp2(k)=laiin(tix,tiy,imth)
               end if
             end do
           end if
         end if
-      end do
-    end if
-    do imth=1,mthrng
-      lbuff(jin(1,1):jin(1,2),jlat,imth)=ltemp2(jout(1,1):jout(1,2),imth)
-      lbuff(jin(2,1):jin(2,2),jlat,imth)=ltemp2(jout(2,1):jout(2,2),imth)
-    end do
-    
-  End Do
+      end if
+      lbuff(jin(1,1):jin(1,2),jlat,imth)=ltemp2(jout(1,1):jout(1,2))
+      lbuff(jin(2,1):jin(2,2),jlat,imth)=ltemp2(jout(2,1):jout(2,2))
+    End Do
+  end do
  
   Do ilon=1,lldim(1)
     llint(1)=(ilon-1)*nscale
@@ -562,22 +560,20 @@ Do ilat=1,lldim(2)
     ncount=0
     do j=1,nscale
       do i=llint(1)+1,llint(1)+nscale
-        ctmp=databuffer(i,j)
-        ctmp=mod(ctmp+256,256)
+        ctmp=mod(databuffer(i,j)+256,256)
         if (ctmp>=0.and.ctmp<=17) then
           coverout(ilon,ilat,ctmp)=coverout(ilon,ilat,ctmp)+1.
           ncount(ctmp)=ncount(ctmp)+1
           select case(ctmp)
            case(1:12,14)
             do imth=1,mthrng
-              ltmp=lbuff(i,j,imth)
-              ltmp=mod(ltmp+256,256)
+              ltmp=mod(lbuff(i,j,imth)+256,256)
               if (ltmp>0.and.ltmp<100) then
                 coverout(ilon,ilat,17+(ctmp-1)*mthrng+imth)=coverout(ilon,ilat,17+(ctmp-1)*mthrng+imth)+real(ltmp)/10.
                 ncount(17+(ctmp-1)*mthrng+imth)=ncount(17+(ctmp-1)*mthrng+imth)+1
               end if
             end do
-          case(13,15:16)
+           case(13,15:16)
             ! set LAI to zero
             do imth=1,mthrng
               ncount(17+(ctmp-1)*mthrng+imth)=ncount(17+(ctmp-1)*mthrng+imth)+1
@@ -586,14 +582,12 @@ Do ilat=1,lldim(2)
         end if
       end do
     end do
-    ntmp=sum(ncount(0:17))
-    ncount(0:17)=ntmp
+    ncount(0:17)=sum(ncount(0:17))
     coverout(ilon,ilat,:)=coverout(ilon,ilat,:)/real(max(ncount,1))
   End Do
  
 End Do
 
-deallocate(lbuff,ltemp2)
 if (ozlaipatch) deallocate(laiin)
 
 Close(10)
@@ -626,8 +620,8 @@ Integer, dimension(1:2) :: llint_4
 real nsum
 integer, dimension(0:13), parameter :: masmap=(/ 0, 1, 1, 4, 2, 4, 7, 2, 2, 5, 6, 3, 8, 9 /)
 
-! Must be compiled using 4 byte record lengths
-Open(20,FILE='usda4.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=2700)
+! Must be compiled using 1 byte record lengths
+Open(20,FILE='usda4.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
 
 ! To speed-up the code, 43200x(nscale) blocks of the sib file are read
 ! at a time.  The data is then averaged in memory.  This system speeds-up the
@@ -656,7 +650,7 @@ Do ilat=1,lldim_4(2)
     llint_4(1)=(ilon-1)*nscale_4
     Call dataconvert(databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4),faosoil,nscale_4,13)
     nsum=sum(faosoil(1:13))
-    if (nsum.gt.0.) then
+    if (nsum>0.) then
       coverout(ilon,ilat,:)=0.
       do i=1,13
         coverout(ilon,ilat,masmap(i)-1)=coverout(ilon,ilat,masmap(i)-1)+faosoil(i)/nsum
@@ -707,12 +701,12 @@ select case(datatype)
 end select
 write(6,*) 'Reading ',trim(fname)
 
-! Must be compiled using 4 byte record lengths
-Open(40,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=2700)
+! Must be compiled using 1 byte record lengths
+Open(40,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
 
 Do ilat=1,lldim_4(2)
 
-  if ((mod(ilat,10).eq.0).or.(ilat.eq.lldim_4(2))) then
+  if ((mod(ilat,10)==0).or.(ilat==lldim_4(2))) then
     Write(6,*) cmsg,ilat,'/',lldim_4(2)
   end if
   
@@ -770,7 +764,7 @@ Real callon,callat
 Integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: countn
 Integer*1, dimension(1:43200) :: databuffer
 Integer*1, dimension(1:10800) :: datatemp
-Integer*1, dimension(:,:), allocatable :: lbuff
+Integer*1, dimension(1:43200,1:12) :: lbuff
 integer, dimension(1:sibdim(1),1:sibdim(2),0:num) :: ncount
 Integer ilat,ilon,lci,lcj,nface,ctmp,ltmp,mthrng,imth,lrp,nlrp,k
 integer ntmp,ix,iy,tix,tiy
@@ -782,21 +776,19 @@ countn=0
 
 Write(6,*) "Read USGS + LAI data (stream)"
 
-! Must be compiled using 4 byte record lengths
-Open(10,FILE='gigbp2_0ll.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
+! Must be compiled using 1 byte record lengths
+Open(10,FILE='gigbp2_0ll.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=43200)
 if (month.eq.0) then
   mthrng=12
   do imth=1,mthrng
     write(fname,'("slai",I2.2,".img")') imth
-    open(10+imth,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=2700)
+    open(10+imth,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
   end do
 else
   mthrng=1
   write(fname,'("slai",I2.2,".img")') month
-  open(11,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=2700)  
+  open(11,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)  
 end if
-
-allocate(lbuff(43200,mthrng))
 
 if (ozlaipatch) then
   write(6,*) "CSIRO LAI dataset patch"
@@ -850,19 +842,19 @@ Do ilat=1,21600
 
   ! read corrosponding lai data and fill to 1km grid
   nlrp=int(real(ilat+3)/4.)
-  if (lrp.ne.nlrp) then
+  if (lrp/=nlrp) then
     lrp=nlrp
     do imth=1,mthrng
       read(10+imth,REC=lrp) datatemp
-      do k=1,43200
-        lbuff(k,imth)=datatemp(int(real(k+3)/4.))
+      do k=1,10800
+        lbuff(4*k-3:4*k,imth)=datatemp(int(real(k+3)/4.))
       end do
       if (ozlaipatch) then
         tiy=nint((by-90.+(real(ilat)-0.5)/120.)/bdelta+0.5)
-        if ((tiy.ge.1).and.(tiy.le.iy)) then
+        if ((tiy>=1).and.(tiy<=iy)) then
           do k=1,43200
             tix=nint(((real(k)-0.5)/120.-180.-bx)/bdelta+0.5)
-            if ((tix.ge.1).and.(tix.le.ix)) then
+            if ((tix.=1).and.(tix<=ix)) then
               lbuff(k,imth)=laiin(tix,tiy,imth)
             end if
           end do
@@ -880,8 +872,7 @@ Do ilat=1,21600
     lcj = nint(alcj)
     lcj = lcj+nface*sibdim(1)
     
-    ctmp=databuffer(ilon)
-    ctmp=mod(ctmp+256,256)
+    ctmp=mod(databuffer(ilon)+256,256)
     if (ctmp>=0.and.ctmp<=17) then
       coverout(lci,lcj,ctmp)=coverout(lci,lcj,ctmp)+1.
       ncount(lci,lcj,ctmp)=ncount(lci,lcj,ctmp)+1
@@ -889,8 +880,7 @@ Do ilat=1,21600
       select case(ctmp)
        case(1:12,14)
         do imth=1,mthrng
-          ltmp=lbuff(ilon,imth)
-          ltmp=mod(ltmp+256,256)
+          ltmp=mod(lbuff(ilon,imth)+256,256)
           if (ltmp>0.and.ltmp<100) then
             coverout(lci,lcj,17+(ctmp-1)*mthrng+imth)=coverout(lci,lcj,17+(ctmp-1)*mthrng+imth)+real(ltmp)/10.
             ncount(lci,lcj,17+(ctmp-1)*mthrng+imth)=ncount(lci,lcj,17+(ctmp-1)*mthrng+imth)+1
@@ -908,13 +898,11 @@ Do ilat=1,21600
 End Do
 do lcj=1,sibdim(2)
   do lci=1,sibdim(1)
-    ntmp=sum(ncount(lci,lcj,0:17))
-    ncount(lci,lcj,0:17)=ntmp
+    ncount(lci,lcj,0:17)=sum(ncount(lci,lcj,0:17))
   end do
 end do
 coverout=coverout/real(max(ncount,1))
 
-deallocate(lbuff)
 if (ozlaipatch) deallocate(laiin)
 
 Close(10)
@@ -952,8 +940,8 @@ countn=0
 
 Write(6,*) "Read HWSD data (stream)"
 
-! Must be compiled using 4 byte rsibrd lengths
-Open(20,FILE='usda4.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=2700)
+! Must be compiled using 1 byte record lengths
+Open(20,FILE='usda4.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
 
 Do ilat=1,5400
 
@@ -1034,8 +1022,8 @@ select case(datatype)
 end select
 write(6,*) 'Reading (stream) ',trim(fname)
 
-! Must be compiled using 4 byte record lengths
-Open(40,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=2700)
+! Must be compiled using 1 byte record lengths
+Open(40,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
 
 Do ilat=1,5400
   aglat=callat(90.,ilat,4)
