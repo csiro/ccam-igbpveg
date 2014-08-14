@@ -854,7 +854,7 @@ Do ilat=1,21600
         if ((tiy>=1).and.(tiy<=iy)) then
           do k=1,43200
             tix=nint(((real(k)-0.5)/120.-180.-bx)/bdelta+0.5)
-            if ((tix.=1).and.(tix<=ix)) then
+            if ((tix>=1).and.(tix<=ix)) then
               lbuff(k,imth)=laiin(tix,tiy,imth)
             end if
           end do
@@ -1317,7 +1317,7 @@ Integer, dimension(1:2,1:2,1:2) :: posll
 Integer i,j
 Integer rndup
 Logical, dimension(1:sibdim(1),1:sibdim(2)) :: sermask
-Integer, dimension(1:sibdim(1),1:sibdim(2)), intent(in) :: maskn
+Logical, dimension(1:sibdim(1),1:sibdim(2)), intent(in) :: maskn
 
 tlld=rlld
 

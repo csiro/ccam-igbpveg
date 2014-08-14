@@ -289,48 +289,86 @@ do tt=1,mthrng
   end if
 
   call ncinitcc(ncidarr,filename,dimnum(1:3),dimid,adate)
-  outputdesc=(/ 'soilt', 'Soil classification', 'none' /)
+  outputdesc(1)='soilt'
+  outputdesc(2)='Soil classification'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(2),1.,0.)
-  outputdesc=(/ 'albvis', 'Soil albedo (VIS)', '' /)
+  outputdesc(1)='albvis'
+  outputdesc(2)='Soil albedo (VIS)'
+  outputdesc(3)=''
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(3),1.,0.)
-  outputdesc=(/ 'albnir', 'Soil albedo (NIR)', '' /)
+  outputdesc(1)='albnir'
+  outputdesc(2)='Soil albedo (NIR)'
+  outputdesc(3)=''
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(4),1.,0.)
-  outputdesc=(/ 'lai1', 'Leaf Area Index (tile1)', '' /)
+  outputdesc(1)='lai1'
+  outputdesc(2)='Leaf Area Index (tile1)'
+  outputdesc(3)=''
   call ncaddvargen(ncidarr,outputdesc,5,3,varid(5),1.,0.)
-  outputdesc=(/ 'vegt1', 'Land-use classification (tile1)', 'none' /)
+  outputdesc(1)='vegt1'
+  outputdesc(2)='Land-use classification (tile1)'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(6),1.,0.)
-  outputdesc=(/ 'vfrac1', 'Land-use cover fraction (tile1)', 'none' /)
+  outputdesc(1)='vfrac1'
+  outputdesc(2)='Land-use cover fraction (tile1)'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(12),1.,0.)
 
-  outputdesc=(/ 'lai2', 'Leaf Area Index (tile2)', '' /)
+  outputdesc(1)='lai2'
+  outputdesc(2)='Leaf Area Index (tile2)'
+  outputdesc(3)=''
   call ncaddvargen(ncidarr,outputdesc,5,3,varid(17),1.,0.)
-  outputdesc=(/ 'vegt2', 'Land-use classification (tile2)', 'none' /)
+  outputdesc(1)='vegt2'
+  outputdesc(2)='Land-use classification (tile2)'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(8),1.,0.)
-  outputdesc=(/ 'vfrac2', 'Land-use cover fraction (tile2)', 'none' /)
+  outputdesc(1)='vfrac2'
+  outputdesc(2)='Land-use cover fraction (tile2)'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(13),1.,0.)
 
-  outputdesc=(/ 'lai3', 'Leaf Area Index (tile3)', '' /)
+  outputdesc(1)='lai3'
+  outputdesc(2)='Leaf Area Index (tile3)'
+  outputdesc(3)=''
   call ncaddvargen(ncidarr,outputdesc,5,3,varid(18),1.,0.)
-  outputdesc=(/ 'vegt3', 'Land-use classification (tile3)', 'none' /)
+  outputdesc(1)='vegt3'
+  outputdesc(2)='Land-use classification (tile3)'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(9),1.,0.)
-  outputdesc=(/ 'vfrac3', 'Land-use cover fraction (tile3)', 'none' /)
+  outputdesc(1)='vfrac3'
+  outputdesc(2)='Land-use cover fraction (tile3)'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(14),1.,0.)
 
-  outputdesc=(/ 'lai4', 'Leaf Area Index (tile4)', '' /)
+  outputdesc(1)='lai4'
+  outputdesc(2)='Leaf Area Index (tile4)'
+  outputdesc(3)=''
   call ncaddvargen(ncidarr,outputdesc,5,3,varid(19),1.,0.)
-  outputdesc=(/ 'vegt4', 'Land-use classification (tile4)', 'none' /)
+  outputdesc(1)='vegt4'
+  outputdesc(2)='Land-use classification (tile4)'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(10),1.,0.)
-  outputdesc=(/ 'vfrac4', 'Land-use cover fraction (tile4)', 'none' /)
+  outputdesc(1)='vfrac4'
+  outputdesc(2)='Land-use cover fraction (tile4)'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(15),1.,0.)
 
-  outputdesc=(/ 'lai5', 'Leaf Area Index (tile5)', '' /)
+  outputdesc(1)='lai5'
+  outputdesc(2)='Leaf Area Index (tile5)'
+  outputdesc(3)=''
   call ncaddvargen(ncidarr,outputdesc,5,3,varid(20),1.,0.)
-  outputdesc=(/ 'vegt5', 'Land-use classification (tile5)', 'none' /)
+  outputdesc(1)='vegt5'
+  outputdesc(2)='Land-use classification (tile5)'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(11),1.,0.)
-  outputdesc=(/ 'vfrac5', 'Land-use cover fraction (tile5)', 'none' /)
+  outputdesc(1)='vfrac5'
+  outputdesc(2)='Land-use cover fraction (tile5)'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(16),1.,0.)
 
-  outputdesc=(/ 'urban', 'Urban fraction', 'none' /)
+  outputdesc(1)='urban'
+  outputdesc(2)='Urban fraction'
+  outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(7),1.,0.)
 
   call ncatt(ncidarr,'lon0',lonlat(1))
