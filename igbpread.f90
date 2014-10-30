@@ -685,7 +685,7 @@ Integer, dimension(1:2,1:2) :: jin,jout
 Real, dimension(1:2), intent(in) :: latlon
 Real, dimension(lldim_4(1),lldim_4(2)), intent(out) :: dataout
 Character(len=*), intent(in) :: datatype
-Character*11 fname
+Character*14 fname
 Character*20 cmsg
 Logical, dimension(1:nscale_4,1:nscale_4) :: sermask
 
@@ -1006,7 +1006,7 @@ Real, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: coverout
 Real aglon,aglat,alci,alcj
 Real callon,callat
 Character(len=*), intent(in) :: datatype
-Character*11 fname
+Character*14 fname
 Character*20 cmsg
 
 coverout=0
