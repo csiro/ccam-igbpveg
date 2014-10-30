@@ -693,10 +693,10 @@ Call solvejshift(latlon(1),jin,jout,30)
 
 select case(datatype)
   case ('albvis')
-    fname='salbvis.img'
+    fname='salbvis223.img'
     cmsg='Soil albedo (VIS) - '
   case ('albnir')
-    fname='salbnir.img'
+    fname='salbnir223.img'
     cmsg='Soil albedo (NIR) - '
 end select
 write(6,*) 'Reading ',trim(fname)
@@ -1014,10 +1014,10 @@ countn=0
 
 select case(datatype)
   case ('albvis')
-    fname='salbvis.img'
+    fname='salbvis223.img'
     cmsg='Soil albedo (VIS) - '
   case ('albnir')
-    fname='salbnir.img'
+    fname='salbnir223.img'
     cmsg='Soil albedo (NIR) - '
 end select
 write(6,*) 'Reading (stream) ',trim(fname)

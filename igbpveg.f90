@@ -17,7 +17,7 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  binlimit,month,ozlaipatch,          &
                  tile
 
-write(6,*) 'IGBPVEG - IGBP 1km to CC grid (MAY-14)'
+write(6,*) 'IGBPVEG - IGBP 1km to CC grid (OCT-14)'
 
 ! Read switches
 nopts=1
@@ -374,6 +374,7 @@ do tt=1,mthrng
   call ncatt(ncidarr,'lon0',lonlat(1))
   call ncatt(ncidarr,'lat0',lonlat(2))
   call ncatt(ncidarr,'schmidt',schmidt)
+  call ncatt(ncidarr,'cableversion',223) ! CABLE version for data
 
   call ncenddef(ncidarr)
   alonlat(:,1)=(/ 1., real(sibdim(1)), 1. /)
