@@ -374,7 +374,7 @@ do tt=1,mthrng
   call ncatt(ncidarr,'lon0',lonlat(1))
   call ncatt(ncidarr,'lat0',lonlat(2))
   call ncatt(ncidarr,'schmidt',schmidt)
-  call ncatt(ncidarr,'cableversion',223) ! CABLE version for data
+  call ncatt(ncidarr,'cableversion',223.) ! CABLE version for data
 
   call ncenddef(ncidarr)
   alonlat(:,1)=(/ 1., real(sibdim(1)), 1. /)
