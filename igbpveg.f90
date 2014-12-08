@@ -488,19 +488,21 @@ real nsum,wsum
 
 landdata(:,:,13)=0. ! remove urban
 
-allmsk=sum(landdata(:,:,0:17),3)>0.
+allmsk=sum(landdata(:,:,1:16),3)>0.
 if (.not.any(allmsk)) return
 
 do ilat=1,sibdim(2)
   do ilon=1,sibdim(1)
     wsum=landdata(ilon,ilat,0)+landdata(ilon,ilat,17) ! water
-    nsum=sum(landdata(ilon,ilat,1:16))                ! land
-    if (wsum+nsum<=0.) then
-      ! missing
-      call findnear(pxy,ilon,ilat,allmsk,rlld,sibdim)    
-      landdata(ilon,ilat,:)=landdata(pxy(1),pxy(2),:)
-    else
-      landdata(ilon,ilat,1:16)=landdata(ilon,ilat,1:16)*(1.-wsum)/nsum
+    if (wsum<1.) then
+      nsum=sum(landdata(ilon,ilat,1:16)) ! land
+      if (nsum<=0.) then
+        call findnear(pxy,ilon,ilat,allmsk,rlld,sibdim)
+        landdata(ilon,ilat,1:16)=landdata(pxy(1),pxy(2),1:16)  
+        landdata(ilon,ilat,18:)=landdata(pxy(1),pxy(2),18:)
+        nsum=sum(landdata(ilon,ilat,1:16))
+      end if
+      landdata(ilon,ilat,1:16)=landdata(ilon,ilat,1:16)*max(1.-wsum,0.)/nsum
     end if
   end do
   if (mod(ilat,100)==0.or.ilat==sibdim(2)) then

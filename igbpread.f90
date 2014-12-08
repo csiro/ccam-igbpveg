@@ -847,14 +847,14 @@ Do ilat=1,21600
     do imth=1,mthrng
       read(10+imth,REC=lrp) datatemp
       do k=1,10800
-        lbuff(4*k-3:4*k,imth)=datatemp(int(real(k+3)/4.))
+        lbuff(4*k-3:4*k,imth)=datatemp(k)
       end do
       if (ozlaipatch) then
         tiy=nint((by-90.+(real(ilat)-0.5)/120.)/bdelta+0.5)
-        if ((tiy>=1).and.(tiy<=iy)) then
+        if (tiy>=1.and.tiy<=iy) then
           do k=1,43200
             tix=nint(((real(k)-0.5)/120.-180.-bx)/bdelta+0.5)
-            if ((tix>=1).and.(tix<=ix)) then
+            if (tix>=1.and.tix<=ix) then
               lbuff(k,imth)=laiin(tix,tiy,imth)
             end if
           end do
