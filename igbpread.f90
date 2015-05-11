@@ -16,7 +16,7 @@ Implicit None
 Integer, intent(in) :: sibsize,num,binlimit,month
 Integer, dimension(2), intent(in) :: sibdim
 Integer, dimension(sibdim(1),sibdim(2)) :: countn
-Integer, dimension(2) :: lldim,lldim_x,llstore,pxy
+Integer, dimension(1:2) :: lldim,lldim_x,llstore,pxy
 Integer nscale,nscale_x,nface,subsec,mode,tmp
 Integer i,j,k,lci,lcj,nx,ny,imth,mthrng,netcount
 Integer basesize,scalelimit,minscale
@@ -433,9 +433,9 @@ logical, intent(in) :: ozlaipatch
 Integer, intent(in) :: nscale,num,month
 Real, dimension(1:2), intent(in) :: latlon
 Integer, dimension(1:2), intent(in) :: lldim
-Real, dimension(lldim(1),lldim(2),0:num), intent(out) :: coverout
+Real, dimension(lldim(1),lldim(2),0:num), intent(inout) :: coverout
 Integer*1, dimension(1:43200,1:nscale) :: databuffer
-Integer*1, dimension(1:43200,1:nscale,1:12) :: lbuff
+Integer*1, dimension(:,:,:), allocatable :: lbuff
 Integer*1, dimension(1:43200) :: ltemp2
 Integer*1, dimension(1:43200) :: datatemp
 integer, dimension(0:num) :: ncount
@@ -461,6 +461,8 @@ else
   write(fname,'("slai",I2.2,".img")') month
   open(11,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)  
 end if
+
+allocate(lbuff(43200,nscale,mthrng))
 
 if (ozlaipatch) then
   write(6,*) "CSIRO LAI dataset patch"
@@ -588,6 +590,7 @@ Do ilat=1,lldim(2)
  
 End Do
 
+deallocate(lbuff)
 if (ozlaipatch) deallocate(laiin)
 
 Close(10)
@@ -778,7 +781,7 @@ Write(6,*) "Read USGS + LAI data (stream)"
 
 ! Must be compiled using 1 byte record lengths
 Open(10,FILE='gigbp2_0ll.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=43200)
-if (month.eq.0) then
+if (month==0) then
   mthrng=12
   do imth=1,mthrng
     write(fname,'("slai",I2.2,".img")') imth
@@ -792,7 +795,7 @@ end if
 
 if (ozlaipatch) then
   write(6,*) "CSIRO LAI dataset patch"
-  if (month.eq.0) then
+  if (month==0) then
     imth=1
   else
     imth=month
@@ -851,10 +854,10 @@ Do ilat=1,21600
       end do
       if (ozlaipatch) then
         tiy=nint((by-90.+(real(ilat)-0.5)/120.)/bdelta+0.5)
-        if (tiy>=1.and.tiy<=iy) then
+        if ((tiy>=1).and.(tiy<=iy)) then
           do k=1,43200
             tix=nint(((real(k)-0.5)/120.-180.-bx)/bdelta+0.5)
-            if (tix>=1.and.tix<=ix) then
+            if ((tix>=1).and.(tix<=ix)) then
               lbuff(k,imth)=laiin(tix,tiy,imth)
             end if
           end do
@@ -1515,7 +1518,11 @@ do ilon=1,sibdim(1)
   do ilat=1,sibdim(2)
     pos=Maxloc(landdata(ilon,ilat,1:17))
     if (1-nint(lsdata(ilon,ilat))==0) then
-      tdata(ilon,ilat)=0 ! water
+      if (landdata(ilon,ilat,0)>=landdata(ilon,ilat,17)) then
+        tdata(ilon,ilat)=0  ! ocean
+      else
+        tdata(ilon,ilat)=-1 ! in-land water  
+      end if
     else if (pos(1).eq.15) then
       tdata(ilon,ilat)=9 ! ice
     else

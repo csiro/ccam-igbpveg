@@ -17,7 +17,12 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  binlimit,month,ozlaipatch,          &
                  tile
 
-write(6,*) 'IGBPVEG - IGBP 1km to CC grid (OCT-14)'
+#ifndef stacklimit
+! For linux only - removes stacklimit on all processors
+call setstacklimit(-1)
+#endif     
+
+write(6,*) 'IGBPVEG - IGBP 1km to CC grid (MAY-15)'
 
 ! Read switches
 nopts=1
@@ -155,7 +160,7 @@ Character(len=*), dimension(3), intent(in) :: fname
 character*90 filename
 Character*80, dimension(1:3) :: outputdesc
 Character*80 returnoption,csize,filedesc
-Character*45 header
+Character*47 header
 Character*9 formout
 Character*2 monthout
 real, dimension(:,:,:), allocatable :: vlai
@@ -482,8 +487,9 @@ integer, intent(in) :: mthrng
 integer, dimension(1:2), intent(in) :: sibdim
 real, dimension(sibdim(1),sibdim(2),1:2), intent(in) :: rlld
 real, dimension(sibdim(1),sibdim(2),0:17+16*mthrng), intent(inout) :: landdata
+real, dimension(sibdim(1),sibdim(2),1:16+16*mthrng) :: newdata
 logical, dimension(1:sibdim(1),1:sibdim(2)) :: allmsk
-integer i,ilon,ilat,pxy(2)
+integer i,ilon,ilat,newsize
 real nsum,wsum
 
 landdata(:,:,13)=0. ! remove urban
@@ -491,20 +497,27 @@ landdata(:,:,13)=0. ! remove urban
 allmsk=sum(landdata(:,:,1:16),3)>0.
 if (.not.any(allmsk)) return
 
+newdata(:,:,1:16)=landdata(:,:,1:16)
+newdata(:,:,17:)=landdata(:,:,18:)
+newsize=16*(mthrng+1)
+!call fill_cc_a(newdata,sibdim(1),newsize,allmsk)
+do i=1,newsize
+  call fill_cc(newdata(:,:,i),sibdim(1),allmsk)
+end do
+
 do ilat=1,sibdim(2)
   do ilon=1,sibdim(1)
     wsum=landdata(ilon,ilat,0)+landdata(ilon,ilat,17) ! water
     if (wsum<1.) then
       if (.not.allmsk(ilon,ilat)) then
-        call findnear(pxy,ilon,ilat,allmsk,rlld,sibdim)
-        landdata(ilon,ilat,1:16)=landdata(pxy(1),pxy(2),1:16)  
-        landdata(ilon,ilat,18:)=landdata(pxy(1),pxy(2),18:)
+        landdata(ilon,ilat,1:16)=newdata(ilon,ilat,1:16)  
+        landdata(ilon,ilat,18:17+16*mthrng)=newdata(ilon,ilat,17:16+16*mthrng)
       end if
-      nsum=sum(landdata(ilon,ilat,1:16)) ! land
+      nsum=sum(landdata(ilon,ilat,1:16)) ! land      
       landdata(ilon,ilat,1:16)=landdata(ilon,ilat,1:16)*max(1.-wsum,0.)/nsum
     end if
   end do
-  if (mod(ilat,100)==0.or.ilat==sibdim(2)) then
+  if ( mod(ilat,100)==0 .or. ilat==sibdim(2) ) then
     write(6,*) "Searching ",ilat,"/",sibdim(2)
   end if
 end do
