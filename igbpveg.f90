@@ -30,15 +30,17 @@ character*80, dimension(3) :: fname
 character*80 topofile
 character*80 landtypeout
 character*80 newtopofile
+character*80 outputmode
 integer binlimit, nopts, month
+integer outmode
 logical fastigbp,igbplsmask,ozlaipatch,tile
 
 namelist/vegnml/ topofile,fastigbp,                  &
                  landtypeout,igbplsmask,newtopofile, &
                  binlimit,month,ozlaipatch,          &
-                 tile
+                 tile,outputmode
 
-write(6,*) 'IGBPVEG - IGBP 1km to CC grid (MAY-15)'
+write(6,*) 'IGBPVEG - IGBP 1km to CC grid (FEB-16)'
 
 ! Read switches
 nopts=1
@@ -48,6 +50,8 @@ options(:,2) = ''
 
 call readswitch(options,nopts)
 call defaults(options,nopts)
+
+outputmode=''
 
 ! Read namelist
 write(6,*) 'Input &vegnml namelist'
@@ -59,7 +63,12 @@ fname(1)=topofile
 fname(2)=landtypeout
 fname(3)=newtopofile
 
-call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit)
+outmode=0
+if ( outputmode=='cablepft' ) then
+  outmode=1
+end if
+
+call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode)
 
 deallocate(options)
 
@@ -97,6 +106,7 @@ Write(6,*) '    igbplsmask=t'
 Write(6,*) '    ozlaipatch=f'
 Write(6,*) '    tile=t'
 Write(6,*) '    binlimit=2'
+Write(6,*) '    outputmode="cablepft"'
 Write(6,*) '  &end'
 Write(6,*)
 Write(6,*) '  where:'
@@ -113,6 +123,9 @@ Write(6,*) '    binlimit      = The minimum ratio between the grid'
 Write(6,*) '                    length scale and the length scale of'
 Write(6,*) '                    the aggregated land-use data (see notes'
 Write(6,*) '                    below).'
+Write(6,*) '    outputmode    = format of output file.'
+Write(6,*) '                    igbp     Use IGBP classes (default)'
+Write(6,*) '                    cablepft Use CABLE PFTs'
 Write(6,*)
 Write(6,*) 'NOTES: fastigbp mode will speed up the code by aggregating'
 Write(6,*) '       land-use data at a coarser resolution before'
@@ -163,14 +176,14 @@ End
 ! This subroutine processes the sib data
 !
 
-Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit)
+Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode)
 
 Use ccinterp
 
 Implicit None
 
 Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile
-Integer, intent(in) :: nopts,binlimit,month
+Integer, intent(in) :: nopts,binlimit,month,outmode
 Character(len=*), dimension(nopts,2), intent(in) :: options
 Character(len=*), dimension(3), intent(in) :: fname
 character*90 filename
@@ -182,6 +195,8 @@ Character*2 monthout
 real, dimension(:,:,:), allocatable :: vlai
 Real, dimension(:,:,:), allocatable :: landdata,soildata,rlld,vfrac,tmp
 Real, dimension(:,:), allocatable :: gridout,lsdata,urbandata,oceandata,albvisdata,albnirdata
+real, dimension(:,:), allocatable :: savannafrac
+real, dimension(:,:), allocatable :: rdata
 Real, dimension(3,2) :: alonlat
 Real, dimension(2) :: lonlat
 Real, dimension(1) :: atime
@@ -193,7 +208,7 @@ Integer, dimension(2) :: sibdim
 Integer, dimension(4) :: dimnum,dimid,dimcount
 Integer, dimension(0:4) :: ncidarr
 Integer, dimension(6) :: adate
-Integer, dimension(2:20) :: varid
+Integer, dimension(2:21) :: varid
 Integer sibsize,tunit,i,j,k,ierr,sibmax(1),mthrng
 integer tt
 logical, dimension(16) :: sermsk
@@ -263,6 +278,7 @@ end if
 
 deallocate(oceandata)
 allocate(idata(sibdim(1),sibdim(2)),tmp(sibdim(1),sibdim(2),0:1))
+allocate(rdata(sibdim(1),sibdim(2)))
 
 write(6,*) "Clean urban data"
 urbandata=min(urbandata,(1.-lsdata))
@@ -288,9 +304,10 @@ call cleanreal(tmp,1,lsdata,rlld,sibdim)
 albvisdata=tmp(:,:,0)
 albnirdata=tmp(:,:,1)
 
-deallocate(soildata,tmp,rlld)
-allocate(vfrac(sibdim(1),sibdim(2),5),vtype(sibdim(1),sibdim(2),5))
-allocate(vlai(sibdim(1),sibdim(2),5))
+deallocate( soildata, tmp )
+allocate( vfrac(sibdim(1),sibdim(2),5), vtype(sibdim(1),sibdim(2),5) )
+allocate( vlai(sibdim(1),sibdim(2),5) )
+allocate( savannafrac(sibdim(1),sibdim(2)) )
 
 write(6,*) "Create output file"
 dimnum(1:2)=sibdim(1:2) ! CC grid dimensions
@@ -392,10 +409,20 @@ do tt=1,mthrng
   outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(7),1.,0.)
 
+  outputdesc(1)='savanna'
+  outputdesc(2)='Savanna fraction of PFT=2'
+  outputdesc(3)='none'
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(21),1.,0.)
+  
   call ncatt(ncidarr,'lon0',lonlat(1))
   call ncatt(ncidarr,'lat0',lonlat(2))
   call ncatt(ncidarr,'schmidt',schmidt)
   call ncatt(ncidarr,'cableversion',223.) ! CABLE version for data
+  if ( outmode==1 ) then
+    call ncatt(ncidarr,'cableformat',1.)    
+  else
+    call ncatt(ncidarr,'cableformat',0.)
+  end if
 
   call ncenddef(ncidarr)
   alonlat(:,1)=(/ 1., real(sibdim(1)), 1. /)
@@ -412,7 +439,8 @@ do tt=1,mthrng
   ! Write soil type
   write(6,*) 'Write soil type file.'
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
-  call ncwritedatgen(ncidarr,Real(idata),dimcount,varid(2))
+  rdata=real(idata)
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(2))
 
   ! Write albedo file
   write(6,*) 'Write albedo files.'
@@ -458,12 +486,20 @@ do tt=1,mthrng
       end if
     end do
   end do
+  if ( outmode==1 ) then
+    call convertigbp(vtype,vfrac,vlai,savannafrac,sibdim,lsdata,rlld)
+  end if
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
-  call ncwritedatgen(ncidarr,Real(vtype(:,:,1)),dimcount,varid(6))
-  call ncwritedatgen(ncidarr,Real(vtype(:,:,2)),dimcount,varid(8))
-  call ncwritedatgen(ncidarr,Real(vtype(:,:,3)),dimcount,varid(9))
-  call ncwritedatgen(ncidarr,Real(vtype(:,:,4)),dimcount,varid(10))
-  call ncwritedatgen(ncidarr,Real(vtype(:,:,5)),dimcount,varid(11))
+  rdata=Real(vtype(:,:,1))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(6))
+  rdata=Real(vtype(:,:,2))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(8))
+  rdata=Real(vtype(:,:,3))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(9))
+  rdata=Real(vtype(:,:,4))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(10))
+  rdata=Real(vtype(:,:,5))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(11))
   call ncwritedatgen(ncidarr,vfrac(:,:,1),dimcount,varid(12))
   call ncwritedatgen(ncidarr,vfrac(:,:,2),dimcount,varid(13))
   call ncwritedatgen(ncidarr,vfrac(:,:,3),dimcount,varid(14))
@@ -479,14 +515,24 @@ do tt=1,mthrng
   write(6,*) 'Write urban fraction'
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
   urbanfrac=1.
-  call ncwritedatgen(ncidarr,urbandata*urbanfrac,dimcount,varid(7))
+  rdata=urbandata*urbanfrac
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(7))
 
+  ! Savanna fraction 
+  if ( outmode==1 ) then
+    dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
+    call ncwritedatgen(ncidarr,savannafrac,dimcount,varid(21))
+  end if
+  
   call ncclose(ncidarr)
 
 end do
 
 deallocate(landdata,urbandata,lsdata)
 deallocate(vfrac,vtype,idata,vlai)
+deallocate(savannafrac)
+deallocate(rlld)
+deallocate(rdata)
 
 return
 end
@@ -518,6 +564,7 @@ newdata(:,:,17:)=landdata(:,:,18:)
 newsize=16*(mthrng+1)
 !call fill_cc_a(newdata,sibdim(1),newsize,allmsk)
 do i=1,newsize
+  write(6,*) "Fill class ",i
   call fill_cc(newdata(:,:,i),sibdim(1),allmsk)
 end do
 
@@ -684,15 +731,15 @@ else
   Close(topounit)
 end if
 
-If (ierr.NE.0) then
-  Write(6,*) "ERROR: Cannot read file ",trim(toponame)
-  Stop
-End if
+if ( ierr/=0 ) then
+  write(6,*) "ERROR: Cannot read file ",trim(toponame)
+  stop
+end if
 
-lsmsk=Real(1-nint(lsmskin))
-where ((nint(oceanin)==1).and.(nint(lsmskin)==1))
-  topo(:,:)=0.
-  sd(:,:)=0.
+lsmsk = real(1-nint(lsmskin))
+where ( nint(oceanin)==1 .and. nint(lsmskin)==1 )
+  topo(:,:) = 0.
+  sd(:,:)   = 0.
 end where
 
 if (lnctopo==1) then
@@ -750,3 +797,236 @@ End if
 
 Return
 End
+
+subroutine convertigbp(vtype,vfrac,vlai,savannafrac,sibdim,lsdata,rlld)
+
+implicit none
+
+integer, parameter :: mxvt=17
+Integer, dimension(2), intent(in) :: sibdim
+integer, dimension(sibdim(1),sibdim(2),5), intent(inout) :: vtype
+integer, dimension(1) :: pos
+integer i, j, n, ipos, iv
+real, dimension(sibdim(1),sibdim(2),5), intent(inout) :: vfrac, vlai
+real, dimension(mxvt) :: newlai
+real, dimension(mxvt) :: newgrid
+real, dimension(sibdim(1),sibdim(2)), intent(out) :: savannafrac
+real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsdata
+real, dimension(sibdim(1),sibdim(2),2), intent(in) :: rlld
+real fc3, fc4, ftu, fg3, fg4, clat, nsum
+real xp
+real, parameter :: minfrac = 0.01        ! minimum non-zero tile fraction (improves load balancing)
+Real, parameter :: pi = 3.1415926536
+
+write(6,*) "Mapping IGBP classes to CABLE PFTs"
+savannafrac(:,:) = 0.
+do j = 1,sibdim(2)
+  do i = 1,sibdim(1)
+    if ( lsdata(i,j)<0.5 ) then
+      newgrid     = 0.
+      newlai      = 0.
+          
+      clat = rlld(i,j,2)*180./pi
+      ! grass
+      if (abs(clat)>50.5) then
+        fg3=0.
+        fg4=0.
+      else if (abs(clat)>49.5) then
+        xp=abs(clat)-49.5
+        fg3=(1.-xp)*0.9
+        fg4=(1.-xp)*0.1
+      else if (abs(clat)>40.5) then
+        fg3=0.9
+        fg4=0.1
+      else if (abs(clat)>39.5) then
+        xp=abs(clat)-39.5
+        fg3=(1.-xp)*0.8+xp*0.9
+        fg4=(1.-xp)*0.2+xp*0.1
+      else if (abs(clat)>30.5) then
+        fg3=0.8
+        fg4=0.2
+      else if (abs(clat)>29.5) then
+        xp=abs(clat)-29.5
+        fg3=(1.-xp)*0.5+xp*0.8
+        fg4=(1.-xp)*0.5+xp*0.2
+      else if (abs(clat)>25.5) then
+        fg3=0.5
+        fg4=0.5
+      else if (abs(clat)>24.5) then
+        xp=abs(clat)-24.5
+        fg3=(1.-xp)*0.05+xp*0.5
+        fg4=(1.-xp)*0.95+xp*0.5
+      else
+        fg3=0.05
+        fg4=0.95
+      end if
+      ftu=1.-fg3-fg4
+      ! crops
+      if (abs(clat)>40.5) then
+        fc3=1.
+      else if (abs(clat)>39.5) then
+        xp=abs(clat)-39.5
+        fc3=(1.-xp)*0.9+xp
+      else if (abs(clat)>30.5) then
+        fc3=0.9
+      else if (abs(clat)>29.5) then
+        xp=abs(clat)-29.5
+        fc3=(1.-xp)*0.7+xp*0.9
+      else
+        fc3=0.7
+      end if
+      fc4=1.-fc3
+      do n = 1,5
+        iv = vtype(i,j,n)
+        select case (iv)
+          case (1,2,3,4,11)
+            newgrid(iv)=newgrid(iv)+vfrac(i,j,n)
+            newlai(iv)=newlai(iv)+vfrac(i,j,n)*vlai(i,j,n)
+          case (5)
+            if (abs(clat)>25.5) then
+              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.5
+              newlai(1)=newlai(1)+vfrac(i,j,n)*0.5*vlai(i,j,n)
+              newgrid(4)=newgrid(4)+vfrac(i,j,n)*0.5
+              newlai(4)=newlai(4)+vfrac(i,j,n)*0.5*vlai(i,j,n)
+            else if (abs(clat)>24.5) then
+              xp=abs(clat)-24.5
+              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.5*xp
+              newlai(1)=newlai(1)+vfrac(i,j,n)*0.5*vlai(i,j,n)*xp
+              newgrid(4)=newgrid(4)+vfrac(i,j,n)*(1.-0.5*xp)
+              newlai(4)=newlai(4)+vfrac(i,j,n)*vlai(i,j,n)*(1.-0.5*xp)
+            else
+              newgrid(4)=newgrid(4)+vfrac(i,j,n)
+              newlai(4)=newlai(4)+vfrac(i,j,n)*vlai(i,j,n)
+            end if
+          case (6)
+            newgrid(5)=newgrid(5)+vfrac(i,j,n)*0.8
+            newlai(5)=newlai(5)+vfrac(i,j,n)*0.8*vlai(i,j,n)
+            newgrid(6)=newgrid(6)+vfrac(i,j,n)*0.2*fg3
+            newlai(6)=newlai(6)+vfrac(i,j,n)*0.2*fg3*vlai(i,j,n)
+            newgrid(7)=newgrid(7)+vfrac(i,j,n)*0.2*fg4
+            newlai(7)=newlai(7)+vfrac(i,j,n)*0.2*fg4*vlai(i,j,n)
+            newgrid(8)=newgrid(8)+vfrac(i,j,n)*0.2*ftu
+            newlai(8)=newlai(8)+vfrac(i,j,n)*0.2*ftu*vlai(i,j,n)
+          case (7)
+            newgrid(5)=newgrid(5)+vfrac(i,j,n)*0.2
+            newlai(5)=newlai(5)+vfrac(i,j,n)*0.2*vlai(i,j,n)
+            newgrid(6)=newgrid(6)+vfrac(i,j,n)*0.8*fg3
+            newlai(6)=newlai(6)+vfrac(i,j,n)*0.8*fg3*vlai(i,j,n)
+            newgrid(7)=newgrid(7)+vfrac(i,j,n)*0.8*fg4
+            newlai(7)=newlai(7)+vfrac(i,j,n)*0.8*fg4*vlai(i,j,n)
+            newgrid(8)=newgrid(8)+vfrac(i,j,n)*0.8*ftu
+            newlai(8)=newlai(8)+vfrac(i,j,n)*0.8*ftu*vlai(i,j,n)
+          case (8)
+            if (abs(clat)>40.5) then
+              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.4
+              newlai(1)=newlai(1)+vfrac(i,j,n)*0.4*vlai(i,j,n)
+            else if (abs(clat)>39.5) then
+              xp=abs(clat)-39.5
+              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.4*xp
+              newlai(1)=newlai(1)+vfrac(i,j,n)*vlai(i,j,n)*0.4*xp
+              savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.4*(1.-xp)
+              newgrid(2)=newgrid(2)+vfrac(i,j,n)*0.4*(1.-xp)
+              newlai(2)=newlai(2)+vfrac(i,j,n)*vlai(i,j,n)*0.4*(1.-xp)
+            else
+              savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.4
+              newgrid(2)=newgrid(2)+vfrac(i,j,n)*0.4
+              newlai(2)=newlai(2)+vfrac(i,j,n)*0.4*vlai(i,j,n)
+            end if
+            newgrid(6)=newgrid(6)+vfrac(i,j,n)*0.6*fg3
+            newlai(6)=newlai(6)+vfrac(i,j,n)*0.6*fg3*vlai(i,j,n)
+            newgrid(7)=newgrid(7)+vfrac(i,j,n)*0.6*fg4
+            newlai(7)=newlai(7)+vfrac(i,j,n)*0.6*fg4*vlai(i,j,n)
+            newgrid(8)=newgrid(8)+vfrac(i,j,n)*0.6*ftu
+            newlai(8)=newlai(8)+vfrac(i,j,n)*0.6*ftu*vlai(i,j,n)
+          case (9)
+            if (abs(clat)>40.5) then
+              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.1
+              newlai(1)=newlai(1)+vfrac(i,j,n)*0.1*vlai(i,j,n)
+            else if (abs(clat)>39.5) then
+              xp=abs(clat)-39.5
+              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.1*xp
+              newlai(1)=newlai(1)+vfrac(i,j,n)*vlai(i,j,n)*0.1*xp
+              savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.1*(1.-xp)
+              newgrid(2)=newgrid(2)+vfrac(i,j,n)*0.1*(1.-xp)
+              newlai(2)=newlai(2)+vfrac(i,j,n)*vlai(i,j,n)*0.1*(1.-xp)
+            else
+              savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.1
+              newgrid(2)=newgrid(2)+vfrac(i,j,n)*0.1
+              newlai(2)=newlai(2)+vfrac(i,j,n)*0.1*vlai(i,j,n)
+            end if
+            newgrid(6)=newgrid(6)+vfrac(i,j,n)*0.9*fg3
+            newlai(6)=newlai(6)+vfrac(i,j,n)*0.9*fg3*vlai(i,j,n)
+            newgrid(7)=newgrid(7)+vfrac(i,j,n)*0.9*fg4
+            newlai(7)=newlai(7)+vfrac(i,j,n)*0.9*fg4*vlai(i,j,n)
+            newgrid(8)=newgrid(8)+vfrac(i,j,n)*0.9*ftu
+            newlai(8)=newlai(8)+vfrac(i,j,n)*0.9*ftu*vlai(i,j,n)
+          case (10)
+            newgrid(6)=newgrid(6)+vfrac(i,j,n)*fg3
+            newlai(6)=newlai(6)+vfrac(i,j,n)*fg3*vlai(i,j,n)
+            newgrid(7)=newgrid(7)+vfrac(i,j,n)*fg4
+            newlai(7)=newlai(7)+vfrac(i,j,n)*fg4*vlai(i,j,n)
+            newgrid(8)=newgrid(8)+vfrac(i,j,n)*ftu
+            newlai(8)=newlai(8)+vfrac(i,j,n)*ftu*vlai(i,j,n)
+          case (12,14)
+            newgrid(9)=newgrid(9)+vfrac(i,j,n)*fc3
+            newlai(9)=newlai(9)+vfrac(i,j,n)*fc3*vlai(i,j,n)
+            newgrid(10)=newgrid(10)+vfrac(i,j,n)*fc4
+            newlai(10)=newlai(10)+vfrac(i,j,n)*fc4*vlai(i,j,n)
+          case (13)
+            newgrid(15)=newgrid(15)+vfrac(i,j,n)
+            newlai(15)=newlai(15)+vfrac(i,j,n)*vlai(i,j,n)
+          case (15)
+            newgrid(17)=newgrid(17)+vfrac(i,j,n)
+            newlai(17)=newlai(17)+vfrac(i,j,n)*vlai(i,j,n)
+          case (16)
+            newgrid(14)=newgrid(14)+vfrac(i,j,n)
+            newlai(14)=newlai(14)+vfrac(i,j,n)*vlai(i,j,n)
+          case (17)
+            newgrid(16)=newgrid(16)+vfrac(i,j,n)
+            newlai(16)=newlai(16)+vfrac(i,j,n)*vlai(i,j,n)
+          case DEFAULT
+            write(6,*) "ERROR: Land-type/lsmask mismatch at i,j,vtype,land=",i,j,vtype(i,j,n),lsdata(i,j)
+            stop
+        end select
+      end do
+      if (newgrid(2)>0.) then
+        savannafrac(i,j)=savannafrac(i,j)/newgrid(2)
+      end if
+      where ( newgrid(:)>0. )
+        newlai(:) = newlai(:)/newgrid(:)
+      end where
+      ipos = count(newgrid(:)>0.)
+      do while ( ipos>5 )
+        pos = minloc(newgrid(:), newgrid(:)>0.)
+        newgrid(pos(1)) = 0.
+        nsum = sum(newgrid(:))
+        newgrid(:) = newgrid(:)/nsum
+        ipos = count(newgrid(:)>0.)
+      end do    
+      do while ( any(newgrid(:)<minfrac.and.newgrid(:)>0.) )
+        pos = minloc(newgrid(:), newgrid(:)>0.)
+        newgrid(pos(1)) = 0.
+        nsum = sum(newgrid(:))
+        newgrid(:) = newgrid(:)/nsum
+      end do
+
+      n = 0
+      vtype(i,j,:) = 0
+      vfrac(i,j,:) = 0.
+      vlai(i,j,:)  = 0.
+      do iv = 1,mxvt
+        if ( newgrid(iv)>0. ) then
+          n = n + 1
+          vtype(i,j,n) = iv
+          vfrac(i,j,n) = newgrid(iv)
+          vlai(i,j,n)  = newlai(iv)
+        end if
+      end do
+
+    end if
+  end do
+end do
+
+return
+end subroutine convertigbp
+    

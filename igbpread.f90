@@ -348,6 +348,7 @@ If (subsec/=0) then
             End If
           End Do
         End Do
+        
         Deallocate(coverout)
 
       Else
@@ -636,6 +637,7 @@ Real, dimension(1:2), intent(in) :: latlon
 Integer, dimension(1:2), intent(in) :: lldim_4
 Real, dimension(lldim_4(1),lldim_4(2),0:8), intent(out) :: coverout
 real, dimension(0:13) :: faosoil
+integer*1, dimension(nscale_4,nscale_4) :: dataslice
 Integer*1, dimension(1:10800,1:nscale_4) :: databuffer
 Integer*1, dimension(1:10800) :: datatemp
 Integer, dimension(1:2,1:2) :: jin,jout
@@ -672,7 +674,8 @@ Do ilat=1,lldim_4(2)
   
   Do ilon=1,lldim_4(1)
     llint_4(1)=(ilon-1)*nscale_4
-    Call dataconvert(databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4),faosoil,nscale_4,13)
+    dataslice(1:nscale_4,1:nscale_4) = databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4)
+    Call dataconvert(dataslice(:,:),faosoil,nscale_4,13)
     nsum=sum(faosoil(1:13))
     if (nsum>0.) then
       coverout(ilon,ilat,:)=0.
@@ -704,7 +707,7 @@ Integer, dimension(1:2), intent(in) :: lldim_4
 Integer, dimension(1:10800,1:nscale_4) :: databuffer
 Integer*1, dimension(1:10800) :: datatemp
 Integer, dimension(1:2) :: llint_4
-Integer ilat,ilon,jlat,recpos
+Integer ilat,ilon,jlat,recpos,ncount
 Integer, dimension(1:2,1:2) :: jin,jout
 Real, dimension(1:2), intent(in) :: latlon
 Real, dimension(lldim_4(1),lldim_4(2)), intent(out) :: dataout
@@ -750,11 +753,12 @@ Do ilat=1,lldim_4(2)
   
   Do ilon=1,lldim_4(1)
     llint_4(1)=(ilon-1)*nscale_4
-    sermask=(databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4).gt.0)
-    sermask=sermask.and.(databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4).le.100)
-    if (Any(sermask)) then
+    sermask=(databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4) > 0)
+    sermask=sermask.and.(databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4) <= 100)
+    ncount = count(sermask)
+    if ( ncount > 0 ) then
       dataout(ilon,ilat)=real(sum(databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4),sermask)) &
-                        /(real(count(sermask))*100.)
+                        /(real(ncount)*100.)
     else
       dataout(ilon,ilat)=0. ! missing value flag
     end if
