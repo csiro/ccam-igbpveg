@@ -1,12 +1,15 @@
-FF = ifort
+
+ifneq ($(CUSTOM),yes)
+FC = ifort
 XFLAGS = -xHost -assume byterecl
 INC = -I $(NETCDF_ROOT)/include
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff 
 PPFLAG90 = -fpp
 PPFLAG77 = -fpp
+endif
 
 ifeq ($(GFORTRAN),yes)
-FF = gfortran
+FC = gfortran
 XFLAGS = -O2 -mtune=native -march=native
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
@@ -18,7 +21,7 @@ OBJT = igbpveg.o igbpread.o readswitch.o ncwrite.o misc.o ccinterp.o\
        jim_utils.o nfft_m.o ncread.o netcdf_m.o stacklimit.o
 
 igbpveg :$(OBJT)
-	$(FF) $(XFLAGS) $(OBJT) $(LIBS) -o igbpveg
+	$(FC) $(XFLAGS) $(OBJT) $(LIBS) -o igbpveg
 
 clean:
 	rm *.o core *.mod igbpveg
@@ -30,9 +33,9 @@ stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 
 .f90.o:
-	$(FF) -c $(XFLAGS) $(INC) $(PPFLAG90) $<
+	$(FC) -c $(XFLAGS) $(INC) $(PPFLAG90) $<
 .f.o:
-	$(FF) -c $(XFLAGS) $(INC) $(PPFLAG77) $<
+	$(FC) -c $(XFLAGS) $(INC) $(PPFLAG77) $<
 
 # Remove mod rule from Modula 2 so GNU make doesn't get confused
 %.o : %.mod

@@ -28,7 +28,8 @@
 ! or datatype=soil).
 !
 
-Subroutine getdata(dataout,glonlat,grid,tlld,sibdim,num,sibsize,datatype,fastigbp,ozlaipatch,binlimit,month)
+Subroutine getdata(dataout,glonlat,grid,tlld,sibdim,num,sibsize,datatype,fastigbp,ozlaipatch,binlimit,month, &
+                   datafilename,laifilename)
 
 Use ccinterp
 
@@ -41,7 +42,7 @@ Integer, dimension(1:2) :: lldim,lldim_x,llstore,pxy
 Integer nscale,nscale_x,nface,subsec,mode,tmp
 Integer i,j,k,lci,lcj,nx,ny,imth,mthrng,netcount
 Integer basesize,scalelimit,minscale
-Character(len=*), intent(in) :: datatype
+Character(len=*), intent(in) :: datatype, datafilename, laifilename
 Real, dimension(sibdim(1),sibdim(2),0:num), intent(out) :: dataout
 Real, dimension(sibdim(1),sibdim(2)), intent(in) :: grid
 Real, dimension(sibdim(1),sibdim(2),2), intent(in) :: tlld
@@ -156,13 +157,13 @@ If (fastigbp) then
 	  
             Select Case(datatype)
               Case('land')
-                Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch)
+                Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename)
               Case('soil')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
-                Call soilread(latlon,nscale_x,lldim_x,coverout)
+                Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename)
               Case('albvis','albnir')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
-                Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype)
+                Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype,datafilename)
               Case DEFAULT
                 Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
                 Stop
@@ -250,11 +251,11 @@ Else
 
   Select Case(datatype)
     Case('land')
-      Call igbpstream(sibdim,dataout,countn,num,month,ozlaipatch)
+      Call igbpstream(sibdim,dataout,countn,num,month,ozlaipatch,datafilename,laifilename)
     Case('soil')
-      Call soilstream(sibdim,dataout,countn)
+      Call soilstream(sibdim,dataout,countn,datafilename)
     Case('albvis','albnir')
-      Call albedostream(sibdim,dataout(:,:,0),countn,datatype)
+      Call albedostream(sibdim,dataout(:,:,0),countn,datatype,datafilename)
     Case DEFAULT
       Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
       Stop
@@ -314,13 +315,13 @@ If (subsec/=0) then
 	
         Select Case(datatype)
           Case('land')
-            Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch)
+            Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename)
           Case('soil')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
-            Call soilread(latlon,nscale_x,lldim_x,coverout)
+            Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename)
           Case('albvis','albnir')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
-            Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype)
+            Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype,datafilename)
          Case DEFAULT
             Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
             Stop
@@ -447,7 +448,7 @@ End
 ! This subroutine reads sib data down to nscale=1km resolution
 !
 
-Subroutine igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch)
+Subroutine igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,vegfilename,laifilename)
 
 Implicit None
 
@@ -469,39 +470,39 @@ real, dimension(:,:,:), allocatable :: laiin
 real bx,by,bdelta,tbx,tby,tbdelta
 character*2 cmth
 Character*10 fname
+character(len=*), intent(in) :: vegfilename, laifilename
 
 ! Must be compiled using 1 byte record lengths
-Open(10,FILE='gigbp2_0ll.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=43200)
+Open(10,FILE=vegfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=43200,STATUS='OLD')
 if (month==0) then
   mthrng=12
   do imth=1,mthrng
     write(fname,'("slai",I2.2,".img")') imth
-    open(10+imth,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
+    open(10+imth,FILE=trim(laifilename)//'/'//fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
   end do
 else
   mthrng=1
-  write(fname,'("slai",I2.2,".img")') month
-  open(11,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)  
+  open(11,FILE=laifilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')  
 end if
 
 allocate(lbuff(43200,nscale,mthrng))
 
 if (ozlaipatch) then
   write(6,*) "CSIRO LAI dataset patch"
-  if (month.eq.0) then
+  if (month==0) then
     imth=1
   else
     imth=month
   end if
   write(cmth,'(I2.2)') imth
-  open(30,file='aus_lai.'//cmth)
+  open(30,file='aus_lai.'//cmth,STATUS='OLD')
   read(30,*) bx,by,bdelta,ix,iy
   close(30)
   allocate(laiin(ix,iy,mthrng))
   if (month.eq.0) then
     do imth=1,mthrng
       write(cmth,'(I2.2)') imth
-      open(30,file='aus_lai.'//cmth)
+      open(30,file='aus_lai.'//cmth,STATUS='OLD')
       read(30,*) tbx,tby,tbdelta,tix,tiy
       if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
         write(6,*) "ERROR: LAI data has different dimensions for different months"
@@ -513,7 +514,7 @@ if (ozlaipatch) then
   else
     write(cmth,'(I2.2)') imth
     write(6,*) 'Open aus_lai.'//cmth
-    open(30,file='aus_lai.'//cmth)
+    open(30,file='aus_lai.'//cmth,STATUS='OLD')
     read(30,*) tbx,tby,tbdelta,tix,tiy
     if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
       write(6,*) "ERROR: LAI data has different dimensions for different months"
@@ -628,7 +629,7 @@ End
 ! (i.e., 4km) resolution.
 !
 
-Subroutine soilread(latlon,nscale_4,lldim_4,coverout)
+Subroutine soilread(latlon,nscale_4,lldim_4,coverout,soildatafile)
 
 Implicit None
 
@@ -645,9 +646,10 @@ Integer ilat,ilon,jlat,recpos,i
 Integer, dimension(1:2) :: llint_4
 real nsum
 integer, dimension(0:13), parameter :: masmap=(/ 0, 1, 1, 4, 2, 4, 7, 2, 2, 5, 6, 3, 8, 9 /)
+character(len=*), intent(in) :: soildatafile
 
 ! Must be compiled using 1 byte record lengths
-Open(20,FILE='usda4.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
+Open(20,FILE=soildatafile,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
 
 ! To speed-up the code, 43200x(nscale) blocks of the sib file are read
 ! at a time.  The data is then averaged in memory.  This system speeds-up the
@@ -698,7 +700,7 @@ End
 ! (i.e., 4km) resolution.
 !
 
-Subroutine albedoread(latlon,nscale_4,lldim_4,dataout,datatype)
+Subroutine albedoread(latlon,nscale_4,lldim_4,dataout,datatype,albfilename)
 
 Implicit None
 
@@ -712,7 +714,7 @@ Integer, dimension(1:2,1:2) :: jin,jout
 Real, dimension(1:2), intent(in) :: latlon
 Real, dimension(lldim_4(1),lldim_4(2)), intent(out) :: dataout
 Character(len=*), intent(in) :: datatype
-Character*14 fname
+character(len=*), intent(in) :: albfilename
 Character*20 cmsg
 Logical, dimension(1:nscale_4,1:nscale_4) :: sermask
 
@@ -720,20 +722,18 @@ Call solvejshift(latlon(1),jin,jout,30)
 
 select case(datatype)
   case ('albvis')
-    fname='salbvis223.img'
     cmsg='Soil albedo (VIS) - '
   case ('albnir')
-    fname='salbnir223.img'
     cmsg='Soil albedo (NIR) - '
 end select
-write(6,*) 'Reading ',trim(fname)
+write(6,*) 'Reading ',trim(albfilename)
 
 ! Must be compiled using 1 byte record lengths
-Open(40,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
+Open(40,FILE=albfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
 
 Do ilat=1,lldim_4(2)
 
-  if ((mod(ilat,10)==0).or.(ilat==lldim_4(2))) then
+  if ( mod(ilat,10)==0 .or. ilat==lldim_4(2) ) then
     Write(6,*) cmsg,ilat,'/',lldim_4(2)
   end if
   
@@ -776,7 +776,7 @@ End
 ! (i.e., no storage, simply read and bin)
 !
 
-Subroutine igbpstream(sibdim,coverout,countn,num,month,ozlaipatch)
+Subroutine igbpstream(sibdim,coverout,countn,num,month,ozlaipatch,vegfilename,laifilename)
 
 Use ccinterp
 
@@ -798,6 +798,7 @@ Integer ilat,ilon,lci,lcj,nface,ctmp,ltmp,mthrng,imth,lrp,nlrp,k
 integer ntmp,ix,iy,tix,tiy
 character*2 cmth
 Character*10 fname
+character(len=*), intent(in) :: vegfilename, laifilename
 
 coverout=0
 countn=0
@@ -805,17 +806,16 @@ countn=0
 Write(6,*) "Read USGS + LAI data (stream)"
 
 ! Must be compiled using 1 byte record lengths
-Open(10,FILE='gigbp2_0ll.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=43200)
+Open(10,FILE=vegfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=43200,STATUS='OLD')
 if (month==0) then
   mthrng=12
   do imth=1,mthrng
     write(fname,'("slai",I2.2,".img")') imth
-    open(10+imth,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
+    open(10+imth,FILE=trim(laifilename)//'/'//fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
   end do
 else
   mthrng=1
-  write(fname,'("slai",I2.2,".img")') month
-  open(11,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)  
+  open(11,FILE=laifilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')  
 end if
 
 if (ozlaipatch) then
@@ -826,14 +826,14 @@ if (ozlaipatch) then
     imth=month
   end if
   write(cmth,'(I2.2)') imth
-  open(30,file='aus_lai.'//cmth)
+  open(30,file='aus_lai.'//cmth,STATUS='OLD')
   read(30,*) bx,by,bdelta,ix,iy
   close(30)
   allocate(laiin(ix,iy,mthrng))
   if (month.eq.0) then
     do imth=1,mthrng
       write(cmth,'(I2.2)') imth
-      open(30,file='aus_lai.'//cmth)
+      open(30,file='aus_lai.'//cmth,STATUS='OLD')
       read(30,*) tbx,tby,tbdelta,tix,tiy
       if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
         write(6,*) "ERROR: LAI data has different dimensions for different months"
@@ -845,7 +845,7 @@ if (ozlaipatch) then
   else
     write(cmth,'(I2.2)') imth
     write(6,*) 'Open aus_lai.'//cmth
-    open(30,file='aus_lai.'//cmth)
+    open(30,file='aus_lai.'//cmth,STATUS='OLD')
     read(30,*) tbx,tby,tbdelta,tix,tiy
     if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
       write(6,*) "ERROR: LAI data has different dimensions for different months"
@@ -948,7 +948,7 @@ End
 ! (i.e., no storage, simply read and bin)
 !
 
-Subroutine soilstream(sibdim,coverout,countn)
+Subroutine soilstream(sibdim,coverout,countn,soilfilename)
 
 Use ccinterp
 
@@ -962,6 +962,7 @@ Integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: countn
 Integer*1, dimension(1:10800) :: databuffer
 Integer ilat,ilon,lci,lcj,nface,cpos,i
 integer, dimension(0:13), parameter :: masmap=(/ 0, 1, 1, 4, 2, 4, 7, 2, 2, 5, 6, 3, 8, 9 /)
+character(len=*), intent(in) :: soilfilename
 
 coverout=0
 countn=0
@@ -969,7 +970,7 @@ countn=0
 Write(6,*) "Read HWSD data (stream)"
 
 ! Must be compiled using 1 byte record lengths
-Open(20,FILE='usda4.img',ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
+Open(20,FILE=soilfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
 
 Do ilat=1,5400
 
@@ -1019,7 +1020,7 @@ End
 ! (i.e., no storage, simply read and bin)
 !
 
-Subroutine albedostream(sibdim,coverout,countn,datatype)
+Subroutine albedostream(sibdim,coverout,countn,datatype,albfilename)
 
 Use ccinterp
 
@@ -1034,24 +1035,22 @@ Real, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: coverout
 Real aglon,aglat,alci,alcj
 Real callon,callat
 Character(len=*), intent(in) :: datatype
-Character*14 fname
 Character*20 cmsg
+character(len=*), intent(in) :: albfilename
 
 coverout=0
 countn=0
 
 select case(datatype)
   case ('albvis')
-    fname='salbvis223.img'
     cmsg='Soil albedo (VIS) - '
   case ('albnir')
-    fname='salbnir223.img'
     cmsg='Soil albedo (NIR) - '
 end select
-write(6,*) 'Reading (stream) ',trim(fname)
+write(6,*) 'Reading (stream) ',trim(albfilename)
 
 ! Must be compiled using 1 byte record lengths
-Open(40,FILE=fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800)
+Open(40,FILE=albfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
 
 Do ilat=1,5400
   aglat=callat(90.,ilat,4)

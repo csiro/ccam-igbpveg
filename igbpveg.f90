@@ -26,11 +26,12 @@ Program igbpveg
 Implicit None
 
 character*80, dimension(:,:), allocatable :: options
-character*80, dimension(3) :: fname
-character*80 topofile
-character*80 landtypeout
-character*80 newtopofile
-character*80 outputmode
+character*130, dimension(8) :: fname
+character*130 topofile
+character*130 landtypeout
+character*130 newtopofile
+character*130 outputmode
+character*130 veginput, soilinput, laiinput, albvisinput, albnirinput
 integer binlimit, nopts, month
 integer outmode
 logical fastigbp,igbplsmask,ozlaipatch,tile
@@ -38,7 +39,9 @@ logical fastigbp,igbplsmask,ozlaipatch,tile
 namelist/vegnml/ topofile,fastigbp,                  &
                  landtypeout,igbplsmask,newtopofile, &
                  binlimit,month,ozlaipatch,          &
-                 tile,outputmode
+                 tile,outputmode, veginput,          &
+                 soilinput, laiinput, albvisinput,   &
+                 albnirinput
 
 write(6,*) 'IGBPVEG - IGBP 1km to CC grid (FEB-16)'
 
@@ -52,6 +55,7 @@ call readswitch(options,nopts)
 call defaults(options,nopts)
 
 outputmode=''
+ozlaipatch=.false.
 
 ! Read namelist
 write(6,*) 'Input &vegnml namelist'
@@ -62,6 +66,11 @@ write(6,*) 'Namelist accepted'
 fname(1)=topofile
 fname(2)=landtypeout
 fname(3)=newtopofile
+fname(4)=veginput
+fname(5)=soilinput
+fname(6)=laiinput
+fname(7)=albvisinput
+fname(8)=albnirinput
 
 outmode=0
 if ( outputmode=='cablepft' ) then
@@ -99,11 +108,16 @@ Write(6,*)
 Write(6,*) '  &vegnml'
 Write(6,*) '    month=0'
 Write(6,*) '    topofile="topout"'
-Write(6,*) '    newtopofile="topoutb"'
+Write(6,*) '    newtopofile="newtopout"'
 Write(6,*) '    landtypeout="veg"'
+Write(6,*) '    veginput="gigbp2_0ll.img"'
+Write(6,*) '    soilinput="usda4.img"'
+Write(6,*) '    laiinput="slai01.img"'
+Write(6,*) '    albvisinput="albvis223.img"'
+Write(6,*) '    albnirinput="albnir223.img"'
 Write(6,*) '    fastigbp=t'
 Write(6,*) '    igbplsmask=t'
-Write(6,*) '    ozlaipatch=f'
+!Write(6,*) '    ozlaipatch=f'
 Write(6,*) '    tile=t'
 Write(6,*) '    binlimit=2'
 Write(6,*) '    outputmode="cablepft"'
@@ -115,9 +129,15 @@ Write(6,*) '    topofile      = topography (input) file'
 Write(6,*) '    newtopofile   = Output topography file name'
 Write(6,*) '                    (if igbplsmask=t)'
 Write(6,*) '    landtypeout   = Land-use filename'
+Write(6,*) '    veginput      = Location of IGBP input file'
+Write(6,*) '    soilinput     = Location of USDA input file'
+Write(6,*) '    laiinput      = Location of LAI input file for month>0'
+Write(6,*) '                    or path to LAI files for month=0'
+Write(6,*) '    albvisinput   = Location of VIS Albedo input file'
+Write(6,*) '    albnirinput   = Location of NIR Albedo input file'
 Write(6,*) '    fastigbp      = Turn on fastigbp mode (see notes below)'
 Write(6,*) '    igbplsmask    = Define land/sea mask from IGBP dataset'
-Write(6,*) '    ozlaipath     = Use CSIRO LAI dataset for Australia'
+!Write(6,*) '    ozlaipath     = Use CSIRO LAI dataset for Australia'
 Write(6,*) '    tile          = Seperate land cover into tiles'
 Write(6,*) '    binlimit      = The minimum ratio between the grid'
 Write(6,*) '                    length scale and the length scale of'
@@ -185,7 +205,7 @@ Implicit None
 Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile
 Integer, intent(in) :: nopts,binlimit,month,outmode
 Character(len=*), dimension(nopts,2), intent(in) :: options
-Character(len=*), dimension(3), intent(in) :: fname
+Character(len=*), dimension(8), intent(in) :: fname
 character*90 filename
 Character*80, dimension(1:3) :: outputdesc
 Character*80 returnoption,csize,filedesc
@@ -214,10 +234,10 @@ integer tt
 logical, dimension(16) :: sermsk
 
 mthrng=1
-if (month==0) then
+if ( month==0 ) then
   mthrng=12
 end if
-if ((month<0).or.(month>12)) then
+if ( month<0 .or. month>12 ) then
   write(6,*) "ERROR: Invalid month ",month
   write(6,*) "Must be between 0 and 12"
   stop
@@ -249,10 +269,10 @@ allocate(soildata(sibdim(1),sibdim(2),0:8))
 allocate(landdata(sibdim(1),sibdim(2),0:17+16*mthrng))
 
 ! Read igbp data
-call getdata(landdata,lonlat,gridout,rlld,sibdim,17+16*mthrng,sibsize,'land',fastigbp,ozlaipatch,binlimit,month)
-call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month)
-call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month)
-call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month)
+call getdata(landdata,lonlat,gridout,rlld,sibdim,17+16*mthrng,sibsize,'land',fastigbp,ozlaipatch,binlimit,month,fname(4),fname(6))
+call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month,fname(5),fname(6))
+call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month,fname(7),fname(6))
+call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month,fname(8),fname(6))
 
 deallocate(gridout)
 allocate(urbandata(sibdim(1),sibdim(2)),lsdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
