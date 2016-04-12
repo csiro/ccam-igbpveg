@@ -88,15 +88,24 @@ deallocate(options)
 
 ! Complete
 write(6,*) "CCAM: igbpveg completed successfully"
-      
-! End banner
-write(6,*) "=================================================================================="
-write(6,*) "CCAM: Finished igbpveg"
-write(6,*) "=================================================================================="
+call finishbanner
 
 stop
 end
 
+subroutine finishbanner
+
+implicit none
+
+! End banner
+write(6,*) "=================================================================================="
+write(6,*) "CCAM: Finished igbvegveg"
+write(6,*) "=================================================================================="
+
+return
+end
+
+    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine displays the help message
 !
@@ -177,6 +186,7 @@ Write(6,*) '       is less than the minimum length scale of the IGBP'
 Write(6,*) '       dataset, the code will use the nearest grid point'
 Write(6,*) '       instead of binning.'
 Write(6,*)
+call finishbanner
 Stop
 
 Return
@@ -253,13 +263,15 @@ end if
 if ( month<0 .or. month>12 ) then
   write(6,*) "ERROR: Invalid month ",month
   write(6,*) "Must be between 0 and 12"
+  call finishbanner
   stop
 end if
 
 csize=returnoption('-s',options,nopts)
 read(csize,FMT=*,IOSTAT=ierr) sibsize
 if (ierr/=0) then
-  write(6,*) 'ERROR: Invalid array size.  Must be an integer.'
+  write(6,*) 'ERROR: Invalid array si=ze.  Must be an integer.'
+  call finishbanner
   stop
 end if
 
@@ -766,6 +778,7 @@ end if
 
 if ( ierr/=0 ) then
   write(6,*) "ERROR: Cannot read file ",trim(toponame)
+  call finishbanner
   stop
 end if
 
@@ -779,6 +792,7 @@ if (lnctopo==1) then
   ierr=nf_create(topoout,nf_clobber,ncid)
   if (ierr/=0) then
     write(6,*) "ERROR creating output topography file ",ierr
+    call finishbanner
     stop
   end if
   ierr=nf_def_dim(ncid,'longitude',sibdim(1),dimid(1))
@@ -825,6 +839,7 @@ end if
 
 If (ierr.NE.0) then
   Write(6,*) "ERROR: Cannot write file ",trim(topoout)
+  call finishbanner
   Stop
 End if
 
@@ -1019,6 +1034,7 @@ do j = 1,sibdim(2)
             newlai(16)=newlai(16)+vfrac(i,j,n)*vlai(i,j,n)
           case DEFAULT
             write(6,*) "ERROR: Land-type/lsmask mismatch at i,j,vtype,land=",i,j,vtype(i,j,n),lsdata(i,j)
+            call finishbanner
             stop
         end select
       end do

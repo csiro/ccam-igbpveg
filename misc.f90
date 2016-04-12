@@ -197,6 +197,7 @@ Select Case(inunit)
   Case DEFAULT
     Write(6,*) "ERROR: Unknown unit ",trim(inunit)," for conversion."
     Write(6,*) "       Please contact MJT and get him to fix this."
+    call finishbanner
     Stop
   
 End Select
@@ -206,6 +207,7 @@ If (inverse.EQ.1) Then
 Else
   If ((baseunit.NE.actunit).AND.(actunit.NE.'none')) Then
     Write(6,*) "ERROR: Mismatched units ",trim(baseunit)," and ",trim(actunit)
+    call finishbanner
     Stop
   End If
 End If
@@ -351,6 +353,7 @@ Do While(outdate(3)>maxday)
   
     Case DEFAULT
       Write(6,*) "ERROR: Internal error in advdate"
+      call finishbanner
       Stop
   
   End Select
@@ -441,9 +444,11 @@ Real m
 
 If (posout<Minval(posin)) Then
   Write(6,*) "ERROR: Must extrapolate below lowest value"
+  call finishbanner
   Stop
 Else If (posout>Maxval(posin)) Then
   Write(6,*) "ERROR: Must extrapolate above highest value"
+  call finishbanner
   Stop
 end if
 
@@ -500,6 +505,7 @@ Read(instr,*,iostat=ierr) sr
 
 if (ierr/=0) then
   Write(6,*) "ERROR: String "//trim(instr)//" is not a number."
+  call finishbanner
   Stop
 end if
 
@@ -611,7 +617,7 @@ subroutine fill_cc(a_io,ik,land_in)
 implicit none
       
 integer :: nrem, i, ii, ik, iq, ind, j, n, neighb, ndiag
-integer :: iminb,imaxb,jminb,jmaxb
+integer :: iminb,imaxb,jminb,jmaxb,nrem_l
 integer, save :: oldik = 0
 integer, dimension(:,:), allocatable, save :: ic
 integer, dimension(0:5) :: imin,imax,jmin,jmax
@@ -695,6 +701,7 @@ do while ( nrem > 0)
     imaxb=1
     jminb=ik
     jmaxb=1
+    nrem_l=0
     do j=jmin(n),jmax(n)
       do i=imin(n),imax(n)
         iq=ind(i,j,n)
@@ -711,14 +718,20 @@ do while ( nrem > 0)
             jminb=min(j,jminb)
             jmaxb=max(j,jmaxb)
             nrem=nrem+1   ! current number of points without a neighbour
+            nrem_l=nrem_l+1
           endif
         endif
       end do
     end do
-    imin(n)=iminb
-    imax(n)=imaxb
-    jmin(n)=jminb
-    jmax(n)=jmaxb
+    if (nrem_l>0) then
+      imin(n)=iminb
+      imax(n)=imaxb
+      jmin(n)=jminb
+      jmax(n)=jmaxb
+    else
+      imax(n)=imin(n)-1
+      jmax(n)=jmin(n)-1
+    end if
   end do
 end do
 return

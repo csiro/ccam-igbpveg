@@ -100,6 +100,7 @@ Select Case(datatype)
     scalelimit=4
   Case DEFAULT
     Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
+    call finishbanner
     Stop
 End Select
 
@@ -166,6 +167,7 @@ If (fastigbp) then
                 Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype,datafilename)
               Case DEFAULT
                 Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
+                call finishbanner
                 Stop
             End Select
 
@@ -258,6 +260,7 @@ Else
       Call albedostream(sibdim,dataout(:,:,0),countn,datatype,datafilename)
     Case DEFAULT
       Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
+      call finishbanner
       Stop
   End Select
 
@@ -324,6 +327,7 @@ If (subsec/=0) then
             Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype,datafilename)
          Case DEFAULT
             Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
+            call finishbanner
             Stop
         End Select
 
@@ -506,6 +510,7 @@ if (ozlaipatch) then
       read(30,*) tbx,tby,tbdelta,tix,tiy
       if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
         write(6,*) "ERROR: LAI data has different dimensions for different months"
+        call finishbanner
         stop
       end if
       read(30,*) laiin(:,:,imth)
@@ -518,6 +523,7 @@ if (ozlaipatch) then
     read(30,*) tbx,tby,tbdelta,tix,tiy
     if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
       write(6,*) "ERROR: LAI data has different dimensions for different months"
+      call finishbanner
       stop
     end if
     read(30,*) laiin(:,:,1)
@@ -837,6 +843,7 @@ if (ozlaipatch) then
       read(30,*) tbx,tby,tbdelta,tix,tiy
       if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
         write(6,*) "ERROR: LAI data has different dimensions for different months"
+        call finishbanner
         stop
       end if
       read(30,*) laiin(:,:,imth)
@@ -849,6 +856,7 @@ if (ozlaipatch) then
     read(30,*) tbx,tby,tbdelta,tix,tiy
     if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
       write(6,*) "ERROR: LAI data has different dimensions for different months"
+      call finishbanner
       stop
     end if
     read(30,*) laiin(:,:,1)
@@ -1377,6 +1385,7 @@ Select Case(mode)
     ! Do nothing
   Case Default
     Write(6,*) 'ERROR: Internal error.  Unsupported mode in searchdim'
+    call finishbanner
     Stop
 End Select
 
