@@ -43,6 +43,11 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  soilinput, laiinput, albvisinput,   &
                  albnirinput
 
+! Start banner
+write(6,*) "=================================================================================="
+write(6,*) "CCAM: Starting igbpveg"
+write(6,*) "=================================================================================="
+
 write(6,*) 'IGBPVEG - IGBP 1km to CC grid (FEB-16)'
 
 ! Read switches
@@ -80,6 +85,14 @@ end if
 call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode)
 
 deallocate(options)
+
+! Complete
+write(6,*) "CCAM: igbpveg completed successfully"
+      
+! End banner
+write(6,*) "=================================================================================="
+write(6,*) "CCAM: Finished igbpveg"
+write(6,*) "=================================================================================="
 
 stop
 end
