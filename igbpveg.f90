@@ -25,6 +25,8 @@ Program igbpveg
 
 Implicit None
 
+include 'version.h'
+
 character*80, dimension(:,:), allocatable :: options
 character*130, dimension(8) :: fname
 character*130 topofile
@@ -44,11 +46,12 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  albnirinput
 
 ! Start banner
-write(6,*) "=================================================================================="
+write(6,*) "==============================================================================="
 write(6,*) "CCAM: Starting igbpveg"
-write(6,*) "=================================================================================="
+write(6,*) "==============================================================================="
 
-write(6,*) 'IGBPVEG - IGBP 1km to CC grid (FEB-16)'
+write(6,*) 'IGBPVEG - IGBP 1km to CC grid'
+write(6,*) version
 
 ! Read switches
 nopts=1
@@ -98,9 +101,9 @@ subroutine finishbanner
 implicit none
 
 ! End banner
-write(6,*) "=================================================================================="
+write(6,*) "==============================================================================="
 write(6,*) "CCAM: Finished igbvegveg"
-write(6,*) "=================================================================================="
+write(6,*) "==============================================================================="
 
 return
 end
