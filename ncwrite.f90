@@ -417,65 +417,112 @@ End If
 
 
 Return
-    End
+End
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine defines misc fields in the NetCDF file
+! This subroutine defines a dimension
 !
-!
-!Subroutine ncaddmisc(ncidarr,elemdesc,numtype,dimtype,varid)
-!
-!use netcdf_m
-!
-!Implicit None
-!
-!Integer, intent(in) :: numtype,dimtype
-!Integer, dimension(0:4), intent(in) :: ncidarr
-!Integer, intent(out) :: varid
-!Character(len=*), dimension(1:3), intent(in) :: elemdesc
-!Integer strlen,ierr,numdim
-!Integer status
-!
-!If ((dimtype.LT.1).OR.(dimtype.GT.4)) Then
-!  numdim=0
-!Else
-!  numdim=1
-!End If
-!
-!
-!status=nf_def_var(ncidarr(0),elemdesc(1),numtype,numdim,ncidarr(dimtype),varid)
-!If (status /= nf_noerr) Then
-!  Write(6,*) "ERROR: Error defining variable in NetCDF file (",status,") : ",trim(elemdesc(1))
-!  call finishbanner
-!  Stop
-!End If
-!
-!strlen=Len_trim(elemdesc(2))
-!If (strlen.GT.0) Then
-!  status=nf_put_att_text(ncidarr(0),varid,"long_name",strlen,trim(elemdesc(2)))
-!  If (status /= nf_noerr) Then
-!    Write(6,*) "ERROR: Error defining var in NetCDF file (",status,"): ",trim(elemdesc(1))
-!    call finishbanner
-!    Stop
-!  End If
-!End If
-!
-!
-!strlen=Len_trim(elemdesc(3))
-!If (strlen.GT.0) Then
-!  status=nf_put_att_text(ncidarr(0),varid,"positive",strlen,trim(elemdesc(3)))
-!  If (status /= nf_noerr) Then
-!    Write(6,*) "ERROR: Error defining var in NetCDF file (",status,"): ",trim(elemdesc(1))
-!    call finishbanner
-!    Stop
-!  End If
-!End If
-!
-!
-!Return
-!End
 
+subroutine ncadd_dimension(ncidarr,elemdesc,dimlen,dimid)
 
+use netcdf_m
+
+implicit None
+
+integer, dimension(0:4), intent(in) :: ncidarr
+integer, intent(in) :: dimlen
+integer, intent(out) :: dimid
+character(len=*), intent(in) :: elemdesc
+integer status
+
+status = nf_def_dim(ncidarr(0),elemdesc,dimlen,dimid)
+if (status /= nf_noerr) Then
+  write(6,*) "ERROR: Error defining dimension in NetCDF file (",status,"): ",trim(elemdesc)
+  call finishbanner
+  stop
+end If
+
+return
+end
+    
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine defines a 1D variable
+!
+    
+subroutine ncadd_1dvar(ncidarr,elemdesc,numtype,dimid)
+
+use netcdf_m
+
+implicit none
+
+integer, dimension(0:4), intent(in) :: ncidarr
+integer, intent(in) :: numtype, dimid
+character(len=*), dimension(1:3), intent(in) :: elemdesc
+integer status, strlen, varid
+integer ch_dimid
+integer, dimension(2) :: dimid_a
+integer, parameter :: ch_len = 40
+
+if ( numtype == nf_char ) then
+    
+  status = nf_inq_dimid(ncidarr(0),'chid',ch_dimid)
+  if ( status /= nf_noerr ) then
+    status = nf_def_dim(ncidarr(0),'chid',ch_len,ch_dimid)
+    if ( status /= nf_noerr ) then
+      write(6,*) "ERROR: Error defining dimension chid in NetCDF file (",status,")"
+      call finishbanner
+      stop
+    end if
+  end if
+  dimid_a(1) = ch_dimid
+  dimid_a(2) = dimid
+  status = nf_def_var(ncidarr(0),elemdesc(1),nf_char,2,dimid_a(1:2),varid)
+  if (status /= nf_noerr) Then
+    if (status == nf_enameinuse) then
+      write(6,*) "WARN:  Variable ",trim(elemdesc(1))," already exists."
+      status = nf_inq_varid(ncidarr(0),elemdesc(1),varid)
+      if (status == nf_noerr) Return
+    end if
+    write(6,*) "ERROR: Error defining variable in NetCDF file (",status,") : ",trim(elemdesc(1))
+    call finishbanner
+    stop
+  end If
+  
+else
+
+  status = nf_def_var(ncidarr(0),elemdesc(1),numtype,1,dimid,varid)
+  if (status /= nf_noerr) Then
+    if (status == nf_enameinuse) then
+      write(6,*) "WARN:  Variable ",trim(elemdesc(1))," already exists."
+      status = nf_inq_varid(ncidarr(0),elemdesc(1),varid)
+      if (status == nf_noerr) Return
+    end if
+    write(6,*) "ERROR: Error defining variable in NetCDF file (",status,") : ",trim(elemdesc(1))
+    call finishbanner
+    stop
+  end If
+  
+end if
+
+strlen = Len_trim(elemdesc(2))
+status = nf_put_att_text(ncidarr(0),varid,"long_name",strlen,trim(elemdesc(2)))
+if (status /= nf_noerr) Then
+  write(6,*) "ERROR: Error defining var in NetCDF file (",status,"): ",trim(elemdesc(1))
+  call finishbanner
+  stop
+end If
+
+strlen = Len_trim(elemdesc(3))
+status = nf_put_att_text(ncidarr(0),varid,"units",strlen,trim(elemdesc(3)))
+if (status /= nf_noerr) Then
+  write(6,*) "ERROR: Error defining var in NetCDF file (",status,"): ",trim(elemdesc(1))
+  call finishbanner
+  stop
+end If
+
+return
+end
+    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine changes from define mode to data mode
 !
@@ -811,8 +858,106 @@ End If
 Return
 End
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine defines a 1D variable (real)
+!
+    
+subroutine ncput_1dvar_real(ncidarr,elemdesc,nsize,ndata)
 
+use netcdf_m
 
+implicit none
+
+integer, dimension(0:4), intent(in) :: ncidarr
+integer, intent(in) :: nsize
+real, dimension(nsize) :: ndata
+character(len=*), intent(in) :: elemdesc
+integer status, varid, vtype
+integer, dimension(1) :: nstart, ncount
+
+status = nf_inq_varid(ncidarr(0),elemdesc,varid)
+if ( status /= nf_noerr ) then
+  write(6,*) "ERROR: Cannot find variable in NetCDF file (",status,") : ",trim(elemdesc)
+  call finishbanner
+  stop
+end if
+
+status=nf_inq_vartype(ncidarr(0),varid,vtype)
+select case(vtype)
+  case(nf_float)
+    nstart(1) = 1
+    ncount(1) = nsize
+    status = nf_put_vara_real(ncidarr(0),varid,nstart,ncount,ndata)
+  case(nf_int)
+    nstart(1) = 1
+    ncount(1) = nsize
+    status = nf_put_vara_int(ncidarr(0),varid,nstart,ncount,nint(ndata))
+  case DEFAULT
+    write(6,*) 'ERROR: Unsupported vartype for ncput_1dvar_real',vtype
+    call finishbanner
+    stop
+end select
+if (status /= nf_noerr) Then
+  write(6,*) "ERROR: Error writing 1dvar data (",status,")"
+  call finishbanner
+  stop
+end If
+
+return
+end
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine defines a 1D variable (char)
+!
+    
+subroutine ncput_1dvar_text(ncidarr,elemdesc,nsize,ndata)
+
+use netcdf_m
+
+implicit none
+
+integer, dimension(0:4), intent(in) :: ncidarr
+integer, intent(in) :: nsize
+character(len=*), dimension(nsize) :: ndata
+character(len=*), intent(in) :: elemdesc
+integer status, varid, vtype, n
+integer, dimension(2) :: nstart, ncount, nstride
+
+status = nf_inq_varid(ncidarr(0),elemdesc,varid)
+if ( status /= nf_noerr ) then
+  write(6,*) "ERROR: Cannot find variable in NetCDF file (",status,") : ",trim(elemdesc)
+  call finishbanner
+  stop
+end if
+
+status = nf_inq_vartype(ncidarr(0),varid,vtype)
+select case(vtype)
+  case(nf_char)
+    do n = 1,nsize
+      nstart(1) = 1
+      nstart(2) = n
+      ncount(1) = len_trim(ndata(n))
+      ncount(2) = 1
+      nstride(1) = 1
+      nstride(2) = 1
+      status = nf_put_vars_text(ncidarr(0),varid,nstart,ncount,nstride,ndata(n))
+      if (status /= nf_noerr) Then
+        write(6,*) "ERROR: Error writing 1dvar data (",status,")"
+        call finishbanner
+        stop
+      end If
+    end do
+  case DEFAULT
+    write(6,*) 'ERROR: Unsupported vartype for ncput_1dvar_char ',vtype
+    call finishbanner
+    stop
+end select
+
+return
+end
+
+    
+    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine closes the NetCDF file
 !

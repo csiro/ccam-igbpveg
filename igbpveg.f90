@@ -241,7 +241,7 @@ Character*2 monthout
 real, dimension(:,:,:), allocatable :: vlai
 Real, dimension(:,:,:), allocatable :: landdata,soildata,rlld,vfrac,tmp
 Real, dimension(:,:), allocatable :: gridout,lsdata,urbandata,oceandata,albvisdata,albnirdata
-real, dimension(:,:), allocatable :: savannafrac
+!real, dimension(:,:), allocatable :: savannafrac
 real, dimension(:,:), allocatable :: rdata
 Real, dimension(3,2) :: alonlat
 Real, dimension(2) :: lonlat
@@ -254,10 +254,16 @@ Integer, dimension(2) :: sibdim
 Integer, dimension(4) :: dimnum,dimid,dimcount
 Integer, dimension(0:4) :: ncidarr
 Integer, dimension(6) :: adate
-Integer, dimension(2:21) :: varid
+Integer, dimension(2:22) :: varid
 Integer sibsize,tunit,i,j,k,ierr,sibmax(1),mthrng
 integer tt
 logical, dimension(16) :: sermsk
+
+integer, parameter :: pft_len = 18
+integer, parameter :: ch_len = 40 ! also defined in ncwrite.f90
+integer pft_dimid
+real, dimension(pft_len) :: pft_data
+character(len=ch_len), dimension(pft_len) :: pft_desc
 
 mthrng=1
 if ( month==0 ) then
@@ -355,7 +361,7 @@ albnirdata=tmp(:,:,1)
 deallocate( soildata, tmp )
 allocate( vfrac(sibdim(1),sibdim(2),5), vtype(sibdim(1),sibdim(2),5) )
 allocate( vlai(sibdim(1),sibdim(2),5) )
-allocate( savannafrac(sibdim(1),sibdim(2)) )
+!allocate( savannafrac(sibdim(1),sibdim(2)) )
 
 write(6,*) "Create output file"
 dimnum(1:2)=sibdim(1:2) ! CC grid dimensions
@@ -375,6 +381,9 @@ do tt=1,mthrng
   end if
 
   call ncinitcc(ncidarr,filename,dimnum(1:3),dimid,adate)
+  if ( outmode==1 ) then
+    call ncadd_dimension(ncidarr,'pft',pft_len,pft_dimid)
+  end if
   outputdesc(1)='soilt'
   outputdesc(2)='Soil classification'
   outputdesc(3)='none'
@@ -452,15 +461,20 @@ do tt=1,mthrng
   outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(16),1.,0.)
 
+  outputdesc(1)='urbantype'
+  outputdesc(2)='Urban class'
+  outputdesc(3)='none'
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(22),1.,0.)
   outputdesc(1)='urban'
   outputdesc(2)='Urban fraction'
   outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(7),1.,0.)
 
-  outputdesc(1)='savanna'
-  outputdesc(2)='Savanna fraction of PFT=2'
-  outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(21),1.,0.)
+  ! to be depreciated
+  !outputdesc(1)='savanna'
+  !outputdesc(2)='Savanna fraction of PFT=2'
+  !outputdesc(3)='none'
+  !call ncaddvargen(ncidarr,outputdesc,5,2,varid(21),1.,0.)
   
   call ncatt(ncidarr,'lon0',lonlat(1))
   call ncatt(ncidarr,'lat0',lonlat(2))
@@ -470,6 +484,78 @@ do tt=1,mthrng
     call ncatt(ncidarr,'cableformat',1.)    
   else
     call ncatt(ncidarr,'cableformat',0.)
+  end if
+
+  ! PFT metadata
+  if ( outmode==1 ) then
+    outputdesc(1)='pftname'
+    outputdesc(2)='PFT description'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,2,pft_dimid)
+    outputdesc(1)='csiropft'
+    outputdesc(2)='CSIRO PFT index'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='hc'
+    outputdesc(2)='Canopy height'
+    outputdesc(3)='m'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='xfang'
+    outputdesc(2)='Leaf angle'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='leaf_w'
+    outputdesc(2)='Leaf width'
+    outputdesc(3)='m'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='leaf_l'
+    outputdesc(2)='Leaf length'
+    outputdesc(3)='m'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='canst1'
+    outputdesc(2)='Canopy water storage'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='shelrb'
+    outputdesc(2)='shelrb'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='extkn'
+    outputdesc(2)='extkn'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='rholeaf-vis'
+    outputdesc(2)='Leaf reflection VIS'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='rholeaf-nir'
+    outputdesc(2)='Leaf reflection NIR'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='tauleaf-vis'
+    outputdesc(2)='Leaf transmission VIS'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='tauleaf-nir'
+    outputdesc(2)='Leaf transmission NIR'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='vcmax'
+    outputdesc(2)='vcmax'
+    outputdesc(3)='mol/m2/s'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='rpcoef'
+    outputdesc(2)='rpcoef'
+    outputdesc(3)='1/degC'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='rootbeta'
+    outputdesc(2)='rootbeta'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='c4frac'
+    outputdesc(2)='C4 fraction'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
   end if
 
   call ncenddef(ncidarr)
@@ -535,7 +621,7 @@ do tt=1,mthrng
     end do
   end do
   if ( outmode==1 ) then
-    call convertigbp(vtype,vfrac,vlai,savannafrac,sibdim,lsdata,rlld)
+    call convertigbp(vtype,vfrac,vlai,sibdim,lsdata,rlld)
   end if
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
   rdata=Real(vtype(:,:,1))
@@ -560,16 +646,75 @@ do tt=1,mthrng
   call ncwritedatgen(ncidarr,vlai(:,:,5),dimcount,varid(20))
 
   ! Urban
-  write(6,*) 'Write urban fraction'
+  write(6,*) 'Write urban'
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
+  ! type
+  rdata=1. ! generic urban type
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(22))
+  ! fraction
   urbanfrac=1.
   rdata=urbandata*urbanfrac
   call ncwritedatgen(ncidarr,rdata,dimcount,varid(7))
 
   ! Savanna fraction 
+  ! to be depreciated
+  !if ( outmode==1 ) then
+  !  dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
+  !  call ncwritedatgen(ncidarr,savannafrac,dimcount,varid(21))
+  !end if
+  
   if ( outmode==1 ) then
-    dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
-    call ncwritedatgen(ncidarr,savannafrac,dimcount,varid(21))
+    pft_desc(1) = "Evergreen Needleleaf"  
+    pft_desc(2) = "Evergreen Broadleaf"
+    pft_desc(3) = "Deciduous Needleleaf"
+    pft_desc(4) = "Deviduous Broadleaf"
+    pft_desc(5) = "Shrub"
+    pft_desc(6) = "C3 grass"
+    pft_desc(7) = "C4 grass"
+    pft_desc(8) = "Tundra"
+    pft_desc(9) = "C3 crop"
+    pft_desc(10) = "C4 crop"
+    pft_desc(11) = "Wetland"
+    pft_desc(12) = "Not used"
+    pft_desc(13) = "Not used"
+    pft_desc(14) = "Barren"
+    pft_desc(15) = "Urban"
+    pft_desc(16) = "Lakes"
+    pft_desc(17) = "Ice"
+    pft_desc(18) = "Evergreen Broadleaf (Savanna)"
+    call ncput_1dvar_text(ncidarr,'pftname',pft_len,pft_desc)
+    pft_data(:) = (/   1.,  2.,  3.,  4., 5., 6., 7., 8., 9., 10., 11.,  12., 13., 14., 15., 16., 17., 2. /)
+    call ncput_1dvar_real(ncidarr,'csiropft',pft_len,pft_data)
+    pft_data(:) = (/   17.,  35.,  15.5,  20.,   0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567,  0.2, 6.017,  0.2,  0.2,  0.2,  0.2, 17. /)
+    call ncput_1dvar_real(ncidarr,'hc',pft_len,pft_data)
+    pft_data(:) = (/  0.01,  0.1,  0.01, 0.25,  0.01,  -0.3,  -0.3,  -0.3, -0.3, -0.3,  -0.3,  0.1,    0.,   0.,   0.,   0.,   0., 0.1 /)
+    call ncput_1dvar_real(ncidarr,'xfang',pft_len,pft_data)
+    pft_data(:) = (/ 0.001, 0.05, 0.001, 0.08, 0.005,  0.01,  0.01,  0.01, 0.01, 0.01,  0.01, 0.03, 0.015, 0.00,   0.,   0.,   0., 0.05 /)
+    call ncput_1dvar_real(ncidarr,'leaf_w',pft_len,pft_data)
+    pft_data(:) = (/ 0.055, 0.10, 0.040, 0.15, 0.100,  0.30,  0.30,  0.30, 0.30, 0.30,  0.30, 0.30, 0.242, 0.03, 0.03, 0.03, 0.03, 0.10 /)
+    call ncput_1dvar_real(ncidarr,'leaf_l',pft_len,pft_data)
+    pft_data(:) = 0.1
+    call ncput_1dvar_real(ncidarr,'canst1',pft_len,pft_data)
+    pft_data(:) = 2.
+    call ncput_1dvar_real(ncidarr,'shelrb',pft_len,pft_data)
+    pft_data(:) = 0.001
+    call ncput_1dvar_real(ncidarr,'extkn',pft_len,pft_data)
+    pft_data(:) = (/ 0.062,0.076,0.056,0.092,0.100,0.110,0.100,0.117,0.100,0.090,0.108,0.055,0.091,0.238,0.143,0.143,0.159,0.076 /)
+    call ncput_1dvar_real(ncidarr,'rholeaf-vis',pft_len,pft_data)
+    pft_data(:) = (/ 0.302,0.350,0.275,0.380,0.400,0.470,0.400,0.343,0.400,0.360,0.343,0.190,0.310,0.457,0.275,0.275,0.305,0.350 /)
+    call ncput_1dvar_real(ncidarr,'rholeaf-nir',pft_len,pft_data)
+    pft_data(:) = (/ 0.050,0.050,0.045,0.050,0.050,0.070,0.100,0.080,0.100,0.090,0.075,0.023,0.059,0.039,0.023,0.023,0.026,0.050 /)
+    call ncput_1dvar_real(ncidarr,'tauleaf-vis',pft_len,pft_data)
+    pft_data(:) = (/ 0.100,0.250,0.144,0.250,0.240,0.250,0.150,0.124,0.150,0.225,0.146,0.198,0.163,0.189,0.113,0.113,0.113,0.250 /)
+    call ncput_1dvar_real(ncidarr,'tauleaf-nir',pft_len,pft_data)
+    pft_data(:) =(/ 40.E-6,55.E-6,40.E-6,60.E-6,40.E-6,60.E-6,10.E-6,40.E-6,80.E-6,80.E-6,60.E-6,17.E-6,1.E-6,17.E-6,17.E-6,17.E-6,17.E-6,55.E-6 /)
+    call ncput_1dvar_real(ncidarr,'vcmax',pft_len,pft_data)
+    pft_data(:) = 0.0832
+    call ncput_1dvar_real(ncidarr,'rpcoef',pft_len,pft_data)
+    pft_data(:) = (/ 0.943,0.962,0.966,0.961,0.964,0.943,0.943,0.943,0.961,0.961,0.943,0.975,0.961,0.961,0.961,0.961,0.961,0.962 /)
+    call ncput_1dvar_real(ncidarr,'rootbeta',pft_len,pft_data)
+    pft_data(:) = (/ 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0. /)
+    call ncput_1dvar_real(ncidarr,'c4frac',pft_len,pft_data)
   end if
   
   call ncclose(ncidarr)
@@ -578,7 +723,7 @@ end do
 
 deallocate(landdata,urbandata,lsdata)
 deallocate(vfrac,vtype,idata,vlai)
-deallocate(savannafrac)
+!deallocate(savannafrac)
 deallocate(rlld)
 deallocate(rdata)
 
@@ -849,19 +994,18 @@ End if
 Return
 End
 
-subroutine convertigbp(vtype,vfrac,vlai,savannafrac,sibdim,lsdata,rlld)
+subroutine convertigbp(vtype,vfrac,vlai,sibdim,lsdata,rlld)
 
 implicit none
 
-integer, parameter :: mxvt=17
 Integer, dimension(2), intent(in) :: sibdim
 integer, dimension(sibdim(1),sibdim(2),5), intent(inout) :: vtype
 integer, dimension(1) :: pos
 integer i, j, n, ipos, iv
 real, dimension(sibdim(1),sibdim(2),5), intent(inout) :: vfrac, vlai
-real, dimension(mxvt) :: newlai
-real, dimension(mxvt) :: newgrid
-real, dimension(sibdim(1),sibdim(2)), intent(out) :: savannafrac
+real, dimension(18) :: newlai
+real, dimension(18) :: newgrid
+!real, dimension(sibdim(1),sibdim(2)), intent(out) :: savannafrac
 real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsdata
 real, dimension(sibdim(1),sibdim(2),2), intent(in) :: rlld
 real fc3, fc4, ftu, fg3, fg4, clat, nsum
@@ -870,7 +1014,7 @@ real, parameter :: minfrac = 0.01        ! minimum non-zero tile fraction (impro
 Real, parameter :: pi = 3.1415926536
 
 write(6,*) "Mapping IGBP classes to CABLE PFTs"
-savannafrac(:,:) = 0.
+!savannafrac(:,:) = 0.
 do j = 1,sibdim(2)
   do i = 1,sibdim(1)
     if ( lsdata(i,j)<0.5 ) then
@@ -975,13 +1119,13 @@ do j = 1,sibdim(2)
               xp=abs(clat)-39.5
               newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.4*xp
               newlai(1)=newlai(1)+vfrac(i,j,n)*vlai(i,j,n)*0.4*xp
-              savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.4*(1.-xp)
-              newgrid(2)=newgrid(2)+vfrac(i,j,n)*0.4*(1.-xp)
-              newlai(2)=newlai(2)+vfrac(i,j,n)*vlai(i,j,n)*0.4*(1.-xp)
+              !savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.4*(1.-xp)
+              newgrid(18)=newgrid(18)+vfrac(i,j,n)*0.4*(1.-xp)
+              newlai(18)=newlai(18)+vfrac(i,j,n)*vlai(i,j,n)*0.4*(1.-xp)
             else
-              savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.4
-              newgrid(2)=newgrid(2)+vfrac(i,j,n)*0.4
-              newlai(2)=newlai(2)+vfrac(i,j,n)*0.4*vlai(i,j,n)
+              !savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.4
+              newgrid(18)=newgrid(18)+vfrac(i,j,n)*0.4
+              newlai(18)=newlai(18)+vfrac(i,j,n)*0.4*vlai(i,j,n)
             end if
             newgrid(6)=newgrid(6)+vfrac(i,j,n)*0.6*fg3
             newlai(6)=newlai(6)+vfrac(i,j,n)*0.6*fg3*vlai(i,j,n)
@@ -997,13 +1141,13 @@ do j = 1,sibdim(2)
               xp=abs(clat)-39.5
               newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.1*xp
               newlai(1)=newlai(1)+vfrac(i,j,n)*vlai(i,j,n)*0.1*xp
-              savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.1*(1.-xp)
-              newgrid(2)=newgrid(2)+vfrac(i,j,n)*0.1*(1.-xp)
-              newlai(2)=newlai(2)+vfrac(i,j,n)*vlai(i,j,n)*0.1*(1.-xp)
+              !savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.1*(1.-xp)
+              newgrid(18)=newgrid(18)+vfrac(i,j,n)*0.1*(1.-xp)
+              newlai(18)=newlai(18)+vfrac(i,j,n)*vlai(i,j,n)*0.1*(1.-xp)
             else
-              savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.1
-              newgrid(2)=newgrid(2)+vfrac(i,j,n)*0.1
-              newlai(2)=newlai(2)+vfrac(i,j,n)*0.1*vlai(i,j,n)
+              !savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.1
+              newgrid(18)=newgrid(18)+vfrac(i,j,n)*0.1
+              newlai(18)=newlai(18)+vfrac(i,j,n)*0.1*vlai(i,j,n)
             end if
             newgrid(6)=newgrid(6)+vfrac(i,j,n)*0.9*fg3
             newlai(6)=newlai(6)+vfrac(i,j,n)*0.9*fg3*vlai(i,j,n)
@@ -1041,9 +1185,9 @@ do j = 1,sibdim(2)
             stop
         end select
       end do
-      if (newgrid(2)>0.) then
-        savannafrac(i,j)=savannafrac(i,j)/newgrid(2)
-      end if
+      !if (newgrid(2)>0.) then
+      !  savannafrac(i,j)=savannafrac(i,j)/newgrid(2)
+      !end if
       where ( newgrid(:)>0. )
         newlai(:) = newlai(:)/newgrid(:)
       end where
@@ -1066,7 +1210,7 @@ do j = 1,sibdim(2)
       vtype(i,j,:) = 0
       vfrac(i,j,:) = 0.
       vlai(i,j,:)  = 0.
-      do iv = 1,mxvt
+      do iv = 1,18
         if ( newgrid(iv)>0. ) then
           n = n + 1
           vtype(i,j,n) = iv
