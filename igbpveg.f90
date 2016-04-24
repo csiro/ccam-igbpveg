@@ -556,6 +556,10 @@ do tt=1,mthrng
     outputdesc(2)='C4 fraction'
     outputdesc(3)='none'
     call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='vbeta'
+    outputdesc(2)='vbeta'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
   end if
 
   call ncenddef(ncidarr)
@@ -715,6 +719,8 @@ do tt=1,mthrng
     call ncput_1dvar_real(ncidarr,'rootbeta',pft_len,pft_data)
     pft_data(:) = (/ 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0. /)
     call ncput_1dvar_real(ncidarr,'c4frac',pft_len,pft_data)
+    pft_data(:) = (/ 2., 2., 2., 2., 4., 4., 4., 4., 2., 2., 4., 4., 2., 4., 4., 4., 4., 2. /)
+    call ncput_1dvar_real(ncidarr,'vbeta',pft_len,pft_data)
   end if
   
   call ncclose(ncidarr)
