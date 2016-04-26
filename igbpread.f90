@@ -29,13 +29,13 @@
 !
 
 Subroutine getdata(dataout,glonlat,grid,tlld,sibdim,num,sibsize,datatype,fastigbp,ozlaipatch,binlimit,month, &
-                   datafilename,laifilename)
+                   datafilename,laifilename,class_num,mapwater)
 
 Use ccinterp
 
 Implicit None
 
-Integer, intent(in) :: sibsize,num,binlimit,month
+Integer, intent(in) :: sibsize,num,binlimit,month,class_num
 Integer, dimension(2), intent(in) :: sibdim
 Integer, dimension(sibdim(1),sibdim(2)) :: countn
 Integer, dimension(1:2) :: lldim,lldim_x,llstore,pxy
@@ -59,6 +59,7 @@ Real ipol,callon,callat,indexlon,indexlat
 Logical, intent(in) :: fastigbp,ozlaipatch
 Logical, dimension(:,:), allocatable :: sermask,sermask2
 logical, dimension(sibdim(1),sibdim(2)) :: ltest
+logical, dimension(class_num), intent(in) :: mapwater
 
 if (month==0) then
   mthrng=12
@@ -182,23 +183,23 @@ If (fastigbp) then
                   lcj = nint(alcj)
                   lcj = lcj+nface*sibdim(1)
                   if (grid(lci,lcj)>=real(minscale)) then
-                    if (sum(abs(coverout(i,j,:17)))<0.001) then
+                    if (sum(abs(coverout(i,j,0:class_num)))<0.001) then
                       if (countn(lci,lcj)==0) then
-                        dataout(lci,lcj,:)=-1. ! Missing value?
+                        dataout(lci,lcj,0:num)=-1. ! Missing value?
                         countn(lci,lcj)=1
                       end if
                     else
                       if (dataout(lci,lcj,0)<0.) then
-                        dataout(lci,lcj,:)=0. ! reset missing point after finding non-trival data
+                        dataout(lci,lcj,0:num)=0. ! reset missing point after finding non-trival data
                         countn(lci,lcj)=0
                       end if
-                      dataout(lci,lcj,:17)=dataout(lci,lcj,:17)+coverout(i,j,:17)
-                      where(coverout(i,j,18:)==0..and.countn(lci,lcj)>0)
-                        dataout(lci,lcj,18:)=dataout(lci,lcj,18:)*real(countn(lci,lcj)+1)/real(countn(lci,lcj))
-                      elsewhere (dataout(lci,lcj,18:)==0.)
-                        dataout(lci,lcj,18:)=coverout(i,j,18:)*real(countn(lci,lcj)+1)
+                      dataout(lci,lcj,0:class_num)=dataout(lci,lcj,0:class_num)+coverout(i,j,0:class_num)
+                      where(coverout(i,j,class_num+1:num)==0..and.countn(lci,lcj)>0)
+                        dataout(lci,lcj,class_num+1:num)=dataout(lci,lcj,class_num+1:num)*real(countn(lci,lcj)+1)/real(countn(lci,lcj))
+                      elsewhere (dataout(lci,lcj,class_num+1:num)==0.)
+                        dataout(lci,lcj,class_num+1:num)=coverout(i,j,class_num+1:num)*real(countn(lci,lcj)+1)
                       elsewhere
-                        dataout(lci,lcj,18:)=dataout(lci,lcj,18:)+coverout(i,j,18:)
+                        dataout(lci,lcj,class_num+1:num)=dataout(lci,lcj,class_num+1:num)+coverout(i,j,class_num+1:num)
                       end where
                       countn(lci,lcj)=countn(lci,lcj)+1
                     end if
@@ -379,65 +380,68 @@ End Do
 
 if (datatype=='land') then
   Allocate(sermask(1:sibdim(1),1:sibdim(2)),sermask2(1:sibdim(1),1:sibdim(2)))
-  do k=1,16
-    select case(k)
-      case(1:12,14)
-        sermask=dataout(:,:,k)>0.
-        sermask2=sermask
-        do lcj=1,sibdim(2)
-          do lci=1,sibdim(1)
-            if (sermask(lci,lcj)) then
-              if (any(dataout(lci,lcj,17+(k-1)*mthrng+1:17+k*mthrng)==0.)) then
-                sermask2(lci,lcj)=.false.
-              else
-                sermask(lci,lcj)=.false.
-              end if
-            end if
-          end do
-        end do
-        if (any(sermask)) then ! missing LAI data
-          Write(6,*) "Replace missing LAI for class ",k
-          if (any(sermask2)) then
-            call fill_cc_a(dataout(:,:,17+(k-1)*mthrng+1:17+k*mthrng),sibdim(1),mthrng,sermask2)
-          else
-            sermask2=.false.
-            do lcj=1,sibdim(2)
-              do lci=1,sibdim(1)
-                i=1
-                do while(i<=16.or..not.sermask2(lci,lcj))
-                  if (all(dataout(lci,lcj,17+(i-1)*mthrng+1:17+i*mthrng)>0.)) then
-                    sermask2(lci,lcj)=.true.
-                  end if
-                  i=i+1
-                end do
-              end do
-            end do
-            if (any(sermask2)) then
-              write(6,*) "Extended replace for missing LAI class ",k
-              do lcj=1,sibdim(2)
-                do lci=1,sibdim(1)
-                  if (sermask(lci,lcj)) then
-                    call findnear(pxy,lci,lcj,sermask2,rlld,sibdim)
-                    netlai=0.
-                    netcount=0
-                    do i=1,16
-                      if (all(dataout(pxy(1),pxy(2),17+(i-1)*mthrng+1:17+i*mthrng)>0.)) then
-                        netlai(1:mthrng)=netlai(1:mthrng)+dataout(pxy(1),pxy(2),17+(i-1)*mthrng+1:17+i*mthrng)
-                        netcount=netcount+1
-                      end if
-                    end do
-                    dataout(lci,lcj,17+(k-1)*mthrng+1:17+k*mthrng)=netlai(1:mthrng)/real(netcount)
-                  end if
-                end do
-              end do
+  do k=1,class_num
+    if ( .not.mapwater(k) ) then
+      sermask=dataout(:,:,k)>0.
+      sermask2=sermask
+      do lcj=1,sibdim(2)
+        do lci=1,sibdim(1)
+          if (sermask(lci,lcj)) then
+            if (any(dataout(lci,lcj,(k-1)*mthrng+class_num+1:k*mthrng+class_num)==0.)) then
+              sermask2(lci,lcj)=.false.
             else
-              write(6,*) "Only trivial LAI found"
+              sermask(lci,lcj)=.false.
             end if
           end if
+        end do
+      end do
+      if (any(sermask)) then ! missing LAI data
+        Write(6,*) "Replace missing LAI for class ",k
+        if (any(sermask2)) then
+          call fill_cc_a(dataout(:,:,(k-1)*mthrng+class_num+1:k*mthrng+class_num),sibdim(1),mthrng,sermask2)
+        else
+          sermask2=.false.
+          do lcj=1,sibdim(2)
+            do lci=1,sibdim(1)
+              i=1
+              do while(i<=class_num.or..not.sermask2(lci,lcj))
+                if ( .not.mapwater(i) ) then
+                  if (all(dataout(lci,lcj,(i-1)*mthrng+class_num+1:i*mthrng+class_num)>0.)) then
+                    sermask2(lci,lcj)=.true.
+                  end if
+                end if
+                i=i+1
+              end do
+            end do
+          end do
+          if (any(sermask2)) then
+            write(6,*) "Extended replace for missing LAI class ",k
+            do lcj=1,sibdim(2)
+              do lci=1,sibdim(1)
+                if (sermask(lci,lcj)) then
+                  call findnear(pxy,lci,lcj,sermask2,rlld,sibdim)
+                  netlai=0.
+                  netcount=0
+                  do i=1,class_num
+                    if ( .not.mapwater(i) ) then
+                      if (all(dataout(pxy(1),pxy(2),(i-1)*mthrng+class_num+1:i*mthrng+class_num)>0.)) then
+                        netlai(1:mthrng)=netlai(1:mthrng)+dataout(pxy(1),pxy(2),(i-1)*mthrng+class_num+1:i*mthrng+class_num)
+                        netcount=netcount+1
+                      end if
+                    end if
+                  end do
+                  dataout(lci,lcj,(k-1)*mthrng+class_num+1:k*mthrng+class_num)=netlai(1:mthrng)/real(netcount)
+                end if
+              end do
+            end do
+          else
+            write(6,*) "Only trivial LAI found"
+          end if
         end if
-      case default
-        dataout(:,:,17+(k-1)*mthrng+1:17+k*mthrng)=0.
-    end select
+      end if
+    else
+      dataout(:,:,class_num+(k-1)*mthrng+1:class_num+k*mthrng)=0.  
+    end if
   end do
   Deallocate(sermask,sermask2)
 end if
@@ -469,6 +473,7 @@ integer, dimension(0:num) :: ncount
 Integer, dimension(1:2,1:2) :: jin,jout
 Integer ilat,ilon,jlat,recpos,mthrng,imth,lrp,ctmp,ltmp,nlrp,k
 integer i,j,ntmp,ix,iy,tiy,tix
+integer class_num
 Integer, dimension(1:2) :: llint
 real, dimension(:,:,:), allocatable :: laiin
 real bx,by,bdelta,tbx,tby,tbdelta
@@ -488,6 +493,8 @@ else
   mthrng=1
   open(11,FILE=laifilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')  
 end if
+
+class_num=num/(1+mthrng)
 
 allocate(lbuff(43200,nscale,mthrng))
 
@@ -558,6 +565,7 @@ Do ilat=1,lldim(2)
   End Do
   
   do imth=1,mthrng
+    lrp=-1
     Do jlat=1,nscale
       recpos=llint(2)+jlat
       ! read corrosponding lai data and fill to 1km grid
@@ -592,28 +600,22 @@ Do ilat=1,lldim(2)
     do j=1,nscale
       do i=llint(1)+1,llint(1)+nscale
         ctmp=mod(databuffer(i,j)+256,256)
-        if (ctmp>=0.and.ctmp<=17) then
+        if (ctmp>=0.and.ctmp<=class_num) then
           coverout(ilon,ilat,ctmp)=coverout(ilon,ilat,ctmp)+1.
           ncount(ctmp)=ncount(ctmp)+1
-          select case(ctmp)
-           case(1:12,14)
+          if ( ctmp>0 ) then
             do imth=1,mthrng
               ltmp=mod(lbuff(i,j,imth)+256,256)
               if (ltmp>0.and.ltmp<100) then
-                coverout(ilon,ilat,17+(ctmp-1)*mthrng+imth)=coverout(ilon,ilat,17+(ctmp-1)*mthrng+imth)+real(ltmp)/10.
-                ncount(17+(ctmp-1)*mthrng+imth)=ncount(17+(ctmp-1)*mthrng+imth)+1
+                coverout(ilon,ilat,class_num+(ctmp-1)*mthrng+imth)=coverout(ilon,ilat,class_num+(ctmp-1)*mthrng+imth)+real(ltmp)/10.
+                ncount(class_num+(ctmp-1)*mthrng+imth)=ncount(class_num+(ctmp-1)*mthrng+imth)+1
               end if
             end do
-           case(13,15:16)
-            ! set LAI to zero
-            do imth=1,mthrng
-              ncount(17+(ctmp-1)*mthrng+imth)=ncount(17+(ctmp-1)*mthrng+imth)+1
-            end do
-          end select
+          end if
         end if
       end do
     end do
-    ncount(0:17)=sum(ncount(0:17))
+    ncount(0:class_num)=sum(ncount(0:class_num))
     coverout(ilon,ilat,:)=coverout(ilon,ilat,:)/real(max(ncount,1))
   End Do
  
@@ -802,6 +804,7 @@ Integer*1, dimension(1:43200,1:12) :: lbuff
 integer, dimension(1:sibdim(1),1:sibdim(2),0:num) :: ncount
 Integer ilat,ilon,lci,lcj,nface,ctmp,ltmp,mthrng,imth,lrp,nlrp,k
 integer ntmp,ix,iy,tix,tiy
+integer class_num
 character*2 cmth
 Character*10 fname
 character(len=*), intent(in) :: vegfilename, laifilename
@@ -823,6 +826,8 @@ else
   mthrng=1
   open(11,FILE=laifilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')  
 end if
+
+class_num=num/(1+mthrng)
 
 if (ozlaipatch) then
   write(6,*) "CSIRO LAI dataset patch"
@@ -909,32 +914,26 @@ Do ilat=1,21600
     lcj = lcj+nface*sibdim(1)
     
     ctmp=mod(databuffer(ilon)+256,256)
-    if (ctmp>=0.and.ctmp<=17) then
+    if (ctmp>=0.and.ctmp<=class_num) then
       coverout(lci,lcj,ctmp)=coverout(lci,lcj,ctmp)+1.
       ncount(lci,lcj,ctmp)=ncount(lci,lcj,ctmp)+1
       countn(lci,lcj)=1
-      select case(ctmp)
-       case(1:12,14)
+      if ( ctmp>0 ) then
         do imth=1,mthrng
           ltmp=mod(lbuff(ilon,imth)+256,256)
           if (ltmp>0.and.ltmp<100) then
-            coverout(lci,lcj,17+(ctmp-1)*mthrng+imth)=coverout(lci,lcj,17+(ctmp-1)*mthrng+imth)+real(ltmp)/10.
-            ncount(lci,lcj,17+(ctmp-1)*mthrng+imth)=ncount(lci,lcj,17+(ctmp-1)*mthrng+imth)+1
+            coverout(lci,lcj,class_num+(ctmp-1)*mthrng+imth)=coverout(lci,lcj,class_num+(ctmp-1)*mthrng+imth)+real(ltmp)/10.
+            ncount(lci,lcj,class_num+(ctmp-1)*mthrng+imth)=ncount(lci,lcj,class_num+(ctmp-1)*mthrng+imth)+1
           end if
         end do
-       case(13,15:16)
-        do imth=1,mthrng
-          ! set LAI to zero
-          ncount(lci,lcj,17+(ctmp-1)*mthrng+imth)=ncount(lci,lcj,17+(ctmp-1)*mthrng+imth)+1
-        end do
-      end select
+      end if
     end if
     
   End Do
 End Do
 do lcj=1,sibdim(2)
   do lci=1,sibdim(1)
-    ncount(lci,lcj,0:17)=sum(ncount(lci,lcj,0:17))
+    ncount(lci,lcj,0:class_num)=sum(ncount(lci,lcj,0:class_num))
   end do
 end do
 coverout=coverout/real(max(ncount,1))
@@ -1536,27 +1535,31 @@ End
 ! Calculate zobler soil texture from FAO
 !
 
-subroutine calsoilnear(landdata,soildata,lsdata,sibdim,tdata)
+subroutine calsoilnear(landdata,soildata,lsdata,sibdim,tdata,class_num,mapwater,mapice)
 
 implicit none
 
+integer, intent(in) :: class_num
 integer, dimension(1:2), intent(in) :: sibdim
 integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: tdata
 real, dimension(1:sibdim(1),1:sibdim(2),0:17), intent(in) :: landdata
 real, dimension(1:sibdim(1),1:sibdim(2),0:8), intent(in) :: soildata
 real, dimension(1:sibdim(1),1:sibdim(2)), intent(in) :: lsdata
+real testdata
 integer ilon,ilat,pos(1),i
+logical, dimension(class_num), intent(in) :: mapwater, mapice
 
 do ilon=1,sibdim(1)
   do ilat=1,sibdim(2)
-    pos=Maxloc(landdata(ilon,ilat,1:17))
+    pos=Maxloc(landdata(ilon,ilat,1:class_num),.not.mapwater)
     if (1-nint(lsdata(ilon,ilat))==0) then
-      if (landdata(ilon,ilat,0)>=landdata(ilon,ilat,17)) then
+      testdata=sum(landdata(ilon,ilat,1:class_num),mapwater)
+      if (landdata(ilon,ilat,0)>=testdata) then
         tdata(ilon,ilat)=0  ! ocean
       else
         tdata(ilon,ilat)=-1 ! in-land water  
       end if
-    else if (pos(1).eq.15) then
+    else if ( mapice(pos(1)) ) then
       tdata(ilon,ilat)=9 ! ice
     else
       pos=Maxloc(soildata(ilon,ilat,:))

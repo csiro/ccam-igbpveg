@@ -28,12 +28,13 @@ Implicit None
 include 'version.h'
 
 character*80, dimension(:,:), allocatable :: options
-character*130, dimension(8) :: fname
+character*130, dimension(10) :: fname
 character*130 topofile
 character*130 landtypeout
 character*130 newtopofile
 character*130 outputmode
 character*130 veginput, soilinput, laiinput, albvisinput, albnirinput
+character*130 pftconfig, mapconfig
 integer binlimit, nopts, month
 integer outmode
 logical fastigbp,igbplsmask,ozlaipatch,tile
@@ -43,7 +44,7 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  binlimit,month,ozlaipatch,          &
                  tile,outputmode, veginput,          &
                  soilinput, laiinput, albvisinput,   &
-                 albnirinput
+                 albnirinput,pftconfig,mapconfig
 
 ! Start banner
 write(6,*) "=============================================================================="
@@ -63,6 +64,8 @@ call readswitch(options,nopts)
 call defaults(options,nopts)
 
 outputmode=''
+pftconfig=''
+mapconfig=''
 ozlaipatch=.false.
 
 ! Read namelist
@@ -79,6 +82,8 @@ fname(5)=soilinput
 fname(6)=laiinput
 fname(7)=albvisinput
 fname(8)=albnirinput
+fname(9)=pftconfig
+fname(10)=mapconfig
 
 outmode=0
 if ( outputmode=='cablepft' ) then
@@ -146,6 +151,8 @@ Write(6,*) '    igbplsmask=t'
 Write(6,*) '    tile=t'
 Write(6,*) '    binlimit=2'
 Write(6,*) '    outputmode="cablepft"'
+write(6,*) '    pftconfig="def_veg_params.txt"'
+write(6,*) '    mapconfig="def_veg_mapping.txt"'
 Write(6,*) '  &end'
 Write(6,*)
 Write(6,*) '  where:'
@@ -171,6 +178,13 @@ Write(6,*) '                    below).'
 Write(6,*) '    outputmode    = format of output file.'
 Write(6,*) '                    igbp     Use IGBP classes (default)'
 Write(6,*) '                    cablepft Use CABLE PFTs'
+write(6,*) '    pftconfig     = Location of the PFT definition file'
+write(6,*) '                    Use standard CABLE PFT file with the'
+write(6,*) '                    first index to define the reference'
+write(6,*) '                    CSIRO PFT (1-17)'
+write(6,*) '    mapconfig     = Location of the mapping file to'
+write(6,*) '                    convert indices from veginput to'
+write(6,*) '                    PFTs defined in pftconfig'
 Write(6,*)
 Write(6,*) 'NOTES: fastigbp mode will speed up the code by aggregating'
 Write(6,*) '       land-use data at a coarser resolution before'
@@ -231,7 +245,7 @@ Implicit None
 Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile
 Integer, intent(in) :: nopts,binlimit,month,outmode
 Character(len=*), dimension(nopts,2), intent(in) :: options
-Character(len=*), dimension(8), intent(in) :: fname
+Character(len=*), dimension(10), intent(in) :: fname
 character*90 filename
 Character*80, dimension(1:3) :: outputdesc
 Character*80 returnoption,csize,filedesc
@@ -241,6 +255,7 @@ Character*2 monthout
 real, dimension(:,:,:), allocatable :: vlai
 Real, dimension(:,:,:), allocatable :: landdata,soildata,rlld,vfrac,tmp
 Real, dimension(:,:), allocatable :: gridout,lsdata,urbandata,oceandata,albvisdata,albnirdata
+real, dimension(:,:), allocatable :: testdata
 !real, dimension(:,:), allocatable :: savannafrac
 real, dimension(:,:), allocatable :: rdata
 Real, dimension(3,2) :: alonlat
@@ -257,13 +272,28 @@ Integer, dimension(6) :: adate
 Integer, dimension(2:22) :: varid
 Integer sibsize,tunit,i,j,k,ierr,sibmax(1),mthrng
 integer tt
-logical, dimension(16) :: sermsk
+logical, dimension(:), allocatable :: sermsk
 
-integer, parameter :: pft_len = 18
+integer :: pft_len = 18
+integer :: class_num = 17
 integer, parameter :: ch_len = 40 ! also defined in ncwrite.f90
-integer pft_dimid
-real, dimension(pft_len) :: pft_data
-character(len=ch_len), dimension(pft_len) :: pft_desc
+integer pft_dimid, ioerror, jveg
+integer maxindex, iposbeg, iposend
+integer, dimension(:,:), allocatable :: mapindex
+real notused
+real, dimension(:), allocatable :: csiropft
+real, dimension(:), allocatable :: hc, xfang, leaf_w, leaf_l, canst1
+real, dimension(:), allocatable :: shelrb, extkn, vcmax, rpcoef
+real, dimension(:), allocatable :: rootbeta, c4frac, vbeta
+real, dimension(:,:), allocatable :: refl, taul
+real, dimension(:,:), allocatable :: mapfrac
+character(len=ch_len), dimension(:), allocatable :: pft_desc
+character(len=256) :: comments, largestring
+character(len=10) :: vegtypetmp
+character(len=25) :: vegnametmp
+character(len=25) :: jdesc, kdesc
+logical, dimension(:), allocatable :: mapurban, mapwater, mapice
+logical :: testurban, testwater, testice, matchfound
 
 mthrng=1
 if ( month==0 ) then
@@ -297,33 +327,309 @@ allocate(gridout(sibdim(1),sibdim(2)),rlld(sibdim(1),sibdim(2),2))
 ! Determine lat/lon to CC mapping
 call ccgetgrid(rlld,gridout,sibdim,lonlat,schmidt,ds)
 
+! read custom PFT file
+if ( fname(9)/='' .and. outmode==1 ) then
+    
+  write(6,*) "Defining user specified CABLE PFTs"
+  open(unit=40,file=fname(9),status='old',action='read',iostat=ioerror)
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot open pftconfig file ",trim(fname(9))
+    call finishbanner
+    stop
+  end if
+    
+  read(40,*) comments
+  read(40,*) pft_len
+  allocate( pft_desc(pft_len) )
+  allocate( csiropft(pft_len), xfang(pft_len), leaf_w(pft_len), leaf_l(pft_len) )
+  allocate( hc(pft_len), canst1(pft_len), shelrb(pft_len), extkn(pft_len) )
+  allocate( vcmax(pft_len), rpcoef(pft_len), rootbeta(pft_len), c4frac(pft_len) )
+  allocate( vbeta(pft_len) )
+  allocate( refl(pft_len,2), taul(pft_len,2) )
+
+  do i = 1,pft_len
+        
+    read(40,*,iostat=ioerror) jveg, vegtypetmp, vegnametmp
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      call finishbanner
+      stop
+    end if
+    write(6,*) "Processing PFT ",trim(vegnametmp)
+    if ( jveg<1 .or. jveg>17 ) then
+      write(6,*) "ERROR: Error processing ",trim(vegnametmp)
+      write(6,*) "in pftconfig ",trim(fname(9))
+      write(6,*) "veg index should match a CSIRO PFT from 1-17"
+      write(6,*) "whereas veg was read as ",jveg
+      call finishbanner
+      stop
+    end if
+    csiropft(i) = real(jveg)
+    pft_desc(i) = vegnametmp
+        
+    read(40,*) hc(i), xfang(i), leaf_w(i), leaf_l(i), c4frac(i)
+    read(40,*) refl(i,1), refl(i,2)
+    read(40,*) taul(i,1), taul(i,2)
+    read(40,*) notused, notused, notused, notused
+    read(40,*) notused, notused, canst1(i), shelrb(i), notused, extkn(i)
+    read(40,*) vcmax(i), notused, rpcoef(i), notused
+    read(40,*) notused, notused, vbeta(i), rootbeta(i)
+    read(40,*) notused, notused, notused, notused, notused
+    read(40,*) notused, notused, notused, notused, notused
+      
+  end do
+
+  close(40)
+    
+else
+      
+  write(6,*) "Defining default CABLE PFTs"
+  pft_len=18  
+  allocate( pft_desc(pft_len) )
+  allocate( csiropft(pft_len), xfang(pft_len), leaf_w(pft_len), leaf_l(pft_len) )
+  allocate( hc(pft_len), canst1(pft_len), shelrb(pft_len), extkn(pft_len) )
+  allocate( vcmax(pft_len), rpcoef(pft_len), rootbeta(pft_len), c4frac(pft_len) )
+  allocate( vbeta(pft_len) )
+  allocate( refl(pft_len,2), taul(pft_len,2) )
+  pft_desc(1) = "Evergreen Needleleaf"  
+  pft_desc(2) = "Evergreen Broadleaf"
+  pft_desc(3) = "Deciduous Needleleaf"
+  pft_desc(4) = "Deviduous Broadleaf"
+  pft_desc(5) = "Shrub"
+  pft_desc(6) = "C3 grass"
+  pft_desc(7) = "C4 grass"
+  pft_desc(8) = "Tundra"
+  pft_desc(9) = "C3 crop"
+  pft_desc(10) = "C4 crop"
+  pft_desc(11) = "Wetland"
+  pft_desc(12) = "Not used"
+  pft_desc(13) = "Not used"
+  pft_desc(14) = "Barren"
+  pft_desc(15) = "Urban"
+  pft_desc(16) = "Lakes"
+  pft_desc(17) = "Ice"
+  pft_desc(18) = "Evergreen Broadleaf (Savanna)"
+  csiropft=(/ 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 2. /)
+  hc    =(/   17.,  35.,  15.5,  20.,   0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567,  0.2, 6.017,  0.2,  0.2,  0.2,  0.2, 17. /)
+  xfang =(/  0.01,  0.1,  0.01, 0.25,  0.01,  -0.3,  -0.3,  -0.3, -0.3, -0.3,  -0.3,  0.1,    0.,   0.,   0.,   0.,   0., 0.1 /)
+  leaf_w=(/ 0.001, 0.05, 0.001, 0.08, 0.005,  0.01,  0.01,  0.01, 0.01, 0.01,  0.01, 0.03, 0.015, 0.00,   0.,   0.,   0., 0.05 /)
+  leaf_l=(/ 0.055, 0.10, 0.040, 0.15, 0.100,  0.30,  0.30,  0.30, 0.30, 0.30,  0.30, 0.30, 0.242, 0.03, 0.03, 0.03, 0.03, 0.10 /)
+  canst1=0.1
+  shelrb=2.
+  extkn=0.001
+  refl(:,1)=(/ 0.062,0.076,0.056,0.092,0.100,0.110,0.100,0.117,0.100,0.090,0.108,0.055,0.091,0.238,0.143,0.143,0.159,0.076 /)
+  refl(:,2)=(/ 0.302,0.350,0.275,0.380,0.400,0.470,0.400,0.343,0.400,0.360,0.343,0.190,0.310,0.457,0.275,0.275,0.305,0.350 /)
+  taul(:,1)=(/ 0.050,0.050,0.045,0.050,0.050,0.070,0.100,0.080,0.100,0.090,0.075,0.023,0.059,0.039,0.023,0.023,0.026,0.050 /)
+  taul(:,2)=(/ 0.100,0.250,0.144,0.250,0.240,0.250,0.150,0.124,0.150,0.225,0.146,0.198,0.163,0.189,0.113,0.113,0.113,0.250 /)
+  vcmax=(/ 40.E-6,55.E-6,40.E-6,60.E-6,40.E-6,60.E-6,10.E-6,40.E-6,80.E-6,80.E-6,60.E-6,17.E-6,1.E-6,17.E-6,17.E-6,17.E-6, &
+           17.E-6,55.E-6 /)
+  rpcoef=0.0832
+  rootbeta=(/ 0.943,0.962,0.966,0.961,0.964,0.943,0.943,0.943,0.961,0.961,0.943,0.975,0.961,0.961,0.961,0.961,0.961,0.962 /)
+  c4frac=(/ 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0. /)
+  vbeta=(/ 2., 2., 2., 2., 4., 4., 4., 4., 2., 2., 4., 4., 2., 4., 4., 4., 4., 2. /)
+
+end if
+
+! Define veg indices
+if ( fname(10)/='' .and. outmode==1 ) then
+   
+  write(6,*) "Defining user specified VEG->PFT mapping"
+  open(unit=40,file=fname(10),status='old',action='read',iostat=ioerror)
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot open mapconfig file ",trim(fname(10))
+    call finishbanner
+    stop
+  end if
+  
+  read(40,*) comments
+  read(40,*) class_num
+  allocate( mapindex(class_num,5), mapfrac(class_num,5) )
+  allocate( mapurban(class_num), mapwater(class_num), mapice(class_num) )
+  mapindex(:,:)=0
+  mapfrac(:,:)=0. 
+  mapurban(:)=.false.
+  mapwater(:)=.false.
+  mapice(:)=.false.
+
+  read(40,*) comments
+  do i=1,class_num
+    read(40,'(A)',iostat=ioerror) largestring
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read entry on mapconfig ",trim(fname(10))  
+      write(6,*) "ioerror= ",ioerror
+      call finishbanner
+      stop
+    end if
+
+    iposend=0 ! must start with 0
+    call findentry(largestring,iposbeg,iposend,.false.)
+    read(largestring(iposbeg:iposend),*,iostat=ioerror) jveg
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read mapconfig line"
+      write(6,*) trim(largestring)
+      call finishbanner
+      stop
+    end if
+    call findentry(largestring,iposbeg,iposend,.false.)
+    jdesc=largestring(iposbeg:iposend)
+    call findentry(largestring,iposbeg,iposend,.false.)
+    read(largestring(iposbeg:iposend),*,iostat=ioerror) mapurban(jveg)    
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read mapconfig line"
+      write(6,*) trim(largestring)
+      call finishbanner
+      stop
+    end if
+    call findentry(largestring,iposbeg,iposend,.false.)
+    read(largestring(iposbeg:iposend),*,iostat=ioerror) mapwater(jveg)    
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read mapconfig line"
+      write(6,*) trim(largestring)
+      call finishbanner
+      stop
+    end if
+    call findentry(largestring,iposbeg,iposend,.false.)
+    read(largestring(iposbeg:iposend),*,iostat=ioerror) mapice(jveg)    
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read mapconfig line"
+      write(6,*) trim(largestring)
+      call finishbanner
+      stop
+    end if
+    maxindex=0
+    do j=1,5
+      call findentry(largestring,iposbeg,iposend,.true.)
+      if ( iposbeg==-1 ) exit
+      read(largestring(iposbeg:iposend),*,iostat=ioerror) mapfrac(jveg,j)
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read mapconfig line"
+        write(6,*) trim(largestring)
+        call finishbanner
+        stop
+      end if
+      call findentry(largestring,iposbeg,iposend,.true.)
+      if ( iposbeg==-1 ) exit
+      kdesc=largestring(iposbeg:iposend)
+      call findindex(kdesc,pft_desc,pft_len,mapindex(jveg,j))
+      maxindex=j
+    end do
+    
+    if ( maxindex<1 ) then
+      write(6,*) "ERROR: No valid PFTs in mapconfig line"
+      write(6,*) trim(largestring)
+      call finishbanner
+      stop
+    end if
+    
+    write(6,*) "Processed ",trim(jdesc)," with ",maxindex
+    
+  end do
+  close(40)
+   
+else
+    
+  write(6,*) "Defining default VEG->PFT mapping"      
+  class_num = 17
+  allocate( mapindex(class_num,5), mapfrac(class_num,5) )
+  allocate( mapurban(class_num), mapwater(class_num), mapice(class_num) )
+  mapindex(:,:)=0
+  mapfrac(:,:)=0. 
+  mapurban(:)=.false.
+  mapwater(:)=.false.
+  mapice(:)=.false.
+  mapindex(1,1) = 1   ! Evergreen_needleaf
+  mapfrac(1,1) = 1.
+  mapindex(2,1) = 2   ! Evergreen_broadleaf
+  mapfrac(2,1) = 1.
+  mapindex(3,1) = 3   ! Deciduous_needleaf
+  mapfrac(3,1) = 1.
+  mapindex(4,1) = 4   ! Deciduous_broadleaf
+  mapfrac(4,1) = 1.
+  mapindex(5,1) = -1  ! Mixed forest - Mixed
+  mapfrac(5,1) = 1.
+  mapindex(6,1) = 5   ! Closed Shrublands - Shrub
+  mapfrac(6,1) = 0.8
+  mapindex(6,2) = -2  ! closed Shrublands - Grass
+  mapfrac(6,2) = 0.2
+  mapindex(7,1) = 5   ! Open Shrublands - Shrub
+  mapfrac(7,1) = 0.2
+  mapindex(7,2) = -2  ! open shrublands - grass
+  mapfrac(7,2) = 0.8
+  mapindex(8,1) = -2  ! woody savannas - grass
+  mapfrac(8,1) = 0.6
+  mapindex(8,2) = -5  ! woody savannas - needle/broad savanna
+  mapfrac(8,2) = 0.4
+  mapindex(9,1) = -2  ! savannas - grass
+  mapfrac(9,1)= 0.9
+  mapindex(9,2) = -5  ! savannas - needle/broad savanna
+  mapfrac(9,2) = 0.1
+  mapindex(10,1) = -2 ! grasslands - grass
+  mapfrac(10,1) = 1.
+  mapindex(11,1) = 11 ! permanent wetlands - wetland
+  mapfrac(11,1) = 1.
+  mapindex(12,1) = -4 ! croplands - crop
+  mapfrac(12,1) = 1.
+  mapindex(13,1) = 15 ! urban and built-up - urban
+  mapfrac(13,1) = 1.
+  mapurban(13) = .true.
+  mapindex(14,1) = -4 ! cropland/natural vegetation mosaic - crop
+  mapfrac(14,1) = 1.
+  mapindex(15,1) = 17 ! snow and ice - ice
+  mapfrac(15,1) = 1.
+  mapice(15) = .true.
+  mapindex(16,1) = 14 ! barran or sparsely vegetated - barren
+  mapfrac(16,1) = 1.
+  mapindex(17,1) = 16 ! water bodies - lakes
+  mapfrac(17,1) = 1.
+  mapwater(17) = .true.
+  
+end if
+
+! allocate memory
+allocate( sermsk(class_num) )
 allocate(albvisdata(sibdim(1),sibdim(2)))
 allocate(albnirdata(sibdim(1),sibdim(2)))
 allocate(soildata(sibdim(1),sibdim(2),0:8))
-allocate(landdata(sibdim(1),sibdim(2),0:17+16*mthrng))
+allocate(landdata(sibdim(1),sibdim(2),0:class_num*(1+mthrng)))
 
 ! Read igbp data
-call getdata(landdata,lonlat,gridout,rlld,sibdim,17+16*mthrng,sibsize,'land',fastigbp,ozlaipatch,binlimit,month,fname(4),fname(6))
-call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month,fname(5),fname(6))
-call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month,fname(7),fname(6))
-call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month,fname(8),fname(6))
+call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land',fastigbp,ozlaipatch,binlimit,month, &
+             fname(4),fname(6),class_num,mapwater)
+call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month,fname(5),fname(6), &
+             class_num,mapwater)
+call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month,fname(7),fname(6), &
+             class_num,mapwater)
+call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month,fname(8),fname(6), &
+             class_num,mapwater)
 
 deallocate(gridout)
 allocate(urbandata(sibdim(1),sibdim(2)),lsdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
+allocate(testdata(sibdim(1),sibdim(2)))
 
 write(6,*) "Preparing data..."
 ! extract urban cover and remove from landdata
-urbandata(:,:)=landdata(:,:,13)
-call igbpfix(landdata,rlld,sibdim,mthrng)
+urbandata(:,:)=0.
+do i=1,class_num
+  if ( mapurban(i) ) then
+    urbandata(:,:) = urbandata(:,:) + landdata(:,:,i)
+  end if
+end do
+call igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapurban,mapwater)
 
-if (igbplsmask) then
+if ( igbplsmask ) then
   write(6,*) "Using IGBP land/sea mask"
-  where ((landdata(:,:,0)+landdata(:,:,17))>0.)
-    oceandata=landdata(:,:,0)/(landdata(:,:,0)+landdata(:,:,17))
+  testdata(:,:) = landdata(:,:,0)
+  do i = 1,class_num
+    if ( mapwater(i) ) then
+      testdata(:,:) = testdata(:,:) + landdata(:,:,i)
+    end if
+  end do
+  where ( testdata(:,:)>0. )
+    oceandata=landdata(:,:,0)/testdata(:,:)
   elsewhere
     oceandata=0.
   end where
-  lsdata=real(nint(landdata(:,:,0)+landdata(:,:,17)))
+  lsdata=real(nint(testdata(:,:)))
   call cleantopo(tunit,fname(1),fname(3),lsdata,oceandata,sibdim)
 else
   write(6,*) "Using topography land/sea mask"
@@ -339,11 +645,11 @@ urbandata=min(urbandata,(1.-lsdata))
 
 ! Clean-up soil, lai, veg, albedo and urban data
 write(6,*) "Clean landuse data"
-call cleanigbp(landdata,lsdata,rlld,sibdim,mthrng)
+call cleanigbp(landdata,lsdata,rlld,sibdim,class_num,mthrng,mapwater)
 write(6,*) "Clean soil data"
 call cleanreal(soildata,8,lsdata,rlld,sibdim)
 write(6,*) "Calculate soil texture"
-call calsoilnear(landdata,soildata,lsdata,sibdim,idata)
+call calsoilnear(landdata,soildata,lsdata,sibdim,idata,class_num,mapwater,mapice)
 write(6,*) "Clean albedo data"
 where (lsdata>=0.5)
   albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
@@ -369,6 +675,7 @@ dimnum(3)=1 ! Turn off level
 dimnum(4)=1 ! Number of months in a year
 adate=0 ! Turn off date
 adate(2)=1 ! time units=months
+
 
 ! Prep nc output
 do tt=1,mthrng
@@ -598,13 +905,13 @@ do tt=1,mthrng
         vfrac(i,j,2:5)=0.
         vlai(i,j,:)=0.
       else
-        sermsk=.true.
+        sermsk=.not.mapwater(:)
         do k=1,5
-          sibmax=maxloc(landdata(i,j,1:16),sermsk)
+          sibmax=maxloc(landdata(i,j,1:class_num),sermsk)
           sermsk(sibmax(1))=.false.
           vtype(i,j,k)=sibmax(1)
           vfrac(i,j,k)=landdata(i,j,sibmax(1))
-          vlai(i,j,k)=landdata(i,j,17+(sibmax(1)-1)*mthrng+tt)
+          vlai(i,j,k)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)
         end do
         if (.not.tile) then
           vlai(i,j,1)=sum(vlai(i,j,:)*vfrac(i,j,:))/sum(vfrac(i,j,:))
@@ -625,7 +932,7 @@ do tt=1,mthrng
     end do
   end do
   if ( outmode==1 ) then
-    call convertigbp(vtype,vfrac,vlai,sibdim,lsdata,rlld)
+    call convertigbp(vtype,vfrac,vlai,sibdim,lsdata,rlld,class_num,mapindex,mapfrac,pft_len)
   end if
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
   rdata=Real(vtype(:,:,1))
@@ -668,70 +975,43 @@ do tt=1,mthrng
   !end if
   
   if ( outmode==1 ) then
-    pft_desc(1) = "Evergreen Needleleaf"  
-    pft_desc(2) = "Evergreen Broadleaf"
-    pft_desc(3) = "Deciduous Needleleaf"
-    pft_desc(4) = "Deviduous Broadleaf"
-    pft_desc(5) = "Shrub"
-    pft_desc(6) = "C3 grass"
-    pft_desc(7) = "C4 grass"
-    pft_desc(8) = "Tundra"
-    pft_desc(9) = "C3 crop"
-    pft_desc(10) = "C4 crop"
-    pft_desc(11) = "Wetland"
-    pft_desc(12) = "Not used"
-    pft_desc(13) = "Not used"
-    pft_desc(14) = "Barren"
-    pft_desc(15) = "Urban"
-    pft_desc(16) = "Lakes"
-    pft_desc(17) = "Ice"
-    pft_desc(18) = "Evergreen Broadleaf (Savanna)"
     call ncput_1dvar_text(ncidarr,'pftname',pft_len,pft_desc)
-    pft_data(:) = (/   1.,  2.,  3.,  4., 5., 6., 7., 8., 9., 10., 11.,  12., 13., 14., 15., 16., 17., 2. /)
-    call ncput_1dvar_real(ncidarr,'csiropft',pft_len,pft_data)
-    pft_data(:) = (/   17.,  35.,  15.5,  20.,   0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567,  0.2, 6.017,  0.2,  0.2,  0.2,  0.2, 17. /)
-    call ncput_1dvar_real(ncidarr,'hc',pft_len,pft_data)
-    pft_data(:) = (/  0.01,  0.1,  0.01, 0.25,  0.01,  -0.3,  -0.3,  -0.3, -0.3, -0.3,  -0.3,  0.1,    0.,   0.,   0.,   0.,   0., 0.1 /)
-    call ncput_1dvar_real(ncidarr,'xfang',pft_len,pft_data)
-    pft_data(:) = (/ 0.001, 0.05, 0.001, 0.08, 0.005,  0.01,  0.01,  0.01, 0.01, 0.01,  0.01, 0.03, 0.015, 0.00,   0.,   0.,   0., 0.05 /)
-    call ncput_1dvar_real(ncidarr,'leaf_w',pft_len,pft_data)
-    pft_data(:) = (/ 0.055, 0.10, 0.040, 0.15, 0.100,  0.30,  0.30,  0.30, 0.30, 0.30,  0.30, 0.30, 0.242, 0.03, 0.03, 0.03, 0.03, 0.10 /)
-    call ncput_1dvar_real(ncidarr,'leaf_l',pft_len,pft_data)
-    pft_data(:) = 0.1
-    call ncput_1dvar_real(ncidarr,'canst1',pft_len,pft_data)
-    pft_data(:) = 2.
-    call ncput_1dvar_real(ncidarr,'shelrb',pft_len,pft_data)
-    pft_data(:) = 0.001
-    call ncput_1dvar_real(ncidarr,'extkn',pft_len,pft_data)
-    pft_data(:) = (/ 0.062,0.076,0.056,0.092,0.100,0.110,0.100,0.117,0.100,0.090,0.108,0.055,0.091,0.238,0.143,0.143,0.159,0.076 /)
-    call ncput_1dvar_real(ncidarr,'rholeaf-vis',pft_len,pft_data)
-    pft_data(:) = (/ 0.302,0.350,0.275,0.380,0.400,0.470,0.400,0.343,0.400,0.360,0.343,0.190,0.310,0.457,0.275,0.275,0.305,0.350 /)
-    call ncput_1dvar_real(ncidarr,'rholeaf-nir',pft_len,pft_data)
-    pft_data(:) = (/ 0.050,0.050,0.045,0.050,0.050,0.070,0.100,0.080,0.100,0.090,0.075,0.023,0.059,0.039,0.023,0.023,0.026,0.050 /)
-    call ncput_1dvar_real(ncidarr,'tauleaf-vis',pft_len,pft_data)
-    pft_data(:) = (/ 0.100,0.250,0.144,0.250,0.240,0.250,0.150,0.124,0.150,0.225,0.146,0.198,0.163,0.189,0.113,0.113,0.113,0.250 /)
-    call ncput_1dvar_real(ncidarr,'tauleaf-nir',pft_len,pft_data)
-    pft_data(:) =(/ 40.E-6,55.E-6,40.E-6,60.E-6,40.E-6,60.E-6,10.E-6,40.E-6,80.E-6,80.E-6,60.E-6,17.E-6,1.E-6,17.E-6,17.E-6,17.E-6,17.E-6,55.E-6 /)
-    call ncput_1dvar_real(ncidarr,'vcmax',pft_len,pft_data)
-    pft_data(:) = 0.0832
-    call ncput_1dvar_real(ncidarr,'rpcoef',pft_len,pft_data)
-    pft_data(:) = (/ 0.943,0.962,0.966,0.961,0.964,0.943,0.943,0.943,0.961,0.961,0.943,0.975,0.961,0.961,0.961,0.961,0.961,0.962 /)
-    call ncput_1dvar_real(ncidarr,'rootbeta',pft_len,pft_data)
-    pft_data(:) = (/ 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0. /)
-    call ncput_1dvar_real(ncidarr,'c4frac',pft_len,pft_data)
-    pft_data(:) = (/ 2., 2., 2., 2., 4., 4., 4., 4., 2., 2., 4., 4., 2., 4., 4., 4., 4., 2. /)
-    call ncput_1dvar_real(ncidarr,'vbeta',pft_len,pft_data)
+    call ncput_1dvar_real(ncidarr,'csiropft',pft_len,csiropft)
+    call ncput_1dvar_real(ncidarr,'hc',pft_len,hc)
+    call ncput_1dvar_real(ncidarr,'xfang',pft_len,xfang)
+    call ncput_1dvar_real(ncidarr,'leaf_w',pft_len,leaf_w)
+    call ncput_1dvar_real(ncidarr,'leaf_l',pft_len,leaf_l)
+    call ncput_1dvar_real(ncidarr,'canst1',pft_len,canst1)
+    call ncput_1dvar_real(ncidarr,'shelrb',pft_len,shelrb)
+    call ncput_1dvar_real(ncidarr,'extkn',pft_len,extkn)
+    call ncput_1dvar_real(ncidarr,'rholeaf-vis',pft_len,refl(:,1))
+    call ncput_1dvar_real(ncidarr,'rholeaf-nir',pft_len,refl(:,2))
+    call ncput_1dvar_real(ncidarr,'tauleaf-vis',pft_len,taul(:,1))
+    call ncput_1dvar_real(ncidarr,'tauleaf-nir',pft_len,taul(:,2))
+    call ncput_1dvar_real(ncidarr,'vcmax',pft_len,vcmax)
+    call ncput_1dvar_real(ncidarr,'rpcoef',pft_len,rpcoef)
+    call ncput_1dvar_real(ncidarr,'rootbeta',pft_len,rootbeta)
+    call ncput_1dvar_real(ncidarr,'c4frac',pft_len,c4frac)
+    call ncput_1dvar_real(ncidarr,'vbeta',pft_len,vbeta)
   end if
   
   call ncclose(ncidarr)
 
 end do
 
+deallocate( pft_desc, csiropft, hc, xfang, leaf_w, leaf_l )
+deallocate( canst1, shelrb, extkn, refl, taul, vcmax )
+deallocate( rpcoef, rootbeta, c4frac, vbeta )
+
 deallocate(landdata,urbandata,lsdata)
 deallocate(vfrac,vtype,idata,vlai)
+deallocate(testdata)
 !deallocate(savannafrac)
 deallocate(rlld)
 deallocate(rdata)
+
+deallocate( mapindex, mapfrac, mapurban, mapwater, mapice )
+deallocate( sermsk )
 
 return
 end
@@ -740,43 +1020,72 @@ end
 ! Fix IGBP data
 !
 
-subroutine igbpfix(landdata,rlld,sibdim,mthrng)
+subroutine igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapurban,mapwater)
 
 implicit none
 
-integer, intent(in) :: mthrng
+integer, intent(in) :: class_num, mthrng
 integer, dimension(1:2), intent(in) :: sibdim
 real, dimension(sibdim(1),sibdim(2),1:2), intent(in) :: rlld
-real, dimension(sibdim(1),sibdim(2),0:17+16*mthrng), intent(inout) :: landdata
-real, dimension(sibdim(1),sibdim(2),1:16+16*mthrng) :: newdata
+real, dimension(sibdim(1),sibdim(2),0:class_num*(1+mthrng)), intent(inout) :: landdata
+real, dimension(sibdim(1),sibdim(2),1:class_num*(1+mthrng)) :: newdata
+real, dimension(sibdim(1),sibdim(2)) :: testdata
 logical, dimension(1:sibdim(1),1:sibdim(2)) :: allmsk
-integer i,ilon,ilat,newsize
+logical, dimension(class_num), intent(in) :: mapurban, mapwater
+integer i,j,ilon,ilat
 real nsum,wsum
 
-landdata(:,:,13)=0. ! remove urban
+do i=1,class_num
+  if ( mapurban(i) ) then
+    landdata(:,:,i)=0. ! remove urban
+  end if
+end do
 
-allmsk=sum(landdata(:,:,1:16),3)>0.
+testdata(:,:)=0.
+do i=1,class_num
+  if ( .not.mapwater(i) ) then
+    testdata(:,:) = testdata(:,:) + landdata(:,:,i)
+  end if
+end do
+allmsk=testdata(:,:)>0.
 if (.not.any(allmsk)) return
 
-newdata(:,:,1:16)=landdata(:,:,1:16)
-newdata(:,:,17:)=landdata(:,:,18:)
-newsize=16*(mthrng+1)
-!call fill_cc_a(newdata,sibdim(1),newsize,allmsk)
-do i=1,newsize
-  write(6,*) "Fill class ",i
-  call fill_cc(newdata(:,:,i),sibdim(1),allmsk)
+newdata(:,:,1:class_num*(1+mthrng))=landdata(:,:,1:class_num*(1+mthrng))
+do i=1,class_num
+  if ( .not.mapwater(i) ) then
+    write(6,*) "Fill class ",i
+    call fill_cc(newdata(:,:,i),sibdim(1),allmsk)
+    do j=(i-1)*mthrng+class_num+1,i*mthrng+class_num
+      write(6,*) "Fill class ",j
+      call fill_cc(newdata(:,:,j),sibdim(1),allmsk)
+    end do
+  else
+    newdata(:,:,i)=0.
+    do j=(i-1)*mthrng+class_num+1,i*mthrng+class_num
+      newdata(:,:,j) = 0.
+    end do
+  end if
 end do
 
 do ilat=1,sibdim(2)
   do ilon=1,sibdim(1)
-    wsum=landdata(ilon,ilat,0)+landdata(ilon,ilat,17) ! water
+    wsum=landdata(ilon,ilat,0)+sum(landdata(ilon,ilat,1:class_num),mapwater) ! water
     if (wsum<1.) then
       if (.not.allmsk(ilon,ilat)) then
-        landdata(ilon,ilat,1:16)=newdata(ilon,ilat,1:16)  
-        landdata(ilon,ilat,18:17+16*mthrng)=newdata(ilon,ilat,17:16+16*mthrng)
+        do i=1,class_num
+          if ( .not.mapwater(i) ) then
+            landdata(ilon,ilat,i)=newdata(ilon,ilat,i)  
+            landdata(ilon,ilat,(i-1)*mthrng+class_num+1:i*mthrng+class_num) &
+                =newdata(ilon,ilat,(i-1)*mthrng+class_num+1:i*mthrng+class_num)
+          end if
+        end do
       end if
-      nsum=sum(landdata(ilon,ilat,1:16)) ! land      
-      landdata(ilon,ilat,1:16)=landdata(ilon,ilat,1:16)*max(1.-wsum,0.)/nsum
+      nsum=sum(landdata(ilon,ilat,1:class_num),.not.mapwater) ! land
+      do i=1,class_num
+        if ( .not.mapwater(i) ) then
+          landdata(ilon,ilat,i)=landdata(ilon,ilat,i)*max(1.-wsum,0.)/nsum
+        end if
+      end do
     end if
   end do
   if ( mod(ilat,100)==0 .or. ilat==sibdim(2) ) then
@@ -791,23 +1100,37 @@ end
 ! clean land data
 !
 
-subroutine cleanigbp(dataout,lsdata,rlld,sibdim,mthrng)
+subroutine cleanigbp(dataout,lsdata,rlld,sibdim,class_num,mthrng,mapwater)
 
 implicit none
 
-integer, intent(in) :: mthrng
+integer, intent(in) :: class_num, mthrng
 integer, dimension(2), intent(in) :: sibdim
-real, dimension(sibdim(1),sibdim(2),0:17+16*mthrng), intent(inout) :: dataout
+real, dimension(sibdim(1),sibdim(2),0:class_num*(1+mthrng)), intent(inout) :: dataout
 real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsdata
 real, dimension(sibdim(1),sibdim(2),2), intent(in) :: rlld
-real, dimension(sibdim(1),sibdim(2),0:17+16*mthrng) :: datain
+real, dimension(sibdim(1),sibdim(2),0:class_num*(1+mthrng)) :: datain
+real, dimension(sibdim(1),sibdim(2)) :: testdata
 logical, dimension(sibdim(1),sibdim(2)) :: sermsk,ocnmsk
-integer ilon,ilat,pxy(2)
+logical, dimension(class_num), intent(in) :: mapwater
+integer ilon,ilat,pxy(2),i
 real nsum,wsum
 
 datain=dataout
-sermsk=sum(datain(:,:,1:16),3)>0.
-ocnmsk=(datain(:,:,0)+datain(:,:,17))>0.
+testdata(:,:)=0.
+do i=1,class_num
+  if ( .not.mapwater(i) ) then
+    testdata(:,:) = testdata(:,:) + datain(:,:,i)
+  end if
+end do
+sermsk=testdata(:,:)>0.
+testdata(:,:)=datain(:,:,0)
+do i=1,class_num
+  if ( mapwater(i) ) then
+    testdata(:,:) = testdata(:,:) + datain(:,:,i)
+  end if
+end do
+ocnmsk=testdata(:,:)>0.
 if (.not.any(sermsk)) then
   dataout(:,:,0)=1.
   dataout(:,:,1:)=0.
@@ -819,27 +1142,52 @@ do ilat=1,sibdim(2)
     if (lsdata(ilon,ilat)<0.5) then
       if (.not.sermsk(ilon,ilat)) then
         call findnear(pxy,ilon,ilat,sermsk,rlld,sibdim)
-        dataout(ilon,ilat,1:16)=datain(pxy(1),pxy(2),1:16)
-        dataout(ilon,ilat,18:)=datain(pxy(1),pxy(2),18:)
+        do i=1,class_num
+          if ( .not.mapwater(i) ) then
+            dataout(ilon,ilat,i)=datain(pxy(1),pxy(2),i)
+            dataout(ilon,ilat,(i-1)*mthrng+class_num+1:i*mthrng+class_num) &
+                =datain(pxy(1),pxy(2),(i-1)*mthrng+class_num+1:i*mthrng+class_num)
+          end if
+        end do
       end if
-      nsum=sum(dataout(ilon,ilat,1:16))
-      dataout(ilon,ilat,1:16)=dataout(ilon,ilat,1:16)*(1.-lsdata(ilon,ilat))/nsum
+      nsum=sum(dataout(ilon,ilat,1:class_num),.not.mapwater)
+      do i=1,class_num
+        if ( .not.mapwater(i) ) then
+          dataout(ilon,ilat,i)=dataout(ilon,ilat,i)*(1.-lsdata(ilon,ilat))/nsum
+        end if
+      end do
     else
-      dataout(ilon,ilat,1:16)=0.
-      dataout(ilon,ilat,18:)=0.
+      do i=1,class_num
+        if ( .not.mapwater(i) ) then
+          dataout(ilon,ilat,i)=0.
+          dataout(ilon,ilat,(i-1)*mthrng+class_num+1:i*mthrng+class_num)=0.
+        end if
+      end do
     end if
     if (lsdata(ilon,ilat)>=0.5) then
       if (.not.ocnmsk(ilon,ilat)) then
         call findnear(pxy,ilon,ilat,ocnmsk,rlld,sibdim)
         dataout(ilon,ilat,0)=datain(pxy(1),pxy(2),0)
-        dataout(ilon,ilat,17)=datain(pxy(1),pxy(2),17)
+        do i=1,class_num
+          if ( mapwater(i) ) then
+            dataout(ilon,ilat,i)=datain(pxy(1),pxy(2),i)
+          end if
+        end do
       end if
-      wsum=dataout(ilon,ilat,0)+dataout(ilon,ilat,17)
+      wsum=dataout(ilon,ilat,0)+sum(dataout(ilon,ilat,1:class_num),mapwater)
       dataout(ilon,ilat,0)=dataout(ilon,ilat,0)*lsdata(ilon,ilat)/wsum
-      dataout(ilon,ilat,17)=dataout(ilon,ilat,17)*lsdata(ilon,ilat)/wsum
+      do i=1,class_num
+        if ( mapwater(i) ) then
+          dataout(ilon,ilat,i)=dataout(ilon,ilat,i)*lsdata(ilon,ilat)/wsum
+        end if
+      end do
     else
       dataout(ilon,ilat,0)=0.
-      dataout(ilon,ilat,17)=0.
+      do i=1,class_num
+        if ( mapwater(i) ) then
+          dataout(ilon,ilat,i)=0.
+        end if
+      end do
     end if
   end do
 end do
@@ -1000,24 +1348,50 @@ End if
 Return
 End
 
-subroutine convertigbp(vtype,vfrac,vlai,sibdim,lsdata,rlld)
+subroutine convertigbp(vtype,vfrac,vlai,sibdim,lsdata,rlld,class_num,mapindex,mapfrac,pft_len)
 
 implicit none
 
+integer, intent(in) :: class_num, pft_len
 Integer, dimension(2), intent(in) :: sibdim
 integer, dimension(sibdim(1),sibdim(2),5), intent(inout) :: vtype
+integer, dimension(class_num,5), intent(in) :: mapindex
 integer, dimension(1) :: pos
 integer i, j, n, ipos, iv
+integer iv_new, k
 real, dimension(sibdim(1),sibdim(2),5), intent(inout) :: vfrac, vlai
-real, dimension(18) :: newlai
-real, dimension(18) :: newgrid
+real, dimension(class_num,5), intent(in) :: mapfrac
+real, dimension(pft_len) :: newlai
+real, dimension(pft_len) :: newgrid
 !real, dimension(sibdim(1),sibdim(2)), intent(out) :: savannafrac
 real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsdata
 real, dimension(sibdim(1),sibdim(2),2), intent(in) :: rlld
 real fc3, fc4, ftu, fg3, fg4, clat, nsum
+real fmixed, fneedlebroad
 real xp
 real, parameter :: minfrac = 0.01        ! minimum non-zero tile fraction (improves load balancing)
 Real, parameter :: pi = 3.1415926536
+
+if ( any(mapindex>pft_len) ) then
+  write(6,*) "ERROR: Unspecified index in mapconfig is not represented in pftconfig"
+  call finishbanner
+  stop
+end if
+
+if ( any(mapindex<0) .and. pft_len<18 ) then
+  write(6,*) "ERROR: mapconfig contains special cases that require at least 18 PFTs to be defined"
+  call finishbanner
+  stop
+end if
+
+do i=1,class_num
+  if ( abs(sum(mapfrac(i,:))-1.)>0.01 ) then
+    write(6,*) "ERROR: mapconfig fractions do not sum to 1."
+    write(6,*) "iveg,mapfactor ",i,mapfrac(i,:)
+    call finishbanner
+    stop
+  end if
+end do
 
 write(6,*) "Mapping IGBP classes to CABLE PFTs"
 !savannafrac(:,:) = 0.
@@ -1077,119 +1451,65 @@ do j = 1,sibdim(2)
         fc3=0.7
       end if
       fc4=1.-fc3
+      ! mixed
+      if (abs(clat)>25.5) then
+        fmixed=0.5
+      else if ( abs(clat)>24.5 ) then
+        xp=abs(clat)-24.5
+        fmixed=(1.-xp)*1.+xp*0.5
+      else
+        fmixed=1.
+      end if
+      ! needle/broad
+      if (abs(clat)>40.5) then
+        fneedlebroad=1.
+      else if (abs(clat)>39.5) then
+        xp=abs(clat)-39.5
+        fneedlebroad=xp
+      else
+        fneedlebroad=0.
+      endif
+      
       do n = 1,5
         iv = vtype(i,j,n)
-        select case (iv)
-          case (1,2,3,4,11)
-            newgrid(iv)=newgrid(iv)+vfrac(i,j,n)
-            newlai(iv)=newlai(iv)+vfrac(i,j,n)*vlai(i,j,n)
-          case (5)
-            if (abs(clat)>25.5) then
-              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.5
-              newlai(1)=newlai(1)+vfrac(i,j,n)*0.5*vlai(i,j,n)
-              newgrid(4)=newgrid(4)+vfrac(i,j,n)*0.5
-              newlai(4)=newlai(4)+vfrac(i,j,n)*0.5*vlai(i,j,n)
-            else if (abs(clat)>24.5) then
-              xp=abs(clat)-24.5
-              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.5*xp
-              newlai(1)=newlai(1)+vfrac(i,j,n)*0.5*vlai(i,j,n)*xp
-              newgrid(4)=newgrid(4)+vfrac(i,j,n)*(1.-0.5*xp)
-              newlai(4)=newlai(4)+vfrac(i,j,n)*vlai(i,j,n)*(1.-0.5*xp)
-            else
-              newgrid(4)=newgrid(4)+vfrac(i,j,n)
-              newlai(4)=newlai(4)+vfrac(i,j,n)*vlai(i,j,n)
-            end if
-          case (6)
-            newgrid(5)=newgrid(5)+vfrac(i,j,n)*0.8
-            newlai(5)=newlai(5)+vfrac(i,j,n)*0.8*vlai(i,j,n)
-            newgrid(6)=newgrid(6)+vfrac(i,j,n)*0.2*fg3
-            newlai(6)=newlai(6)+vfrac(i,j,n)*0.2*fg3*vlai(i,j,n)
-            newgrid(7)=newgrid(7)+vfrac(i,j,n)*0.2*fg4
-            newlai(7)=newlai(7)+vfrac(i,j,n)*0.2*fg4*vlai(i,j,n)
-            newgrid(8)=newgrid(8)+vfrac(i,j,n)*0.2*ftu
-            newlai(8)=newlai(8)+vfrac(i,j,n)*0.2*ftu*vlai(i,j,n)
-          case (7)
-            newgrid(5)=newgrid(5)+vfrac(i,j,n)*0.2
-            newlai(5)=newlai(5)+vfrac(i,j,n)*0.2*vlai(i,j,n)
-            newgrid(6)=newgrid(6)+vfrac(i,j,n)*0.8*fg3
-            newlai(6)=newlai(6)+vfrac(i,j,n)*0.8*fg3*vlai(i,j,n)
-            newgrid(7)=newgrid(7)+vfrac(i,j,n)*0.8*fg4
-            newlai(7)=newlai(7)+vfrac(i,j,n)*0.8*fg4*vlai(i,j,n)
-            newgrid(8)=newgrid(8)+vfrac(i,j,n)*0.8*ftu
-            newlai(8)=newlai(8)+vfrac(i,j,n)*0.8*ftu*vlai(i,j,n)
-          case (8)
-            if (abs(clat)>40.5) then
-              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.4
-              newlai(1)=newlai(1)+vfrac(i,j,n)*0.4*vlai(i,j,n)
-            else if (abs(clat)>39.5) then
-              xp=abs(clat)-39.5
-              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.4*xp
-              newlai(1)=newlai(1)+vfrac(i,j,n)*vlai(i,j,n)*0.4*xp
-              !savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.4*(1.-xp)
-              newgrid(18)=newgrid(18)+vfrac(i,j,n)*0.4*(1.-xp)
-              newlai(18)=newlai(18)+vfrac(i,j,n)*vlai(i,j,n)*0.4*(1.-xp)
-            else
-              !savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.4
-              newgrid(18)=newgrid(18)+vfrac(i,j,n)*0.4
-              newlai(18)=newlai(18)+vfrac(i,j,n)*0.4*vlai(i,j,n)
-            end if
-            newgrid(6)=newgrid(6)+vfrac(i,j,n)*0.6*fg3
-            newlai(6)=newlai(6)+vfrac(i,j,n)*0.6*fg3*vlai(i,j,n)
-            newgrid(7)=newgrid(7)+vfrac(i,j,n)*0.6*fg4
-            newlai(7)=newlai(7)+vfrac(i,j,n)*0.6*fg4*vlai(i,j,n)
-            newgrid(8)=newgrid(8)+vfrac(i,j,n)*0.6*ftu
-            newlai(8)=newlai(8)+vfrac(i,j,n)*0.6*ftu*vlai(i,j,n)
-          case (9)
-            if (abs(clat)>40.5) then
-              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.1
-              newlai(1)=newlai(1)+vfrac(i,j,n)*0.1*vlai(i,j,n)
-            else if (abs(clat)>39.5) then
-              xp=abs(clat)-39.5
-              newgrid(1)=newgrid(1)+vfrac(i,j,n)*0.1*xp
-              newlai(1)=newlai(1)+vfrac(i,j,n)*vlai(i,j,n)*0.1*xp
-              !savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.1*(1.-xp)
-              newgrid(18)=newgrid(18)+vfrac(i,j,n)*0.1*(1.-xp)
-              newlai(18)=newlai(18)+vfrac(i,j,n)*vlai(i,j,n)*0.1*(1.-xp)
-            else
-              !savannafrac(i,j)=savannafrac(i,j)+vfrac(i,j,n)*0.1
-              newgrid(18)=newgrid(18)+vfrac(i,j,n)*0.1
-              newlai(18)=newlai(18)+vfrac(i,j,n)*0.1*vlai(i,j,n)
-            end if
-            newgrid(6)=newgrid(6)+vfrac(i,j,n)*0.9*fg3
-            newlai(6)=newlai(6)+vfrac(i,j,n)*0.9*fg3*vlai(i,j,n)
-            newgrid(7)=newgrid(7)+vfrac(i,j,n)*0.9*fg4
-            newlai(7)=newlai(7)+vfrac(i,j,n)*0.9*fg4*vlai(i,j,n)
-            newgrid(8)=newgrid(8)+vfrac(i,j,n)*0.9*ftu
-            newlai(8)=newlai(8)+vfrac(i,j,n)*0.9*ftu*vlai(i,j,n)
-          case (10)
-            newgrid(6)=newgrid(6)+vfrac(i,j,n)*fg3
-            newlai(6)=newlai(6)+vfrac(i,j,n)*fg3*vlai(i,j,n)
-            newgrid(7)=newgrid(7)+vfrac(i,j,n)*fg4
-            newlai(7)=newlai(7)+vfrac(i,j,n)*fg4*vlai(i,j,n)
-            newgrid(8)=newgrid(8)+vfrac(i,j,n)*ftu
-            newlai(8)=newlai(8)+vfrac(i,j,n)*ftu*vlai(i,j,n)
-          case (12,14)
-            newgrid(9)=newgrid(9)+vfrac(i,j,n)*fc3
-            newlai(9)=newlai(9)+vfrac(i,j,n)*fc3*vlai(i,j,n)
-            newgrid(10)=newgrid(10)+vfrac(i,j,n)*fc4
-            newlai(10)=newlai(10)+vfrac(i,j,n)*fc4*vlai(i,j,n)
-          case (13)
-            newgrid(15)=newgrid(15)+vfrac(i,j,n)
-            newlai(15)=newlai(15)+vfrac(i,j,n)*vlai(i,j,n)
-          case (15)
-            newgrid(17)=newgrid(17)+vfrac(i,j,n)
-            newlai(17)=newlai(17)+vfrac(i,j,n)*vlai(i,j,n)
-          case (16)
-            newgrid(14)=newgrid(14)+vfrac(i,j,n)
-            newlai(14)=newlai(14)+vfrac(i,j,n)*vlai(i,j,n)
-          case (17)
-            newgrid(16)=newgrid(16)+vfrac(i,j,n)
-            newlai(16)=newlai(16)+vfrac(i,j,n)*vlai(i,j,n)
-          case DEFAULT
-            write(6,*) "ERROR: Land-type/lsmask mismatch at i,j,vtype,land=",i,j,vtype(i,j,n),lsdata(i,j)
+        do k=1,5
+          iv_new=mapindex(iv,k)
+          if ( iv_new>0 ) then
+            newgrid(iv_new)=newgrid(iv_new)+vfrac(i,j,n)*mapfrac(iv,k)
+            newlai(iv_new)=newlai(iv_new)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)
+          else if ( iv_new==-1 ) then ! mixed
+            newgrid(1)=newgrid(1)+vfrac(i,j,n)*mapfrac(iv,k)*(1.-fmixed)
+            newlai(1)=newlai(1)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*(1.-fmixed)
+            newgrid(4)=newgrid(4)+vfrac(i,j,n)*mapfrac(iv,k)*fmixed
+            newlai(4)=newlai(4)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*fmixed
+          else if ( iv_new==-2 ) then ! grass
+            newgrid(6)=newgrid(6)+vfrac(i,j,n)*mapfrac(iv,k)*fg3
+            newlai(6)=newlai(6)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*fg3
+            newgrid(7)=newgrid(7)+vfrac(i,j,n)*mapfrac(iv,k)*fg4
+            newlai(7)=newlai(7)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*fg4
+            newgrid(8)=newgrid(8)+vfrac(i,j,n)*mapfrac(iv,k)*ftu
+            newlai(8)=newlai(8)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*ftu
+          else if ( iv_new==-3 ) then ! needle/broad (non-savanna)
+            newgrid(1)=newgrid(1)+vfrac(i,j,n)*mapfrac(iv,k)*fneedlebroad
+            newlai(1)=newlai(1)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*fneedlebroad
+            newgrid(2)=newgrid(2)+vfrac(i,j,n)*mapfrac(iv,k)*(1.-fneedlebroad)
+            newlai(2)=newlai(2)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*(1.-fneedlebroad)
+          else if ( iv_new==-4 ) then ! crop
+            newgrid(9)=newgrid(9)+vfrac(i,j,n)*mapfrac(iv,k)*fc3
+            newlai(9)=newlai(9)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*fc3
+            newgrid(10)=newgrid(10)+vfrac(i,j,n)*mapfrac(iv,k)*fc4
+            newlai(10)=newlai(10)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*fc4
+          else if ( iv_new==-5 ) then ! needle/broad (savanna)
+            newgrid(1)=newgrid(1)+vfrac(i,j,n)*mapfrac(iv,k)*fneedlebroad
+            newlai(1)=newlai(1)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*fneedlebroad
+            newgrid(18)=newgrid(18)+vfrac(i,j,n)*mapfrac(iv,k)*(1.-fneedlebroad)
+            newlai(18)=newlai(18)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*(1.-fneedlebroad)
+          else if ( iv_new/=0 ) then
+            write(6,*) "ERROR: Unknown index ",iv_new
             call finishbanner
             stop
-        end select
+          end if
+        end do
       end do
       !if (newgrid(2)>0.) then
       !  savannafrac(i,j)=savannafrac(i,j)/newgrid(2)
@@ -1216,7 +1536,7 @@ do j = 1,sibdim(2)
       vtype(i,j,:) = 0
       vfrac(i,j,:) = 0.
       vlai(i,j,:)  = 0.
-      do iv = 1,18
+      do iv = 1,pft_len
         if ( newgrid(iv)>0. ) then
           n = n + 1
           vtype(i,j,n) = iv
@@ -1232,3 +1552,75 @@ end do
 return
 end subroutine convertigbp
     
+subroutine findentry(largestring,iposbeg,iposend,failok)
+
+implicit none
+
+character(len=*), intent(in) :: largestring
+integer, intent(inout) :: iposbeg, iposend
+integer test
+logical, intent(in) :: failok
+
+test=verify(largestring(iposend+1:),' ')
+if ( test==0 ) then
+  iposbeg=-1
+  iposend=-1
+  if (failok) return
+  write(6,*) "ERROR: Cannot find entry in ",trim(largestring)
+  call finishbanner
+  stop
+end if
+iposbeg=test+iposend
+test=scan(largestring(iposbeg:),' ')
+if ( test==0 ) then
+  iposbeg=-1
+  iposend=-1
+  if (failok) return
+  write(6,*) "ERROR: Cannot find entry in ",trim(largestring)
+  call finishbanner
+  stop
+end if
+iposend=test+iposbeg-2
+
+return
+end subroutine findentry
+    
+subroutine findindex(kdesc,pft_desc,pft_len,mapindex)
+
+implicit none
+
+integer, intent(in) :: pft_len
+integer, intent(out) :: mapindex
+integer k
+character(len=*), intent(in) :: kdesc
+character(len=*), dimension(pft_len), intent(In) :: pft_desc
+logical matchfound
+
+if ( trim(kdesc)=="(Mixed)" .or. trim(kdesc)=="(mixed)" ) then    
+  mapindex = -1  
+else if ( trim(kdesc)=="(Grass)" .or. trim(kdesc)=="(grass)" ) then
+  mapindex = -2  
+else if ( trim(kdesc)=="(ENB)" ) then    
+  mapindex = -3  
+else if ( trim(kdesc)=="(Crop)" .or. trim(kdesc)=="(crop)" ) then
+  mapindex = -4
+else if ( trim(kdesc)=="(ENB_savanna)" .or. trim(kdesc)=="(ENB_savanna)" ) then
+  mapindex = -5  
+else    
+  matchfound=.false.
+  do k=1,pft_len
+    if ( trim(kdesc)==trim(pft_desc(k)) ) then
+      matchfound=.true.
+      mapindex=k
+      exit  
+    end if
+  end do
+  if ( .not.matchfound ) then
+    write(6,*) "ERROR: Cannot find ",trim(kdesc)," in PFT list"
+    call finishbanner
+    stop
+  end if
+end if
+
+return
+end subroutine findindex
