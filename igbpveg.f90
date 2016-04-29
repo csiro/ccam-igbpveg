@@ -462,54 +462,17 @@ if ( fname(10)/='' .and. outmode==1 ) then
     end if
 
     iposend=0 ! must start with 0
-    call findentry(largestring,iposbeg,iposend,.false.)
-    read(largestring(iposbeg:iposend),*,iostat=ioerror) jveg
-    if ( ioerror/=0 ) then
-      write(6,*) "ERROR: Cannot read mapconfig line"
-      write(6,*) trim(largestring)
-      call finishbanner
-      stop
-    end if
-    call findentry(largestring,iposbeg,iposend,.false.)
-    jdesc=largestring(iposbeg:iposend)
-    call findentry(largestring,iposbeg,iposend,.false.)
-    read(largestring(iposbeg:iposend),*,iostat=ioerror) mapurban(jveg)    
-    if ( ioerror/=0 ) then
-      write(6,*) "ERROR: Cannot read mapconfig line"
-      write(6,*) trim(largestring)
-      call finishbanner
-      stop
-    end if
-    call findentry(largestring,iposbeg,iposend,.false.)
-    read(largestring(iposbeg:iposend),*,iostat=ioerror) mapwater(jveg)    
-    if ( ioerror/=0 ) then
-      write(6,*) "ERROR: Cannot read mapconfig line"
-      write(6,*) trim(largestring)
-      call finishbanner
-      stop
-    end if
-    call findentry(largestring,iposbeg,iposend,.false.)
-    read(largestring(iposbeg:iposend),*,iostat=ioerror) mapice(jveg)    
-    if ( ioerror/=0 ) then
-      write(6,*) "ERROR: Cannot read mapconfig line"
-      write(6,*) trim(largestring)
-      call finishbanner
-      stop
-    end if
+    call findentry_integer(largestring,iposbeg,iposend,.false.,jveg)
+    call findentry_character(largestring,iposbeg,iposend,.false.,jdesc)
+    call findentry_logical(largestring,iposbeg,iposend,.false.,mapurban(jveg))
+    call findentry_logical(largestring,iposbeg,iposend,.false.,mapwater(jveg))
+    call findentry_logical(largestring,iposbeg,iposend,.false.,mapice(jveg))
     maxindex=0
     do j=1,5
-      call findentry(largestring,iposbeg,iposend,.true.)
+      call findentry_real(largestring,iposbeg,iposend,.true.,mapfrac(jveg,j))
       if ( iposbeg==-1 ) exit
-      read(largestring(iposbeg:iposend),*,iostat=ioerror) mapfrac(jveg,j)
-      if ( ioerror/=0 ) then
-        write(6,*) "ERROR: Cannot read mapconfig line"
-        write(6,*) trim(largestring)
-        call finishbanner
-        stop
-      end if
-      call findentry(largestring,iposbeg,iposend,.true.)
+      call findentry_character(largestring,iposbeg,iposend,.false.,kdesc)
       if ( iposbeg==-1 ) exit
-      kdesc=largestring(iposbeg:iposend)
       call findindex(kdesc,pft_desc,pft_len,mapindex(jveg,j))
       maxindex=j
     end do
@@ -960,7 +923,11 @@ do tt=1,mthrng
   write(6,*) 'Write urban'
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
   ! type
-  rdata=1. ! generic urban type
+  where (urbandata>0.) 
+    rdata=1.
+  elsewhere
+    rdata=0.
+  end where
   call ncwritedatgen(ncidarr,rdata,dimcount,varid(22))
   ! fraction
   urbanfrac=1.
@@ -1584,6 +1551,87 @@ iposend=test+iposbeg-2
 
 return
 end subroutine findentry
+
+subroutine findentry_real(largestring,iposbeg,iposend,failok,rfrac)
+
+implicit none
+
+character(len=*), intent(in) :: largestring
+integer, intent(inout) :: iposbeg, iposend
+real, intent(out) :: rfrac
+integer ioerror
+logical, intent(in) :: failok
+
+call findentry(largestring,iposbeg,iposend,failok)
+read(largestring(iposbeg:iposend),*,iostat=ioerror) rfrac
+if ( ioerror/=0 ) then
+  write(6,*) "ERROR: Cannot read mapconfig line"
+  write(6,*) trim(largestring)
+  call finishbanner
+  stop
+end if
+
+return
+end subroutine findentry_real
+    
+subroutine findentry_integer(largestring,iposbeg,iposend,failok,jveg)
+
+implicit none
+
+character(len=*), intent(in) :: largestring
+integer, intent(inout) :: iposbeg, iposend
+integer, intent(out) :: jveg
+integer ioerror
+logical, intent(in) :: failok
+
+call findentry(largestring,iposbeg,iposend,failok)
+read(largestring(iposbeg:iposend),*,iostat=ioerror) jveg
+if ( ioerror/=0 ) then
+  write(6,*) "ERROR: Cannot read mapconfig line"
+  write(6,*) trim(largestring)
+  call finishbanner
+  stop
+end if
+
+return
+end subroutine findentry_integer
+
+subroutine findentry_character(largestring,iposbeg,iposend,failok,jdesc)
+
+implicit none
+
+character(len=*), intent(in) :: largestring
+integer, intent(inout) :: iposbeg, iposend
+character(len=*), intent(out) :: jdesc
+logical, intent(in) :: failok
+
+call findentry(largestring,iposbeg,iposend,failok)
+jdesc=largestring(iposbeg:iposend)
+
+return
+end subroutine findentry_character
+
+subroutine findentry_logical(largestring,iposbeg,iposend,failok,maplogical)
+
+implicit none
+
+character(len=*), intent(in) :: largestring
+integer, intent(inout) :: iposbeg, iposend
+logical, intent(out) :: maplogical
+integer ioerror
+logical, intent(in) :: failok
+
+call findentry(largestring,iposbeg,iposend,failok)
+read(largestring(iposbeg:iposend),*,iostat=ioerror) maplogical
+if ( ioerror/=0 ) then
+  write(6,*) "ERROR: Cannot read mapconfig line"
+  write(6,*) trim(largestring)
+  call finishbanner
+  stop
+end if
+
+return
+end subroutine findentry_logical
     
 subroutine findindex(kdesc,pft_desc,pft_len,mapindex)
 
