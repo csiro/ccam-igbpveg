@@ -195,7 +195,8 @@ If (fastigbp) then
                       end if
                       dataout(lci,lcj,0:class_num)=dataout(lci,lcj,0:class_num)+coverout(i,j,0:class_num)
                       where(coverout(i,j,class_num+1:num)==0..and.countn(lci,lcj)>0)
-                        dataout(lci,lcj,class_num+1:num)=dataout(lci,lcj,class_num+1:num)*real(countn(lci,lcj)+1)/real(countn(lci,lcj))
+                        dataout(lci,lcj,class_num+1:num)=dataout(lci,lcj,class_num+1:num)*real(countn(lci,lcj)+1) &
+                          /real(countn(lci,lcj))
                       elsewhere (dataout(lci,lcj,class_num+1:num)==0.)
                         dataout(lci,lcj,class_num+1:num)=coverout(i,j,class_num+1:num)*real(countn(lci,lcj)+1)
                       elsewhere
