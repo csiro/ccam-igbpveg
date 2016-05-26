@@ -303,7 +303,7 @@ if ( month<0 .or. month>12 ) then
   write(6,*) "ERROR: Invalid month ",month
   write(6,*) "Must be between 0 and 12"
   call finishbanner
-  stop
+  stop -1
 end if
 
 csize=returnoption('-s',options,nopts)
@@ -311,7 +311,7 @@ read(csize,FMT=*,IOSTAT=ierr) sibsize
 if (ierr/=0) then
   write(6,*) 'ERROR: Invalid array si=ze.  Must be an integer.'
   call finishbanner
-  stop
+  stop -1
 end if
 
 ! Read topography file
@@ -335,7 +335,7 @@ if ( fname(9)/='' .and. outmode==1 ) then
   if ( ioerror/=0 ) then
     write(6,*) "ERROR: Cannot open pftconfig file ",trim(fname(9))
     call finishbanner
-    stop
+    stop -1
   end if
     
   read(40,*) comments
@@ -353,7 +353,7 @@ if ( fname(9)/='' .and. outmode==1 ) then
     if ( ioerror/=0 ) then
       write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
       call finishbanner
-      stop
+      stop -1
     end if
     write(6,*) "Processing PFT ",trim(vegnametmp)
     if ( jveg<1 .or. jveg>17 ) then
@@ -362,7 +362,7 @@ if ( fname(9)/='' .and. outmode==1 ) then
       write(6,*) "veg index should match a CSIRO PFT from 1-17"
       write(6,*) "whereas veg was read as ",jveg
       call finishbanner
-      stop
+      stop -1
     end if
     csiropft(i) = real(jveg)
     pft_desc(i) = vegnametmp
@@ -438,7 +438,7 @@ if ( fname(10)/='' .and. outmode==1 ) then
   if ( ioerror/=0 ) then
     write(6,*) "ERROR: Cannot open mapconfig file ",trim(fname(10))
     call finishbanner
-    stop
+    stop -1
   end if
   
   read(40,*) comments
@@ -458,7 +458,7 @@ if ( fname(10)/='' .and. outmode==1 ) then
       write(6,*) "ERROR: Cannot read entry on mapconfig ",trim(fname(10))  
       write(6,*) "ioerror= ",ioerror
       call finishbanner
-      stop
+      stop -1
     end if
 
     iposend=0 ! must start with 0
@@ -481,7 +481,7 @@ if ( fname(10)/='' .and. outmode==1 ) then
       write(6,*) "ERROR: No valid PFTs in mapconfig line"
       write(6,*) trim(largestring)
       call finishbanner
-      stop
+      stop -1
     end if
     
     write(6,*) "Processed ",trim(jdesc)," with ",maxindex
@@ -1248,7 +1248,7 @@ end if
 if ( ierr/=0 ) then
   write(6,*) "ERROR: Cannot read file ",trim(toponame)
   call finishbanner
-  stop
+  stop -1
 end if
 
 lsmsk = real(1-nint(lsmskin))
@@ -1262,7 +1262,7 @@ if (lnctopo==1) then
   if (ierr/=0) then
     write(6,*) "ERROR creating output topography file ",ierr
     call finishbanner
-    stop
+    stop -1
   end if
   ierr=nf_def_dim(ncid,'longitude',sibdim(1),dimid(1))
   ierr=nf_def_dim(ncid,'latitude',sibdim(2),dimid(2))
@@ -1309,7 +1309,7 @@ end if
 If (ierr.NE.0) then
   Write(6,*) "ERROR: Cannot write file ",trim(topoout)
   call finishbanner
-  Stop
+  Stop -1
 End if
 
 Return
@@ -1342,13 +1342,13 @@ Real, parameter :: pi = 3.1415926536
 if ( any(mapindex>pft_len) ) then
   write(6,*) "ERROR: Unspecified index in mapconfig is not represented in pftconfig"
   call finishbanner
-  stop
+  stop -1
 end if
 
 if ( any(mapindex<0) .and. pft_len<18 ) then
   write(6,*) "ERROR: mapconfig contains special cases that require at least 18 PFTs to be defined"
   call finishbanner
-  stop
+  stop -1
 end if
 
 do i=1,class_num
@@ -1356,7 +1356,7 @@ do i=1,class_num
     write(6,*) "ERROR: mapconfig fractions do not sum to 1."
     write(6,*) "iveg,mapfactor ",i,mapfrac(i,:)
     call finishbanner
-    stop
+    stop -1
   end if
 end do
 
@@ -1474,7 +1474,7 @@ do j = 1,sibdim(2)
           else if ( iv_new/=0 ) then
             write(6,*) "ERROR: Unknown index ",iv_new
             call finishbanner
-            stop
+            stop -1
           end if
         end do
       end do
@@ -1535,7 +1535,7 @@ if ( test==0 ) then
   if (failok) return
   write(6,*) "ERROR: Cannot find entry in ",trim(largestring)
   call finishbanner
-  stop
+  stop -1
 end if
 iposbeg=test+iposend
 test=scan(largestring(iposbeg:),' ')
@@ -1545,7 +1545,7 @@ if ( test==0 ) then
   if (failok) return
   write(6,*) "ERROR: Cannot find entry in ",trim(largestring)
   call finishbanner
-  stop
+  stop -1
 end if
 iposend=test+iposbeg-2
 
@@ -1568,7 +1568,7 @@ if ( ioerror/=0 ) then
   write(6,*) "ERROR: Cannot read mapconfig line"
   write(6,*) trim(largestring)
   call finishbanner
-  stop
+  stop -1
 end if
 
 return
@@ -1590,7 +1590,7 @@ if ( ioerror/=0 ) then
   write(6,*) "ERROR: Cannot read mapconfig line"
   write(6,*) trim(largestring)
   call finishbanner
-  stop
+  stop -1
 end if
 
 return
@@ -1627,7 +1627,7 @@ if ( ioerror/=0 ) then
   write(6,*) "ERROR: Cannot read mapconfig line"
   write(6,*) trim(largestring)
   call finishbanner
-  stop
+  stop -1
 end if
 
 return
@@ -1666,7 +1666,7 @@ else
   if ( .not.matchfound ) then
     write(6,*) "ERROR: Cannot find ",trim(kdesc)," in PFT list"
     call finishbanner
-    stop
+    stop -1
   end if
 end if
 

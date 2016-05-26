@@ -102,7 +102,7 @@ Select Case(datatype)
   Case DEFAULT
     Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
     call finishbanner
-    Stop
+    Stop -1
 End Select
 
 If (fastigbp) then
@@ -169,7 +169,7 @@ If (fastigbp) then
               Case DEFAULT
                 Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
                 call finishbanner
-                Stop
+                Stop -1
             End Select
 
             write(6,*) 'Start bin'
@@ -194,9 +194,9 @@ If (fastigbp) then
                         countn(lci,lcj)=0
                       end if
                       dataout(lci,lcj,0:class_num)=dataout(lci,lcj,0:class_num)+coverout(i,j,0:class_num)
-                      where(coverout(i,j,class_num+1:num)==0..and.countn(lci,lcj)>0)
+                      where (coverout(i,j,class_num+1:num)==0..and.countn(lci,lcj)>0)
                         dataout(lci,lcj,class_num+1:num)=dataout(lci,lcj,class_num+1:num)*real(countn(lci,lcj)+1) &
-                          /real(countn(lci,lcj))
+                            /real(countn(lci,lcj))
                       elsewhere (dataout(lci,lcj,class_num+1:num)==0.)
                         dataout(lci,lcj,class_num+1:num)=coverout(i,j,class_num+1:num)*real(countn(lci,lcj)+1)
                       elsewhere
@@ -263,7 +263,7 @@ Else
     Case DEFAULT
       Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
       call finishbanner
-      Stop
+      Stop -1
   End Select
 
 End If
@@ -330,7 +330,7 @@ If (subsec/=0) then
          Case DEFAULT
             Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
             call finishbanner
-            Stop
+            Stop -1
         End Select
 
         Do lcj=1,sibdim(2)
@@ -519,7 +519,7 @@ if (ozlaipatch) then
       if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
         write(6,*) "ERROR: LAI data has different dimensions for different months"
         call finishbanner
-        stop
+        stop -1
       end if
       read(30,*) laiin(:,:,imth)
       close(30)
@@ -532,7 +532,7 @@ if (ozlaipatch) then
     if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
       write(6,*) "ERROR: LAI data has different dimensions for different months"
       call finishbanner
-      stop
+      stop -1
     end if
     read(30,*) laiin(:,:,1)
     close(30)
@@ -850,7 +850,7 @@ if (ozlaipatch) then
       if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
         write(6,*) "ERROR: LAI data has different dimensions for different months"
         call finishbanner
-        stop
+        stop -1
       end if
       read(30,*) laiin(:,:,imth)
       close(30)
@@ -863,7 +863,7 @@ if (ozlaipatch) then
     if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
       write(6,*) "ERROR: LAI data has different dimensions for different months"
       call finishbanner
-      stop
+      stop -1
     end if
     read(30,*) laiin(:,:,1)
     close(30)
@@ -1386,7 +1386,7 @@ Select Case(mode)
   Case Default
     Write(6,*) 'ERROR: Internal error.  Unsupported mode in searchdim'
     call finishbanner
-    Stop
+    Stop -1
 End Select
 
 If (.NOT.Any(sermask)) then
