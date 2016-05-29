@@ -741,21 +741,18 @@ subroutine fill_cc_a(a_io,ik,rng,land_in)
       
 implicit none
       
-integer :: nrem,i,ii,ik,iq,ind,j,n,ndiag
+integer :: nrem,i,ii,ik,iq,ind,j,n,neighb,ndiag
 integer :: iminb,imaxb,jminb,jmaxb,rng
-integer :: is,ie,isq,ieq
 integer, save :: oldik = 0
 integer, dimension(:,:), allocatable, save :: ic
 integer, dimension(0:5) :: imin,imax,jmin,jmax
 integer, dimension(0:5) :: npann,npane,npanw,npans
-integer, dimension(ik) :: neighb
 real, dimension(ik*ik*6,rng), intent(inout) :: a_io         ! input and output array
 real, dimension(ik*ik*6,rng) :: a
-real, dimension(ik,4) :: alocal
+real, dimension(rng) :: av     
 logical, dimension(ik*ik*6), intent(in) :: land_in
 logical, dimension(ik*ik*6) :: land_a,land_b
-logical, dimension(ik,4) :: mask
-logical :: lflag
+logical, dimension(4) :: mask
 data npann/1,103,3,105,5,101/,npane/102,2,104,4,100,0/
 data npanw/5,105,1,101,3,103/,npans/104,0,100,2,102,4/
 ind(i,j,n)=i+(j-1)*ik+n*ik*ik  ! *** for n=0,npanels
@@ -818,12 +815,7 @@ imin=1
 imax=ik
 jmin=1
 jmax=ik
-
-if ( .not.any(land_a) ) then
-  write(6,*) "ERROR No points to fill"
-  stop
-end if
-
+          
 nrem = 1    ! Just for first iteration
 do while ( nrem > 0)
   nrem=0
@@ -834,41 +826,27 @@ do while ( nrem > 0)
     imaxb=1
     jminb=ik
     jmaxb=1
-    
     do j=jmin(n),jmax(n)
-      is=imin(n)
-      ie=imax(n)
-      isq=ind(is,j,n)
-      ieq=ind(ie,j,n)
-      do ii = 1,4
-        mask(is:ie,ii) = land_a(ic(ii,isq:ieq))
+      do i=imin(n),imax(n)
+        iq=ind(i,j,n)
+        if(.not.land_a(iq))then
+          mask=land_a(ic(:,iq))
+          neighb=count(mask)
+          if(neighb>0)then
+            do ii=1,rng
+              av(ii)=sum(a(ic(:,iq),ii),mask)
+              a_io(iq,ii)=av(ii)/real(neighb)
+            end do
+            land_b(iq)=.true.
+          else
+            iminb=min(i,iminb)
+            imaxb=max(i,imaxb)
+            jminb=min(j,jminb)
+            jmaxb=max(j,jmaxb)
+            nrem=nrem+1   ! current number of points without a neighbour
+          endif
+        endif
       end do
-      neighb(is:ie)=count(mask(is:ie,:),dim=2)
-      do ii = 1,rng
-        alocal(is:ie,1) = a(ic(1,isq:ieq),ii)
-        alocal(is:ie,2) = a(ic(2,isq:ieq),ii)
-        alocal(is:ie,3) = a(ic(3,isq:ieq),ii)
-        alocal(is:ie,4) = a(ic(4,isq:ieq),ii)
-        where ( neighb(is:ie)>0 .and. .not.land_a(isq:ieq) )
-          a_io(isq:ieq,ii) = sum(alocal(is:ie,:),dim=2,mask=mask)/real(neighb(is:ie))
-        end where
-      end do
-      where ( neighb(is:ie)>0 )
-        land_b(isq:ieq) = .true.
-      end where
-      lflag = .false.
-      do i = is,ie
-        if ( neighb(i)==0 ) then
-          iminb=min(i,iminb)
-          imaxb=max(i,imaxb)
-          lflag = .true.
-          nrem=nrem+1   ! current number of points without a neighbour
-        end if
-      end do          
-      if ( lflag ) then
-        jminb=min(j,jminb)
-        jmaxb=max(j,jmaxb)
-      end if
     end do
     imin(n)=iminb
     imax(n)=imaxb
@@ -876,6 +854,5 @@ do while ( nrem > 0)
     jmax(n)=jmaxb
   end do
 end do
-
 return
 end
