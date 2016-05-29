@@ -385,17 +385,11 @@ if (datatype=='land') then
     if ( .not.mapwater(k) ) then
       sermask=dataout(:,:,k)>0.
       sermask2=sermask
-      do lcj=1,sibdim(2)
-        do lci=1,sibdim(1)
-          if (sermask(lci,lcj)) then
-            if (any(dataout(lci,lcj,(k-1)*mthrng+class_num+1:k*mthrng+class_num)==0.)) then
-              sermask2(lci,lcj)=.false.
-            else
-              sermask(lci,lcj)=.false.
-            end if
-          end if
-        end do
-      end do
+      where ( sermask(:,:) .and. any(dataout(:,:,(k-1)*mthrng+class_num+1:k*mthrng+class_num)==0.,dim=3) )
+        sermask2(:,:) = .false.
+      elsewhere ( sermask(:,:) )
+        sermask(:,:) = .false.
+      end where
       if (any(sermask)) then ! missing LAI data
         Write(6,*) "Replace missing LAI for class ",k
         if (any(sermask2)) then
