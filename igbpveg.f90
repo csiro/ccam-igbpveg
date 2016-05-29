@@ -995,10 +995,11 @@ integer, intent(in) :: class_num, mthrng
 integer, dimension(1:2), intent(in) :: sibdim
 real, dimension(sibdim(1),sibdim(2),1:2), intent(in) :: rlld
 real, dimension(sibdim(1),sibdim(2),0:class_num*(1+mthrng)), intent(inout) :: landdata
+real, dimension(sibdim(1),sibdim(2),1:class_num*(1+mthrng)) :: newdata
+real, dimension(sibdim(1),sibdim(2)) :: testdata
 logical, dimension(1:sibdim(1),1:sibdim(2)) :: allmsk
 logical, dimension(class_num), intent(in) :: mapurban, mapwater
-integer i,j,ilon,ilat, icount
-integer, dimension(2) :: pxy
+integer i,j,ilon,ilat
 real nsum,wsum
 
 do i=1,class_num
@@ -1007,34 +1008,32 @@ do i=1,class_num
   end if
 end do
 
-allmsk(:,:)=.false.
+testdata(:,:)=0.
 do i=1,class_num
   if ( .not.mapwater(i) ) then
-    where ( landdata(:,:,i)>0. )
-      allmsk(:,:) = .true.
-    end where
+    testdata(:,:) = testdata(:,:) + landdata(:,:,i)
   end if
 end do
+allmsk=testdata(:,:)>0.
 if (.not.any(allmsk)) return
 
-!newdata(:,:,1:class_num*(1+mthrng))=landdata(:,:,1:class_num*(1+mthrng))
-!do i=1,class_num
-!  if ( .not.mapwater(i) ) then
-!    write(6,*) "Fill class ",i
-!    call fill_cc(newdata(:,:,i),sibdim(1),allmsk)
-!    do j=(i-1)*mthrng+class_num+1,i*mthrng+class_num
-!      write(6,*) "Fill class ",j
-!      call fill_cc(newdata(:,:,j),sibdim(1),allmsk)
-!    end do
-!  else
-!    newdata(:,:,i)=0.
-!    do j=(i-1)*mthrng+class_num+1,i*mthrng+class_num
-!      newdata(:,:,j) = 0.
-!    end do
-!  end if
-!end do
+newdata(:,:,1:class_num*(1+mthrng))=landdata(:,:,1:class_num*(1+mthrng))
+do i=1,class_num
+  if ( .not.mapwater(i) ) then
+    write(6,*) "Fill class ",i
+    call fill_cc(newdata(:,:,i),sibdim(1),allmsk)
+    do j=(i-1)*mthrng+class_num+1,i*mthrng+class_num
+      write(6,*) "Fill class ",j
+      call fill_cc(newdata(:,:,j),sibdim(1),allmsk)
+    end do
+  else
+    newdata(:,:,i)=0.
+    do j=(i-1)*mthrng+class_num+1,i*mthrng+class_num
+      newdata(:,:,j) = 0.
+    end do
+  end if
+end do
 
-icount = 0
 do ilat=1,sibdim(2)
   do ilon=1,sibdim(1)
     wsum=landdata(ilon,ilat,0)+sum(landdata(ilon,ilat,1:class_num),mapwater) ! water
@@ -1042,14 +1041,9 @@ do ilat=1,sibdim(2)
       if (.not.allmsk(ilon,ilat)) then
         do i=1,class_num
           if ( .not.mapwater(i) ) then
-             icount = icount + 1
-            call findnear(pxy,ilon,ilat,allmsk,rlld,sibdim)
-            landdata(ilon,ilat,i)=landdata(pxy(1),pxy(2),i)
+            landdata(ilon,ilat,i)=newdata(ilon,ilat,i)  
             landdata(ilon,ilat,(i-1)*mthrng+class_num+1:i*mthrng+class_num) &
-                =landdata(pxy(1),pxy(2),(i-1)*mthrng+class_num+1:i*mthrng+class_num)
-!            landdata(ilon,ilat,i)=newdata(ilon,ilat,i)  
-!            landdata(ilon,ilat,(i-1)*mthrng+class_num+1:i*mthrng+class_num) &
-!                =newdata(ilon,ilat,(i-1)*mthrng+class_num+1:i*mthrng+class_num)
+                =newdata(ilon,ilat,(i-1)*mthrng+class_num+1:i*mthrng+class_num)
           end if
         end do
       end if
@@ -1062,8 +1056,7 @@ do ilat=1,sibdim(2)
     end if
   end do
   if ( mod(ilat,100)==0 .or. ilat==sibdim(2) ) then
-    write(6,*) "Searching ",ilat,"/",sibdim(2)," Processed=",icount
-    icount = 0
+    write(6,*) "Searching ",ilat,"/",sibdim(2)
   end if
 end do
 
