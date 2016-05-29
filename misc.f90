@@ -749,9 +749,11 @@ integer, dimension(0:5) :: imin,imax,jmin,jmax
 integer, dimension(0:5) :: npann,npane,npanw,npans
 real, dimension(ik*ik*6,rng), intent(inout) :: a_io         ! input and output array
 real, dimension(ik*ik*6,rng) :: a
-real, dimension(rng) :: av     
+real, dimension(4,rng) :: alocal
+real, dimension(rng) :: av
 logical, dimension(ik*ik*6), intent(in) :: land_in
 logical, dimension(ik*ik*6) :: land_a,land_b
+logical, dimension(4,rng) :: maskrng
 logical, dimension(4) :: mask
 data npann/1,103,3,105,5,101/,npane/102,2,104,4,100,0/
 data npanw/5,105,1,101,3,103/,npans/104,0,100,2,102,4/
@@ -826,6 +828,7 @@ do while ( nrem > 0)
     imaxb=1
     jminb=ik
     jmaxb=1
+    
     do j=jmin(n),jmax(n)
       do i=imin(n),imax(n)
         iq=ind(i,j,n)
@@ -833,11 +836,12 @@ do while ( nrem > 0)
           mask=land_a(ic(:,iq))
           neighb=count(mask)
           if(neighb>0)then
-            do ii=1,rng
-              av(ii)=sum(a(ic(:,iq),ii),mask)
-              a_io(iq,ii)=av(ii)/real(neighb)
+            do ii=1,4
+              alocal(ii,:) = a(ic(ii,iq),:)
+              maskrng(ii,:) = mask(ii)
             end do
-            land_b(iq)=.true.
+            a_io(iq,:) = sum(alocal(:,:),dim=1,mask=maskrng)/real(neighb)
+            land_b(iq) = .true.
           else
             iminb=min(i,iminb)
             imaxb=max(i,imaxb)
