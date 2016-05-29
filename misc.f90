@@ -849,7 +849,7 @@ do while ( nrem > 0)
         alocal(is:ie,2) = a(ic(2,isq:ieq),ii)
         alocal(is:ie,3) = a(ic(3,isq:ieq),ii)
         alocal(is:ie,4) = a(ic(4,isq:ieq),ii)
-        where ( neighb(is:ie)>0 )
+        where ( neighb(is:ie)>0 .and. .not.land_a(isq:ieq) )
           a_io(isq:ieq,ii) = sum(alocal(is:ie,:),dim=2,mask=mask)/real(neighb(is:ie))
         end where
       end do
