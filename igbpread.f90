@@ -393,7 +393,7 @@ if (datatype=='land') then
       if (any(sermask)) then ! missing LAI data
         Write(6,*) "Replace missing LAI for class ",k
         if (any(sermask2)) then
-          call fill_cc_a(dataout(:,:,(k-1)*mthrng+class_num+1:k*mthrng+class_num),sibdim(1),mthrng,sermask2)
+          call fill_cc_a_mask(dataout(:,:,(k-1)*mthrng+class_num+1:k*mthrng+class_num),sibdim(1),mthrng,sermask2,sermask)
         else
           sermask2=.false.
           do lcj=1,sibdim(2)

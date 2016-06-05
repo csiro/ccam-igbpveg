@@ -996,8 +996,7 @@ integer, dimension(1:2), intent(in) :: sibdim
 real, dimension(sibdim(1),sibdim(2),1:2), intent(in) :: rlld
 real, dimension(sibdim(1),sibdim(2),0:class_num*(1+mthrng)), intent(inout) :: landdata
 real, dimension(sibdim(1),sibdim(2),1:class_num*(1+mthrng)) :: newdata
-real, dimension(sibdim(1),sibdim(2)) :: testdata
-logical, dimension(1:sibdim(1),1:sibdim(2)) :: allmsk
+logical, dimension(1:sibdim(1),1:sibdim(2)) :: allmsk, reqmsk
 logical, dimension(class_num), intent(in) :: mapurban, mapwater
 integer i,j,ilon,ilat
 real nsum,wsum
@@ -1008,23 +1007,32 @@ do i=1,class_num
   end if
 end do
 
-testdata(:,:)=0.
+allmsk=.false.
 do i=1,class_num
   if ( .not.mapwater(i) ) then
-    testdata(:,:) = testdata(:,:) + landdata(:,:,i)
+    allmsk=allmsk.or.landdata(:,:,i)>0.
   end if
 end do
-allmsk=testdata(:,:)>0.
 if (.not.any(allmsk)) return
+
+reqmsk=.false.
+do ilat=1,sibdim(2)
+  do ilon=1,sibdim(1)
+    wsum=landdata(ilon,ilat,0)+sum(landdata(ilon,ilat,1:class_num),mapwater) ! water
+    if ( wsum<1. ) then
+      reqmsk(ilon,ilat)=.true.
+    end if
+  end do
+end do
 
 newdata(:,:,1:class_num*(1+mthrng))=landdata(:,:,1:class_num*(1+mthrng))
 do i=1,class_num
   if ( .not.mapwater(i) ) then
     write(6,*) "Fill class ",i
-    call fill_cc(newdata(:,:,i),sibdim(1),allmsk)
+    call fill_cc_mask(newdata(:,:,i),sibdim(1),allmsk,reqmsk) ! only need land points to be filled
     do j=(i-1)*mthrng+class_num+1,i*mthrng+class_num
       write(6,*) "Fill class ",j
-      call fill_cc(newdata(:,:,j),sibdim(1),allmsk)
+      call fill_cc_mask(newdata(:,:,j),sibdim(1),allmsk,reqmsk) ! only need land points to be filled
     end do
   else
     newdata(:,:,i)=0.
