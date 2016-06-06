@@ -750,7 +750,7 @@ do ii = 1,rng
               av(2) = a_unpack(i-1,j,n)
               av(3) = a_unpack(i,j+1,n)
               av(4) = a_unpack(i,j-1,n)
-              a_io_unpack(i,j,n) = sum(av,mask)
+              a_io_unpack(i,j,n) = sum(av,mask)/real(neighb)
               land_b(i,j,n) = .true.
               finish_mask(i,j,n) = .true.
             else
