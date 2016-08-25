@@ -1376,7 +1376,7 @@ do j = 1,sibdim(2)
       newgrid     = 0.
       newlai      = 0.
           
-      clat = rlld(i,j,2)*180./pi
+      clat = rlld(i,j,2)
       ! grass
       if (abs(clat)>50.5) then
         fg3=0.
@@ -1410,7 +1410,7 @@ do j = 1,sibdim(2)
         fg3=0.05
         fg4=0.95
       end if
-      ftu=1.-fg3-fg4
+      ftu=max(1.-fg3-fg4,0.)
       ! crops
       if (abs(clat)>40.5) then
         fc3=1.
@@ -1425,7 +1425,7 @@ do j = 1,sibdim(2)
       else
         fc3=0.7
       end if
-      fc4=1.-fc3
+      fc4=max(1.-fc3,0.)
       ! mixed
       if (abs(clat)>25.5) then
         fmixed=0.5
