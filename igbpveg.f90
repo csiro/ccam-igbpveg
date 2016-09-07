@@ -1220,6 +1220,7 @@ Character*80 formout
 Character*47 dc
 Real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsmskin,oceanin
 Real, dimension(sibdim(1),sibdim(2)) :: topo,sd,lsmsk
+Real, dimension(sibdim(1),sibdim(2)) :: tmax, tmin
 real, dimension(sibdim(2)) :: dum
 Real, dimension(1) :: ra,rb,rc,rd
 ilout=Min(sibdim(1),30) ! To be compatiable with terread
@@ -1242,6 +1243,10 @@ if (ierr==0) then
   ierr=nf_get_vara_real(ncid,varid,spos,npos,lsmsk)
   ierr=nf_inq_varid(ncid,'tsd',varid)
   ierr=nf_get_vara_real(ncid,varid,spos,npos,sd)
+  ierr=nf_inq_varid(ncid,'zmax',varid)
+  ierr=nf_get_vara_real(ncid,varid,spos,npos,tmax)
+  ierr=nf_inq_varid(ncid,'zmin',varid)
+  ierr=nf_get_vara_real(ncid,varid,spos,npos,tmin)
   ierr=nf_close(ncid)
 else
   lnctopo=0
@@ -1263,6 +1268,8 @@ lsmsk = real(1-nint(lsmskin))
 where ( nint(oceanin)==1 .and. nint(lsmskin)==1 )
   topo(:,:) = 0.
   sd(:,:)   = 0.
+  tmax(:,:) = 0.
+  tmin(:,:) = 0.
 end where
 
 if (lnctopo==1) then
@@ -1281,6 +1288,8 @@ if (lnctopo==1) then
   ierr=nf_def_var(ncid,'zs',nf_float,3,dimid(1:3),varid)
   ierr=nf_def_var(ncid,'lsm',nf_float,3,dimid(1:3),varid)
   ierr=nf_def_var(ncid,'tsd',nf_float,3,dimid(1:3),varid)
+  ierr=nf_def_var(ncid,'zmax',nf_float,3,dimid(1:3),varid)
+  ierr=nf_def_var(ncid,'zmin',nf_float,3,dimid(1:3),varid)
   ierr=nf_put_att_real(ncid,nf_global,'lon0',nf_real,1,ra)
   ierr=nf_put_att_real(ncid,nf_global,'lat0',nf_real,1,rb)
   ierr=nf_put_att_real(ncid,nf_global,'schmidt',nf_real,1,rc)
@@ -1301,6 +1310,10 @@ if (lnctopo==1) then
   ierr=nf_put_vara_real(ncid,varid,spos,npos,lsmsk)
   ierr=nf_inq_varid(ncid,'tsd',varid)
   ierr=nf_put_vara_real(ncid,varid,spos,npos,sd)
+  ierr=nf_inq_varid(ncid,'zmax',varid)
+  ierr=nf_put_vara_real(ncid,varid,spos,npos,tmax)
+  ierr=nf_inq_varid(ncid,'zmin',varid)
+  ierr=nf_put_vara_real(ncid,varid,spos,npos,tmin)  
   ierr=nf_close(ncid)
 else
   Open(topounit,FILE=topoout,FORM='formatted',STATUS='replace',IOSTAT=ierr)
