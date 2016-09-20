@@ -27,7 +27,7 @@ Implicit None
 
 include 'version.h'
 
-character*80, dimension(:,:), allocatable :: options
+character*1024, dimension(:,:), allocatable :: options
 character*1024, dimension(10) :: fname
 character*1024 topofile
 character*1024 landtypeout
@@ -246,9 +246,9 @@ Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile
 Integer, intent(in) :: nopts,binlimit,month,outmode
 Character(len=*), dimension(nopts,2), intent(in) :: options
 Character(len=*), dimension(10), intent(in) :: fname
-character*90 filename
+character*1024 filename
 Character*80, dimension(1:3) :: outputdesc
-Character*80 returnoption,csize,filedesc
+Character*1024 returnoption,csize
 Character*47 header
 Character*9 formout
 Character*2 monthout
