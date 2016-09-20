@@ -28,13 +28,13 @@ Implicit None
 include 'version.h'
 
 character*80, dimension(:,:), allocatable :: options
-character*130, dimension(10) :: fname
-character*130 topofile
-character*130 landtypeout
-character*130 newtopofile
-character*130 outputmode
-character*130 veginput, soilinput, laiinput, albvisinput, albnirinput
-character*130 pftconfig, mapconfig
+character*1024, dimension(10) :: fname
+character*1024 topofile
+character*1024 landtypeout
+character*1024 newtopofile
+character*1024 outputmode
+character*1024 veginput, soilinput, laiinput, albvisinput, albnirinput
+character*1024 pftconfig, mapconfig
 integer binlimit, nopts, month
 integer outmode
 logical fastigbp,igbplsmask,ozlaipatch,tile
@@ -107,7 +107,7 @@ implicit none
 
 ! End banner
 write(6,*) "=============================================================================="
-write(6,*) "CCAM: Finished igbveg"
+write(6,*) "CCAM: Finished igbpveg"
 write(6,*) "=============================================================================="
 
 return
