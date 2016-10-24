@@ -46,7 +46,7 @@ public nf90_netcdf4
 #endif
 public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_nofill
 public nf90_unlimited, nf90_clobber, nf90_64bit_offset, nf90_write, nf90_share
-public nf90_max_name, nf90_max_var_dims
+public nf90_max_name, nf90_max_var_dims, nf90_chunked
 public nf90_noerr, nf90_enotatt
 public nf90_short, nf90_int2, nf90_int, nf90_float, nf90_real, nf90_double, nf90_char
 public nf90_open, nf90_close, nf90_create, nf90_set_fill, nf90_strerror, nf90_enddef
@@ -54,7 +54,7 @@ public nf90_redef, nf90_sync
 public nf90_inq_varid, nf90_inq_dimid, nf90_inquire_variable, nf90_inquire_dimension
 public nf90_inquire, nf90_inq_attname, nf90_inquire_attribute
 public nf90_get_att, nf90_get_var
-public nf90_def_var, nf90_def_dim
+public nf90_def_var, nf90_def_dim, nf90_def_var_deflate, nf90_def_var_chunking
 public nf90_put_att, nf90_put_var
 public nf90_copy_att
 
@@ -899,13 +899,14 @@ interface nf90_put_att
 end interface nf90_put_att
 
 interface nf90_put_var
-  module procedure nf90_put_var_text,                                                     &
-                   nf90_put_var_int2_d1, nf90_put_var_int2_d2, nf90_put_var_int2_d3,      &
-                   nf90_put_var_int_d0, nf90_put_var_int_d1, nf90_put_var_int_d2,         &
-                   nf90_put_var_int8_d1, nf90_put_var_int8_d2,                            &
-                   nf90_put_var_real_d0, nf90_put_var_real_d1, nf90_put_var_real_d2,      &
-                   nf90_put_var_real_d3,                                                  &
-                   nf90_put_var_double_d0, nf90_put_var_double_d1, nf90_put_var_double_d2
+  module procedure nf90_put_var_text,                                                      &
+                   nf90_put_var_int2_d1, nf90_put_var_int2_d2, nf90_put_var_int2_d3,       &
+                   nf90_put_var_int_d0, nf90_put_var_int_d1, nf90_put_var_int_d2,          &
+                   nf90_put_var_int8_d1, nf90_put_var_int8_d2,                             &
+                   nf90_put_var_real_d0, nf90_put_var_real_d1, nf90_put_var_real_d2,       &
+                   nf90_put_var_real_d3,                                                   &
+                   nf90_put_var_double_d0, nf90_put_var_double_d1, nf90_put_var_double_d2, &
+                   nf90_put_var_double_d3
 end interface nf90_put_var
     
 #ifdef ncclib    
@@ -1242,6 +1243,7 @@ integer, parameter :: nf90_char = nf_char
 integer, parameter :: nf90_enotatt = nf_enotatt
 integer, parameter :: nf90_max_name = nf_max_name
 integer, parameter :: nf90_max_var_dims = nf_max_var_dims
+integer, parameter :: nf90_chunked = nf_chunked
 integer, parameter :: nf90_fill_short = nf_fill_short
 real, parameter :: nf90_fill_float = nf_fill_float
 
@@ -1724,6 +1726,19 @@ integer function nf90_def_var_dm(ncid,name,xtype,dimids,varid,deflate_level,chun
 #endif
 end function nf90_def_var_dm
 
+integer function nf90_def_var_chunking(ncid,varid,storage,chunksizes) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid, storage
+  integer, dimension(:), intent(in) :: chunksizes
+  ierr = nf_def_var_chunking(ncid,varid,storage,chunksizes)
+end function nf90_def_var_chunking
+
+integer function nf90_def_var_deflate(ncid,varid,shuffle,deflate,deflate_level) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid, shuffle, deflate, deflate_level
+  ierr = nf_def_var_deflate(ncid,varid,shuffle,deflate,deflate_level)
+end function nf90_def_var_deflate
+
 integer function nf90_def_dim(ncid,name,len,dimid) result(ierr)
   implicit none
   integer, intent(in) :: ncid, len
@@ -2178,6 +2193,33 @@ integer function nf90_put_var_double_d2(ncid,varid,values,start,count,stride,map
     ierr = nf_put_vars_double(ncid,varid,lstart,lcount,lstride,values)      
   end if
 end function nf90_put_var_double_d2
+
+integer function nf90_put_var_double_d3(ncid,varid,values,start,count,stride,map) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in), optional :: start
+  integer, dimension(:), intent(in), optional :: count
+  integer, dimension(:), intent(in), optional :: stride
+  integer, dimension(:), intent(in), optional :: map
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer lnumdims, lcounter
+  real(kind=8), dimension(:,:,:), intent(in) :: values
+  lnumdims = size(shape(values(:,:,:)))
+  lstart(:) = 1
+  lcount(:) = 1
+  lcount(1:lnumdims) = shape(values(:,:,:))
+  lstride(:) = 1
+  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
+  if (present(start)) lstart(1:size(start)) = start(:)
+  if (present(count)) lcount(1:size(count)) = count(:)
+  if (present(stride)) lstride(1:size(stride)) = stride(:)
+  if (present(map)) then
+    lmap(1:size(map)) = map(:)
+    ierr = nf_put_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
+  else
+    ierr = nf_put_vars_double(ncid,varid,lstart,lcount,lstride,values)      
+  end if
+end function nf90_put_var_double_d3
 
 integer function nf90_copy_att(ncid_in,varid_in,name,ncid_out,varid_out) result(ierr)
   implicit none

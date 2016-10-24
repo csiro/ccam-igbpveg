@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -28,13 +28,14 @@ Implicit None
 include 'version.h'
 
 character*1024, dimension(:,:), allocatable :: options
-character*1024, dimension(10) :: fname
+character*1024, dimension(13) :: fname
 character*1024 topofile
 character*1024 landtypeout
 character*1024 newtopofile
 character*1024 outputmode
 character*1024 veginput, soilinput, laiinput, albvisinput, albnirinput
-character*1024 pftconfig, mapconfig
+character*1024 pftconfig, mapconfig, atebconfig
+character*1024 user_veginput, user_laiinput
 integer binlimit, nopts, month
 integer outmode
 logical fastigbp,igbplsmask,ozlaipatch,tile
@@ -44,7 +45,9 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  binlimit,month,ozlaipatch,          &
                  tile,outputmode, veginput,          &
                  soilinput, laiinput, albvisinput,   &
-                 albnirinput,pftconfig,mapconfig
+                 albnirinput,pftconfig,mapconfig,    &
+                 atebconfig,                         &
+                 user_veginput, user_laiinput
 
 ! Start banner
 write(6,*) "=============================================================================="
@@ -66,7 +69,10 @@ call defaults(options,nopts)
 outputmode=''
 pftconfig=''
 mapconfig=''
+atebconfig=''
 ozlaipatch=.false.
+user_veginput=''
+user_laiinput=''
 
 ! Read namelist
 write(6,*) 'Input &vegnml namelist'
@@ -84,6 +90,9 @@ fname(7)=albvisinput
 fname(8)=albnirinput
 fname(9)=pftconfig
 fname(10)=mapconfig
+fname(11)=user_veginput
+fname(12)=user_laiinput
+fname(13)=atebconfig
 
 outmode=0
 if ( outputmode=='cablepft' ) then
@@ -153,6 +162,9 @@ Write(6,*) '    binlimit=2'
 Write(6,*) '    outputmode="cablepft"'
 write(6,*) '    pftconfig="def_veg_params.txt"'
 write(6,*) '    mapconfig="def_veg_mapping.txt"'
+write(6,*) '    atebconfig="def_urban_mapping.txt"'
+write(6,*) '    user_veginput="myveg.nc"'
+write(6,*) '    user_laiinput="mylai.nc"'
 Write(6,*) '  &end'
 Write(6,*)
 Write(6,*) '  where:'
@@ -185,6 +197,9 @@ write(6,*) '                    CSIRO PFT (1-17)'
 write(6,*) '    mapconfig     = Location of the mapping file to'
 write(6,*) '                    convert indices from veginput to'
 write(6,*) '                    PFTs defined in pftconfig'
+write(6,*) '    atebconfig    = Location of the aTEB definition file'
+write(6,*) '    user_veginput = Location of user modified vegetation'
+write(6,*) '    user_laiinput = Location of user modified LAI'
 Write(6,*)
 Write(6,*) 'NOTES: fastigbp mode will speed up the code by aggregating'
 Write(6,*) '       land-use data at a coarser resolution before'
@@ -202,6 +217,12 @@ Write(6,*) '       subsequently binned.  In the case where the grid scale'
 Write(6,*) '       is less than the minimum length scale of the IGBP'
 Write(6,*) '       dataset, the code will use the nearest grid point'
 Write(6,*) '       instead of binning.'
+write(6,*)
+write(6,*) '       User modified vegetation and LAI files need to be'
+write(6,*) '       formatted so that the order of dimensions is'
+write(6,*) '       longitude, latitude, time (shown in reverse when'
+write(6,*) '       using ncdump).  12 time-steps are required in the'
+write(6,*) '       LAI file when month=0.'
 Write(6,*)
 call finishbanner
 Stop
@@ -245,7 +266,7 @@ Implicit None
 Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile
 Integer, intent(in) :: nopts,binlimit,month,outmode
 Character(len=*), dimension(nopts,2), intent(in) :: options
-Character(len=*), dimension(10), intent(in) :: fname
+Character(len=*), dimension(13), intent(in) :: fname
 character*1024 filename
 Character*80, dimension(1:3) :: outputdesc
 Character*1024 returnoption,csize
@@ -263,7 +284,8 @@ Real, dimension(2) :: lonlat
 Real, dimension(1) :: atime
 Real, dimension(1) :: alvl
 Real schmidt,dsx,ds,urbanfrac
-integer, dimension(:,:), allocatable :: idata
+real urbanmaxfrac, urbantotalfrac
+integer, dimension(:,:), allocatable :: idata, urbantype
 integer, dimension(:,:,:), allocatable :: vtype
 Integer, dimension(2) :: sibdim
 Integer, dimension(4) :: dimnum,dimid,dimcount
@@ -279,20 +301,26 @@ integer :: class_num = 17
 integer, parameter :: ch_len = 40 ! also defined in ncwrite.f90
 integer pft_dimid, ioerror, jveg
 integer maxindex, iposbeg, iposend
+integer :: ateb_len = 8
+integer ateb_dimid, jateb
 integer, dimension(:,:), allocatable :: mapindex
 real notused
 real, dimension(:), allocatable :: csiropft
 real, dimension(:), allocatable :: hc, xfang, leaf_w, leaf_l, canst1
 real, dimension(:), allocatable :: shelrb, extkn, vcmax, rpcoef
 real, dimension(:), allocatable :: rootbeta, c4frac, vbeta
+real, dimension(:), allocatable :: bldheight, hwratio, sigvegc, sigmabld
+real, dimension(:), allocatable :: industryfg, trafficfg, roofalpha
+real, dimension(:), allocatable :: wallalpha, roadalpha, vegalphac, zovegc
 real, dimension(:,:), allocatable :: refl, taul
 real, dimension(:,:), allocatable :: mapfrac
 character(len=ch_len), dimension(:), allocatable :: pft_desc
+character(len=ch_len), dimension(:), allocatable :: ateb_desc
 character(len=256) :: comments, largestring
 character(len=10) :: vegtypetmp
-character(len=25) :: vegnametmp
+character(len=25) :: vegnametmp, atebtypetmp
 character(len=25) :: jdesc, kdesc
-logical, dimension(:), allocatable :: mapurban, mapwater, mapice
+logical, dimension(:), allocatable :: mapwater, mapice
 logical :: testurban, testwater, testice, matchfound
 
 mthrng=1
@@ -405,7 +433,7 @@ else
   pft_desc(12) = "Not used"
   pft_desc(13) = "Not used"
   pft_desc(14) = "Barren"
-  pft_desc(15) = "Urban"
+  pft_desc(15) = "(Urban-generic)"
   pft_desc(16) = "Lakes"
   pft_desc(17) = "Ice"
   pft_desc(18) = "Evergreen Broadleaf (Savanna)"
@@ -430,6 +458,78 @@ else
 
 end if
 
+! process urban parameters
+if ( fname(13)/='' .and. outmode==1 ) then
+    
+  write(6,*) "Defining user specified aTEB classes"
+  open(unit=40,file=fname(13),status='old',action='read',iostat=ioerror)
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot open atebconfig file ",trim(fname(13))
+    call finishbanner
+    stop -1
+  end if
+  
+  read(40,*) comments
+  read(40,*) ateb_len
+  
+  if ( ateb_len/=8 ) then
+    write(6,*) "ERROR: aTEB requires 8 classes"
+    call finishbanner
+    stop -1
+  end if
+  allocate( ateb_desc(ateb_len) )
+  allocate( bldheight(ateb_len), hwratio(ateb_len), sigvegc(ateb_len), sigmabld(ateb_len) )
+  allocate( industryfg(ateb_len), trafficfg(ateb_len), roofalpha(ateb_len) )
+  allocate( wallalpha(ateb_len), roadalpha(ateb_len), vegalphac(ateb_len), zovegc(ateb_len) )
+  
+  do i = 1,ateb_len
+        
+    read(40,*,iostat=ioerror) jateb, atebtypetmp
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+      call finishbanner
+      stop -1
+    end if
+    write(6,*) "Processing aTEB vlass ",trim(atebtypetmp)
+        
+    read(40,*) bldheight(i), hwratio(i), sigvegc(i), sigmabld(i)
+    read(40,*) industryfg(i), trafficfg(i)
+    read(40,*) roofalpha(i), wallalpha(i), roadalpha(i), vegalphac(i)
+    read(40,*) zovegc(i)
+      
+  end do
+  
+  close(40) 
+  
+else
+  write(6,*) "Defining default aTEB classes"  
+  ateb_len = 8
+  allocate( ateb_desc(ateb_len) )
+  allocate( bldheight(ateb_len), hwratio(ateb_len), sigvegc(ateb_len), sigmabld(ateb_len) )
+  allocate( industryfg(ateb_len), trafficfg(ateb_len), roofalpha(ateb_len) )
+  allocate( wallalpha(ateb_len), roadalpha(ateb_len), vegalphac(ateb_len), zovegc(ateb_len) )
+  ateb_desc(1) = "Urban-generic"
+  ateb_desc(2) = "Urban-low"
+  ateb_desc(3) = "Urban-medium"
+  ateb_desc(4) = "Urban-high"
+  ateb_desc(5) = "Urban-cbd"
+  ateb_desc(6) = "Industrial-low"
+  ateb_desc(7) = "Industrial-medium"
+  ateb_desc(8) = "Industrial-high"
+  bldheight(:) = (/ 6.,   4.,   6.,   8.,  18.,   4.,   8.,  12. /)
+  hwratio(:) = (/ 0.4,  0.2,  0.4,  0.6,   2.,  0.5,   1.,  1.5 /)
+  sigvegc(:) = (/ 0.38, 0.45, 0.38, 0.34, 0.05, 0.40, 0.30, 0.20 /)
+  sigmabld(:) = (/ 0.45, 0.40, 0.45, 0.46, 0.65, 0.40, 0.45, 0.50 /)
+  industryfg(:) = (/ 0.,   0.,   0.,   0.,   0.,  10.,  20.,  30. /)
+  trafficfg(:) = (/ 1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5 /)
+  roofalpha(:) = (/ 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20 /)
+  wallalpha(:) = (/ 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30 /)
+  roadalpha(:) = (/ 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10 /)
+  vegalphac(:) = (/ 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20 /)
+  zovegc(:) = (/ 0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1 /)
+end if
+
+
 ! Define veg indices
 if ( fname(10)/='' .and. outmode==1 ) then
    
@@ -444,10 +544,9 @@ if ( fname(10)/='' .and. outmode==1 ) then
   read(40,*) comments
   read(40,*) class_num
   allocate( mapindex(class_num,5), mapfrac(class_num,5) )
-  allocate( mapurban(class_num), mapwater(class_num), mapice(class_num) )
+  allocate( mapwater(class_num), mapice(class_num) )
   mapindex(:,:)=0
   mapfrac(:,:)=0. 
-  mapurban(:)=.false.
   mapwater(:)=.false.
   mapice(:)=.false.
 
@@ -464,11 +563,10 @@ if ( fname(10)/='' .and. outmode==1 ) then
     iposend=0 ! must start with 0
     call findentry_integer(largestring,iposbeg,iposend,.false.,jveg)
     call findentry_character(largestring,iposbeg,iposend,.false.,jdesc)
-    call findentry_logical(largestring,iposbeg,iposend,.false.,mapurban(jveg))
     call findentry_logical(largestring,iposbeg,iposend,.false.,mapwater(jveg))
     call findentry_logical(largestring,iposbeg,iposend,.false.,mapice(jveg))
-    maxindex=0
-    do j=1,5
+    maxindex = 0
+    do j = 1,5
       call findentry_real(largestring,iposbeg,iposend,.true.,mapfrac(jveg,j))
       if ( iposbeg==-1 ) exit
       call findentry_character(largestring,iposbeg,iposend,.false.,kdesc)
@@ -494,10 +592,9 @@ else
   write(6,*) "Defining default VEG->PFT mapping"      
   class_num = 17
   allocate( mapindex(class_num,5), mapfrac(class_num,5) )
-  allocate( mapurban(class_num), mapwater(class_num), mapice(class_num) )
+  allocate( mapwater(class_num), mapice(class_num) )
   mapindex(:,:)=0
   mapfrac(:,:)=0. 
-  mapurban(:)=.false.
   mapwater(:)=.false.
   mapice(:)=.false.
   mapindex(1,1) = 1   ! Evergreen_needleaf
@@ -532,9 +629,8 @@ else
   mapfrac(11,1) = 1.
   mapindex(12,1) = -4 ! croplands - crop
   mapfrac(12,1) = 1.
-  mapindex(13,1) = 15 ! urban and built-up - urban
+  mapindex(13,1) = -101 ! urban and built-up - urban
   mapfrac(13,1) = 1.
-  mapurban(13) = .true.
   mapindex(14,1) = -4 ! cropland/natural vegetation mosaic - crop
   mapfrac(14,1) = 1.
   mapindex(15,1) = 17 ! snow and ice - ice
@@ -547,6 +643,8 @@ else
   mapwater(17) = .true.
   
 end if
+
+
 
 ! allocate memory
 allocate( sermsk(class_num) )
@@ -565,19 +663,41 @@ call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,o
 call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month,fname(8),fname(6), &
              class_num,mapwater)
 
+if ( fname(11)/='' .or. fname(12)/='' ) then
+  call modifylanddata(landdata,lonlat,sibdim,class_num*(1+mthrng),month,fname(11),fname(12),class_num)
+end if
+
 deallocate(gridout)
 allocate(urbandata(sibdim(1),sibdim(2)),lsdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
+allocate(urbantype(sibdim(1),sibdim(2)))
 allocate(testdata(sibdim(1),sibdim(2)))
 
 write(6,*) "Preparing data..."
 ! extract urban cover and remove from landdata
+urbantype(:,:)=1
 urbandata(:,:)=0.
-do i=1,class_num
-  if ( mapurban(i) ) then
-    urbandata(:,:) = urbandata(:,:) + landdata(:,:,i)
+testdata(:,:)=0.
+do i = 1,class_num
+  urbanmaxfrac = 0.
+  urbantotalfrac = 0.
+  do j = 1,5
+    if ( mapindex(i,j)<-100 .and. mapindex(i,j)>-109 ) then
+      urbandata(:,:) = urbandata(:,:) + landdata(:,:,i)*mapfrac(i,j)
+      urbantotalfrac = urbantotalfrac + mapfrac(i,j)
+      if ( mapfrac(i,j)>urbanmaxfrac ) then
+        urbanmaxfrac = mapfrac(i,j)
+        where( landdata(:,:,i)>testdata(:,:) )
+          urbantype(:,:) = -mapindex(i,j)-100
+          testdata(:,:) = landdata(:,:,i)*mapfrac(i,j)
+        end where
+      end if
+    end if
+  end do
+  if ( urbantotalfrac>0.999 ) then
+    landdata(:,:,i) = 0. ! remove 100% urban classes
   end if
 end do
-call igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapurban,mapwater)
+call igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapwater)
 
 if ( igbplsmask ) then
   write(6,*) "Using IGBP land/sea mask"
@@ -653,6 +773,7 @@ do tt=1,mthrng
   call ncinitcc(ncidarr,filename,dimnum(1:3),dimid,adate)
   if ( outmode==1 ) then
     call ncadd_dimension(ncidarr,'pft',pft_len,pft_dimid)
+    call ncadd_dimension(ncidarr,'ateb',ateb_len,ateb_dimid)
   end if
   outputdesc(1)='soilt'
   outputdesc(2)='Soil classification'
@@ -751,9 +872,11 @@ do tt=1,mthrng
   call ncatt(ncidarr,'schmidt',schmidt)
   call ncatt(ncidarr,'cableversion',223.) ! CABLE version for data
   if ( outmode==1 ) then
-    call ncatt(ncidarr,'cableformat',1.)    
+    call ncatt(ncidarr,'cableformat',1.)
+    call ncatt(ncidarr,'atebformat',1.)
   else
     call ncatt(ncidarr,'cableformat',0.)
+    call ncatt(ncidarr,'atebformat',0.)
   end if
 
   ! PFT metadata
@@ -830,6 +953,55 @@ do tt=1,mthrng
     outputdesc(2)='vbeta'
     outputdesc(3)='none'
     call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    
+    outputdesc(1)='atebname'
+    outputdesc(2)='ATEB description'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,2,ateb_dimid)
+    outputdesc(1)='bldheight'
+    outputdesc(2)='Building height'
+    outputdesc(3)='m'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='hwratio'
+    outputdesc(2)='Building height to width ratio'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='sigvegc'
+    outputdesc(2)='Canyon vegetation area fraction'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='sigmabld'
+    outputdesc(2)='Building area fraction'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='industryfg'
+    outputdesc(2)='Industral heat flux'
+    outputdesc(3)='W/m2'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='trafficfg'
+    outputdesc(2)='Traffic heat flux'
+    outputdesc(3)='W/m2'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='roofalpha'
+    outputdesc(2)='Roof albedo'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='wallalpha'
+    outputdesc(2)='Wall albedo'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='roadalpha'
+    outputdesc(2)='Road albedo'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='vegalphac'
+    outputdesc(2)='Canyon vegetation albedo'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='zovegc'
+    outputdesc(2)='Canyon vegetation roughness length'
+    outputdesc(3)='m'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
   end if
 
   call ncenddef(ncidarr)
@@ -924,7 +1096,7 @@ do tt=1,mthrng
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
   ! type
   where (urbandata>0.) 
-    rdata=1.
+    rdata=real(urbantype)
   elsewhere
     rdata=0.
   end where
@@ -960,6 +1132,19 @@ do tt=1,mthrng
     call ncput_1dvar_real(ncidarr,'rootbeta',pft_len,rootbeta)
     call ncput_1dvar_real(ncidarr,'c4frac',pft_len,c4frac)
     call ncput_1dvar_real(ncidarr,'vbeta',pft_len,vbeta)
+    
+    call ncput_1dvar_text(ncidarr,'atebname',ateb_len,ateb_desc)
+    call ncput_1dvar_real(ncidarr,'bldheight',ateb_len,bldheight)
+    call ncput_1dvar_real(ncidarr,'hwratio',ateb_len,hwratio)
+    call ncput_1dvar_real(ncidarr,'sigvegc',ateb_len,sigvegc)
+    call ncput_1dvar_real(ncidarr,'sigmabld',ateb_len,sigmabld)
+    call ncput_1dvar_real(ncidarr,'industryfg',ateb_len,industryfg)
+    call ncput_1dvar_real(ncidarr,'trafficfg',ateb_len,trafficfg)
+    call ncput_1dvar_real(ncidarr,'roofalpha',ateb_len,roofalpha)
+    call ncput_1dvar_real(ncidarr,'wallalpha',ateb_len,wallalpha)
+    call ncput_1dvar_real(ncidarr,'roadalpha',ateb_len,roadalpha)
+    call ncput_1dvar_real(ncidarr,'vegalphac',ateb_len,vegalphac)
+    call ncput_1dvar_real(ncidarr,'zovegc',ateb_len,zovegc)
   end if
   
   call ncclose(ncidarr)
@@ -977,7 +1162,7 @@ deallocate(testdata)
 deallocate(rlld)
 deallocate(rdata)
 
-deallocate( mapindex, mapfrac, mapurban, mapwater, mapice )
+deallocate( mapindex, mapfrac, mapwater, mapice )
 deallocate( sermsk )
 
 return
@@ -987,7 +1172,7 @@ end
 ! Fix IGBP data
 !
 
-subroutine igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapurban,mapwater)
+subroutine igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapwater)
 
 implicit none
 
@@ -997,15 +1182,9 @@ real, dimension(sibdim(1),sibdim(2),1:2), intent(in) :: rlld
 real, dimension(sibdim(1),sibdim(2),0:class_num*(1+mthrng)), intent(inout) :: landdata
 real, dimension(sibdim(1),sibdim(2),1:class_num*(1+mthrng)) :: newdata
 logical, dimension(1:sibdim(1),1:sibdim(2)) :: allmsk, reqmsk
-logical, dimension(class_num), intent(in) :: mapurban, mapwater
+logical, dimension(class_num), intent(in) :: mapwater
 integer i,j,ilon,ilat
 real nsum,wsum
-
-do i=1,class_num
-  if ( mapurban(i) ) then
-    landdata(:,:,i)=0. ! remove urban
-  end if
-end do
 
 allmsk=.false.
 do i=1,class_num
@@ -1026,6 +1205,7 @@ do ilat=1,sibdim(2)
 end do
 
 newdata(:,:,1:class_num*(1+mthrng))=landdata(:,:,1:class_num*(1+mthrng))
+! use openmpi here?
 do i=1,class_num
   if ( .not.mapwater(i) ) then
     write(6,*) "Fill class ",i
@@ -1492,6 +1672,8 @@ do j = 1,sibdim(2)
             newlai(1)=newlai(1)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*fneedlebroad
             newgrid(18)=newgrid(18)+vfrac(i,j,n)*mapfrac(iv,k)*(1.-fneedlebroad)
             newlai(18)=newlai(18)+vfrac(i,j,n)*vlai(i,j,n)*mapfrac(iv,k)*(1.-fneedlebroad)
+          else if ( iv_new<-100 .and.iv_new>-109 ) then
+            ! urban
           else if ( iv_new/=0 ) then
             write(6,*) "ERROR: Unknown index ",iv_new
             call finishbanner
@@ -1532,7 +1714,7 @@ do j = 1,sibdim(2)
           vlai(i,j,n)  = newlai(iv)
         end if
       end do
-
+      
     end if
   end do
 end do
@@ -1584,6 +1766,7 @@ integer ioerror
 logical, intent(in) :: failok
 
 call findentry(largestring,iposbeg,iposend,failok)
+if ( iposbeg==-1 .and. failok ) return
 read(largestring(iposbeg:iposend),*,iostat=ioerror) rfrac
 if ( ioerror/=0 ) then
   write(6,*) "ERROR: Cannot read mapconfig line"
@@ -1606,6 +1789,7 @@ integer ioerror
 logical, intent(in) :: failok
 
 call findentry(largestring,iposbeg,iposend,failok)
+if ( iposbeg==-1 .and. failok ) return
 read(largestring(iposbeg:iposend),*,iostat=ioerror) jveg
 if ( ioerror/=0 ) then
   write(6,*) "ERROR: Cannot read mapconfig line"
@@ -1627,6 +1811,7 @@ character(len=*), intent(out) :: jdesc
 logical, intent(in) :: failok
 
 call findentry(largestring,iposbeg,iposend,failok)
+if ( iposbeg==-1 .and. failok ) return
 jdesc=largestring(iposbeg:iposend)
 
 return
@@ -1643,6 +1828,7 @@ integer ioerror
 logical, intent(in) :: failok
 
 call findentry(largestring,iposbeg,iposend,failok)
+if ( iposbeg==-1 .and. failok ) return
 read(largestring(iposbeg:iposend),*,iostat=ioerror) maplogical
 if ( ioerror/=0 ) then
   write(6,*) "ERROR: Cannot read mapconfig line"
@@ -1673,8 +1859,24 @@ else if ( trim(kdesc)=="(ENB)" ) then
   mapindex = -3  
 else if ( trim(kdesc)=="(Crop)" .or. trim(kdesc)=="(crop)" ) then
   mapindex = -4
-else if ( trim(kdesc)=="(ENB_savanna)" .or. trim(kdesc)=="(ENB_savanna)" ) then
-  mapindex = -5  
+else if ( trim(kdesc)=="(ENB_Savanna)" .or. trim(kdesc)=="(ENB_savanna)" ) then
+  mapindex = -5
+else if ( trim(kdesc)=="(Urban-generic)" .or. trim(kdesc)=="(urban-generic)" .or. trim(kdesc)=="(Urban-Generic)" ) then
+  mapindex = -101  
+else if ( trim(kdesc)=="(Urban-low)" .or. trim(kdesc)=="(urban-low)" .or. trim(kdesc)=="(Urban-Low)" ) then
+  mapindex = -102  
+else if ( trim(kdesc)=="(Urban-medium)" .or. trim(kdesc)=="(urban-medium)" .or. trim(kdesc)=="(Urban-Medium)" ) then
+  mapindex = -103  
+else if ( trim(kdesc)=="(Urban-high)" .or. trim(kdesc)=="(urban-high)" .or. trim(kdesc)=="(Urban-High)" ) then
+  mapindex = -104  
+else if ( trim(kdesc)=="(Urban-cbd)" .or. trim(kdesc)=="(urban-cbd)" .or. trim(kdesc)=="(Urban-CBD)" ) then
+  mapindex = -105  
+else if ( trim(kdesc)=="(Industrial-low)" .or. trim(kdesc)=="(industrial-low)" .or. trim(kdesc)=="(Industrial-Low)" ) then
+  mapindex = -106  
+else if ( trim(kdesc)=="(Industrial-medium)" .or. trim(kdesc)=="(industrial-medium)" .or. trim(kdesc)=="(Industrial-Medium)" ) then
+  mapindex = -107  
+else if ( trim(kdesc)=="(Industrial-high)" .or. trim(kdesc)=="(industrial-high)" .or. trim(kdesc)=="(Industrial-High)" ) then
+  mapindex = -108  
 else    
   matchfound=.false.
   do k=1,pft_len

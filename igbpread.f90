@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -61,7 +61,7 @@ Logical, dimension(:,:), allocatable :: sermask,sermask2
 logical, dimension(sibdim(1),sibdim(2)) :: ltest
 logical, dimension(class_num), intent(in) :: mapwater
 
-if (month==0) then
+if ( month==0 ) then
   mthrng=12
 else
   mthrng=1
@@ -381,6 +381,7 @@ End Do
 
 if (datatype=='land') then
   Allocate(sermask(1:sibdim(1),1:sibdim(2)),sermask2(1:sibdim(1),1:sibdim(2)))
+  ! use openmp here?
   do k=1,class_num
     if ( .not.mapwater(k) ) then
       sermask=dataout(:,:,k)>0.
@@ -1565,3 +1566,217 @@ end do
 
 return
 end
+
+subroutine modifylanddata(dataout,glonlat,sibdim,num,month,datafilename,laifilename,class_num)
+
+use ccinterp
+use netcdf_m
+
+implicit none
+
+integer, intent(in) :: num, month, class_num
+integer, dimension(2), intent(in) :: sibdim
+integer, dimension(2) :: dimid, dimlen 
+integer, dimension(3) :: dimid_lai, dimlen_lai
+integer, dimension(3) :: start, ncount
+integer, dimension(sibdim(1),sibdim(2)) :: countlocal
+integer ncid, ncidlai, varid, ierr
+integer lci, lcj, nface, iveg, imonth
+integer i, j
+real, dimension(sibdim(1),sibdim(2),0:num), intent(inout) :: dataout
+real, dimension(sibdim(1),sibdim(2),0:num) :: datalocal
+real, dimension(sibdim(1),sibdim(2),12) :: lailocal
+real, dimension(2), intent(in) :: glonlat
+real, dimension(:), allocatable :: lonin, latin, lonin_lai, latin_lai
+real, dimension(:,:,:), allocatable :: laiin
+real aglon, aglat, alci, alcj
+integer, dimension(:,:), allocatable :: coverin
+character(len=*), intent(in) :: datafilename, laifilename
+character(len=1024), dimension(3) :: dimname
+
+! Veg file parameters
+if ( datafilename/='' ) then
+  ierr = nf_open(datafilename,nf_nowrite,ncid)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot open user veg file ",trim(datafilename)
+    call finishbanner
+    stop -1
+  end if
+  
+  ierr = nf_inq_varid(ncid,'land_cover',varid)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot locate land_cover variable in veg file ",trim(datafilename)
+    call finishbanner
+    stop -1
+  end if
+  ierr = nf_inq_vardimid(ncid,varid,dimid(1:2))
+  ierr = nf_inq_dim(ncid,dimid(1),dimname(1),dimlen(1))
+  ierr = nf_inq_dim(ncid,dimid(2),dimname(2),dimlen(2))
+  write(6,*) "Reading land_cover data from ",trim(datafilename)
+  write(6,*) "Found size ",dimlen(1:2)
+  allocate( coverin(dimlen(1),dimlen(2)), lonin(dimlen(1)), latin(dimlen(2)) )
+  start(1:2) = 1
+  ncount(1:2) = dimlen(1:2)
+  ierr = nf_get_vara_int(ncid,varid,start(1:2),ncount(1:2),coverin)
+  ierr = nf_inq_varid(ncid,trim(dimname(1)),varid)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot locate coordinate information for ",trim(dimname(1))
+    call finishbanner
+    stop -1
+  end if
+  ierr = nf_get_vara_real(ncid,varid,start(1:1),ncount(1:1),lonin)
+  ierr = nf_inq_varid(ncid,trim(dimname(2)),varid)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot locate coordinate information for ",trim(dimname(2))
+    call finishbanner
+    stop -1
+  end if
+  ierr = nf_get_vara_real(ncid,varid,start(2:2),ncount(2:2),latin)
+  
+  ! Process land-cover
+  write(6,*) "Processing land-cover data"
+  datalocal(:,:,:) = 0.
+  countlocal(:,:) = 0
+  do j = 1,dimlen(2)
+    aglat = latin(j)
+    do i = 1,dimlen(1)
+      aglon = lonin(i)  
+      call lltoijmod(aglon,aglat,alci,alcj,nface)
+      lci = nint(alci)
+      lcj = nint(alcj)
+      lcj = lcj+nface*sibdim(1)
+      iveg = coverin(i,j)
+      if ( iveg>class_num .or. iveg<0 ) then
+        write(6,*) "ERROR: land_cover data is outside range specified for input vegetation classes"
+        call finishbanner
+        stop -1
+      end if
+      datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
+      countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+    end do
+    if ( mod(j,10)==0 .or. j==dimlen(2) ) then
+      write(6,*) j,"/",dimlen(2)
+    end if
+  end do
+  
+  ! replace dataout with non-trival input data
+  do iveg = 0,class_num
+    where ( countlocal(:,:)>0 )
+      dataout(:,:,iveg) = datalocal(:,:,iveg)/real(countlocal(:,:))
+    end where
+  end do
+  deallocate( coverin, lonin, latin )
+  ierr = nf_close(ncid)
+  
+end if
+  
+
+! LAI file parameters
+if ( laifilename/='' ) then
+  ierr = nf_open(laifilename,nf_nowrite,ncidlai)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot open user lai file ",trim(laifilename)
+    call finishbanner
+    stop -1
+  end if
+  ierr = nf_inq_varid(ncidlai,'LAI',varid)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot locate LAI variable in lai file ",trim(laifilename)
+    call finishbanner
+    stop -1
+  end if
+  ierr = nf_inq_vardimid(ncidlai,varid,dimid_lai(1:3))
+  ierr = nf_inq_dim(ncidlai,dimid_lai(1),dimname(1),dimlen_lai(1))
+  ierr = nf_inq_dim(ncidlai,dimid_lai(2),dimname(2),dimlen_lai(2))
+  ierr = nf_inq_dim(ncidlai,dimid_lai(3),dimname(3),dimlen_lai(3))
+  write(6,*) "Reading land_cover data from ",trim(laifilename)
+  write(6,*) "Found size ",dimlen_lai(1:3)
+  if ( month==0 ) then
+    if ( dimlen_lai(3)/=12 ) then
+      write(6,*) "ERROR: Require 12 months of LAI data when using month=0"
+      call finishbanner
+      stop -1
+    end if
+    start(3) = 1
+    ncount(3) = 12
+  else
+    if ( dimlen_lai(3)==12 ) then
+      start(3) = month
+      ncount(3) = 1
+      dimlen_lai(3) = 1
+    else
+      start(3) = 1
+      ncount(3) = 1
+    end if
+  end if
+  allocate( laiin(dimlen_lai(1),dimlen_lai(2),dimlen_lai(3)) )
+  allocate( lonin_lai(dimlen_lai(1)), latin_lai(dimlen_lai(2)) )
+  start(1:2) = 1
+  ncount(1:2) = dimlen_lai(1:2)
+  ierr = nf_get_vara_real(ncidlai,varid,start(1:3),ncount(1:3),laiin)
+  ierr = nf_inq_varid(ncidlai,trim(dimname(1)),varid)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot locate coordinate information for ",trim(dimname(1))
+    call finishbanner
+    stop -1
+  end if
+  ierr = nf_get_vara_real(ncidlai,varid,start(1:1),ncount(1:1),lonin_lai)
+  ierr = nf_inq_varid(ncidlai,trim(dimname(2)),varid)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot locate coordinate information for ",trim(dimname(2))
+    call finishbanner
+    stop -1
+  end if
+  ierr = nf_get_vara_real(ncidlai,varid,start(2:2),ncount(2:2),latin_lai)
+
+  ! Process user defined input data
+  write(6,*) "Processing LAI data"
+  lailocal(:,:,:) = 0.
+  countlocal(:,:) = 0
+  do j = 1,dimlen_lai(2)
+    aglat = latin_lai(j)
+    do i = 1,dimlen_lai(1)
+      aglon = lonin_lai(i)  
+      call lltoijmod(aglon,aglat,alci,alcj,nface)
+      lci = nint(alci)
+      lcj = nint(alcj)
+      lcj = lcj+nface*sibdim(1)
+      lailocal(lci,lcj,1:dimlen_lai(3)) = lailocal(lci,lcj,1:dimlen_lai(3)) + laiin(i,j,1:dimlen_lai(3))
+      countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+    end do
+    if ( mod(j,10)==0 .or. j==dimlen_lai(2) ) then
+      write(6,*) j,"/",dimlen_lai(2)
+    end if
+  end do
+  
+  ! replace dataout with non-trival input data
+  if ( month==0 ) then
+    do iveg = 1,class_num
+      do imonth = 1,12
+        where ( countlocal(:,:)>0 )
+          dataout(:,:,class_num+(iveg-1)*12+imonth) = lailocal(:,:,imonth)/real(countlocal(:,:))
+        end where
+      end do
+    end do  
+  else if ( dimlen_lai(3)==12 ) then
+    do iveg = class_num+1,num
+      where ( countlocal(:,:)>0 )
+        dataout(:,:,iveg) = lailocal(:,:,month)/real(countlocal(:,:))
+      end where
+    end do  
+  else
+    do iveg = class_num+1,num
+      where ( countlocal(:,:)>0 )
+        dataout(:,:,iveg) = lailocal(:,:,1)/real(countlocal(:,:))
+      end where
+    end do  
+  end if
+  deallocate( laiin, lonin_lai, latin_lai )
+  ierr = nf_close(ncidlai)
+  
+end if
+
+write(6,*) "Finished reading user defined datasets"
+
+return
+end subroutine modifylanddata
