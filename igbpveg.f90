@@ -303,6 +303,7 @@ integer pft_dimid, ioerror, jveg
 integer maxindex, iposbeg, iposend
 integer :: ateb_len = 8
 integer ateb_dimid, jateb
+integer, dimension(:), allocatable :: mapjveg
 integer, dimension(:,:), allocatable :: mapindex
 real notused
 real, dimension(:), allocatable :: csiropft
@@ -419,24 +420,24 @@ else
   allocate( vcmax(pft_len), rpcoef(pft_len), rootbeta(pft_len), c4frac(pft_len) )
   allocate( vbeta(pft_len) )
   allocate( refl(pft_len,2), taul(pft_len,2) )
-  pft_desc(1) = "Evergreen Needleleaf"  
-  pft_desc(2) = "Evergreen Broadleaf"
-  pft_desc(3) = "Deciduous Needleleaf"
-  pft_desc(4) = "Deviduous Broadleaf"
-  pft_desc(5) = "Shrub"
-  pft_desc(6) = "C3 grass"
-  pft_desc(7) = "C4 grass"
-  pft_desc(8) = "Tundra"
-  pft_desc(9) = "C3 crop"
-  pft_desc(10) = "C4 crop"
-  pft_desc(11) = "Wetland"
-  pft_desc(12) = "Not used"
-  pft_desc(13) = "Not used"
-  pft_desc(14) = "Barren"
+  pft_desc(1) = "evergreen_needleleaf"  
+  pft_desc(2) = "evergreen_broadleaf"
+  pft_desc(3) = "deciduous_needleleaf"
+  pft_desc(4) = "deciduous_broadleaf"
+  pft_desc(5) = "shrub"
+  pft_desc(6) = "C3_grassland"
+  pft_desc(7) = "C4_grassland"
+  pft_desc(8) = "tundra"
+  pft_desc(9) = "C3_cropland"
+  pft_desc(10) = "C4_cropland"
+  pft_desc(11) = "wetland"
+  pft_desc(12) = "empty"
+  pft_desc(13) = "empty"
+  pft_desc(14) = "barren"
   pft_desc(15) = "(Urban-generic)"
-  pft_desc(16) = "Lakes"
-  pft_desc(17) = "Ice"
-  pft_desc(18) = "Evergreen Broadleaf (Savanna)"
+  pft_desc(16) = "lakes"
+  pft_desc(17) = "ice"
+  pft_desc(18) = "evergreen_broadleaf_sava"
   csiropft=(/ 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 2. /)
   hc    =(/   17.,  35.,  15.5,  20.,   0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567,  0.2, 6.017,  0.2,  0.2,  0.2,  0.2, 17. /)
   xfang =(/  0.01,  0.1,  0.01, 0.25,  0.01,  -0.3,  -0.3,  -0.3, -0.3, -0.3,  -0.3,  0.1,    0.,   0.,   0.,   0.,   0., 0.1 /)
@@ -490,7 +491,7 @@ if ( fname(13)/='' .and. outmode==1 ) then
       call finishbanner
       stop -1
     end if
-    write(6,*) "Processing aTEB vlass ",trim(atebtypetmp)
+    write(6,*) "Processing aTEB class ",trim(atebtypetmp)
         
     read(40,*) bldheight(i), hwratio(i), sigvegc(i), sigmabld(i)
     read(40,*) industryfg(i), trafficfg(i)
@@ -545,10 +546,12 @@ if ( fname(10)/='' .and. outmode==1 ) then
   read(40,*) class_num
   allocate( mapindex(class_num,5), mapfrac(class_num,5) )
   allocate( mapwater(class_num), mapice(class_num) )
+  allocate( mapjveg(class_num) )
   mapindex(:,:)=0
   mapfrac(:,:)=0. 
   mapwater(:)=.false.
   mapice(:)=.false.
+  mapjveg(:)=0
 
   read(40,*) comments
   do i=1,class_num
@@ -562,16 +565,17 @@ if ( fname(10)/='' .and. outmode==1 ) then
 
     iposend=0 ! must start with 0
     call findentry_integer(largestring,iposbeg,iposend,.false.,jveg)
+    mapjveg(i) = jveg
     call findentry_character(largestring,iposbeg,iposend,.false.,jdesc)
-    call findentry_logical(largestring,iposbeg,iposend,.false.,mapwater(jveg))
-    call findentry_logical(largestring,iposbeg,iposend,.false.,mapice(jveg))
+    call findentry_logical(largestring,iposbeg,iposend,.false.,mapwater(i))
+    call findentry_logical(largestring,iposbeg,iposend,.false.,mapice(i))
     maxindex = 0
     do j = 1,5
-      call findentry_real(largestring,iposbeg,iposend,.true.,mapfrac(jveg,j))
+      call findentry_real(largestring,iposbeg,iposend,.true.,mapfrac(i,j))
       if ( iposbeg==-1 ) exit
       call findentry_character(largestring,iposbeg,iposend,.false.,kdesc)
       if ( iposbeg==-1 ) exit
-      call findindex(kdesc,pft_desc,pft_len,mapindex(jveg,j))
+      call findindex(kdesc,pft_desc,pft_len,mapindex(i,j))
       maxindex=j
     end do
     
@@ -593,53 +597,72 @@ else
   class_num = 17
   allocate( mapindex(class_num,5), mapfrac(class_num,5) )
   allocate( mapwater(class_num), mapice(class_num) )
+  allocate( mapjveg(class_num) )
   mapindex(:,:)=0
   mapfrac(:,:)=0. 
   mapwater(:)=.false.
   mapice(:)=.false.
+  mapjveg(:)=0
   mapindex(1,1) = 1   ! Evergreen_needleaf
   mapfrac(1,1) = 1.
+  mapjveg(1) = 1   
   mapindex(2,1) = 2   ! Evergreen_broadleaf
   mapfrac(2,1) = 1.
+  mapjveg(2) = 2
   mapindex(3,1) = 3   ! Deciduous_needleaf
   mapfrac(3,1) = 1.
+  mapjveg(3) = 3
   mapindex(4,1) = 4   ! Deciduous_broadleaf
   mapfrac(4,1) = 1.
+  mapjveg(4) = 4  
   mapindex(5,1) = -1  ! Mixed forest - Mixed
   mapfrac(5,1) = 1.
+  mapjveg(5) = 5  
   mapindex(6,1) = 5   ! Closed Shrublands - Shrub
   mapfrac(6,1) = 0.8
   mapindex(6,2) = -2  ! closed Shrublands - Grass
   mapfrac(6,2) = 0.2
+  mapjveg(6) = 6  
   mapindex(7,1) = 5   ! Open Shrublands - Shrub
   mapfrac(7,1) = 0.2
   mapindex(7,2) = -2  ! open shrublands - grass
   mapfrac(7,2) = 0.8
+  mapjveg(7) = 7  
   mapindex(8,1) = -2  ! woody savannas - grass
   mapfrac(8,1) = 0.6
   mapindex(8,2) = -5  ! woody savannas - needle/broad savanna
   mapfrac(8,2) = 0.4
+  mapjveg(8) = 8  
   mapindex(9,1) = -2  ! savannas - grass
   mapfrac(9,1)= 0.9
   mapindex(9,2) = -5  ! savannas - needle/broad savanna
   mapfrac(9,2) = 0.1
+  mapjveg(9) = 9    
   mapindex(10,1) = -2 ! grasslands - grass
   mapfrac(10,1) = 1.
+  mapjveg(10) = 10
   mapindex(11,1) = 11 ! permanent wetlands - wetland
   mapfrac(11,1) = 1.
+  mapjveg(11) = 11
   mapindex(12,1) = -4 ! croplands - crop
   mapfrac(12,1) = 1.
+  mapjveg(12) = 12    
   mapindex(13,1) = -101 ! urban and built-up - urban
   mapfrac(13,1) = 1.
+  mapjveg(13) = 13    
   mapindex(14,1) = -4 ! cropland/natural vegetation mosaic - crop
   mapfrac(14,1) = 1.
+  mapjveg(14) = 14    
   mapindex(15,1) = 17 ! snow and ice - ice
   mapfrac(15,1) = 1.
+  mapjveg(15) = 15    
   mapice(15) = .true.
   mapindex(16,1) = 14 ! barran or sparsely vegetated - barren
   mapfrac(16,1) = 1.
+  mapjveg(16) = 16    
   mapindex(17,1) = 16 ! water bodies - lakes
   mapfrac(17,1) = 1.
+  mapjveg(17) = 17    
   mapwater(17) = .true.
   
 end if
@@ -655,16 +678,16 @@ allocate(landdata(sibdim(1),sibdim(2),0:class_num*(1+mthrng)))
 
 ! Read igbp data
 call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land',fastigbp,ozlaipatch,binlimit,month, &
-             fname(4),fname(6),class_num,mapwater)
+             fname(4),fname(6),class_num,mapjveg,mapwater)
 call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month,fname(5),fname(6), &
-             class_num,mapwater)
+             class_num,mapjveg,mapwater)
 call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month,fname(7),fname(6), &
-             class_num,mapwater)
+             class_num,mapjveg,mapwater)
 call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month,fname(8),fname(6), &
-             class_num,mapwater)
+             class_num,mapjveg,mapwater)
 
 if ( fname(11)/='' .or. fname(12)/='' ) then
-  call modifylanddata(landdata,lonlat,sibdim,class_num*(1+mthrng),month,fname(11),fname(12),class_num)
+  call modifylanddata(landdata,lonlat,sibdim,class_num*(1+mthrng),month,fname(11),fname(12),class_num,mapjveg)
 end if
 
 deallocate(gridout)
@@ -1163,6 +1186,7 @@ deallocate(rlld)
 deallocate(rdata)
 
 deallocate( mapindex, mapfrac, mapwater, mapice )
+deallocate( mapjveg )
 deallocate( sermsk )
 
 return

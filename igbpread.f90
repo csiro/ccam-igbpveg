@@ -29,7 +29,7 @@
 !
 
 Subroutine getdata(dataout,glonlat,grid,tlld,sibdim,num,sibsize,datatype,fastigbp,ozlaipatch,binlimit,month, &
-                   datafilename,laifilename,class_num,mapwater)
+                   datafilename,laifilename,class_num,mapjveg,mapwater)
 
 Use ccinterp
 
@@ -39,6 +39,7 @@ Integer, intent(in) :: sibsize,num,binlimit,month,class_num
 Integer, dimension(2), intent(in) :: sibdim
 Integer, dimension(sibdim(1),sibdim(2)) :: countn
 Integer, dimension(1:2) :: lldim,lldim_x,llstore,pxy
+integer, dimension(class_num), intent(in) :: mapjveg
 Integer nscale,nscale_x,nface,subsec,mode,tmp
 Integer i,j,k,lci,lcj,nx,ny,imth,mthrng,netcount
 Integer basesize,scalelimit,minscale
@@ -159,7 +160,7 @@ If (fastigbp) then
 	  
             Select Case(datatype)
               Case('land')
-                Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename)
+                Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg)
               Case('soil')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
                 Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename)
@@ -255,7 +256,7 @@ Else
 
   Select Case(datatype)
     Case('land')
-      Call igbpstream(sibdim,dataout,countn,num,month,ozlaipatch,datafilename,laifilename)
+      Call igbpstream(sibdim,dataout,countn,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg)
     Case('soil')
       Call soilstream(sibdim,dataout,countn,datafilename)
     Case('albvis','albnir')
@@ -320,7 +321,7 @@ If (subsec/=0) then
 	
         Select Case(datatype)
           Case('land')
-            Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename)
+            Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg)
           Case('soil')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
             Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename)
@@ -452,12 +453,12 @@ End
 ! This subroutine reads sib data down to nscale=1km resolution
 !
 
-Subroutine igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,vegfilename,laifilename)
+Subroutine igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,vegfilename,laifilename,class_num,mapjveg)
 
 Implicit None
 
 logical, intent(in) :: ozlaipatch
-Integer, intent(in) :: nscale,num,month
+Integer, intent(in) :: nscale,num,month,class_num
 Real, dimension(1:2), intent(in) :: latlon
 Integer, dimension(1:2), intent(in) :: lldim
 Real, dimension(lldim(1),lldim(2),0:num), intent(inout) :: coverout
@@ -467,9 +468,9 @@ Integer*1, dimension(1:43200) :: ltemp2
 Integer*1, dimension(1:43200) :: datatemp
 integer, dimension(0:num) :: ncount
 Integer, dimension(1:2,1:2) :: jin,jout
+integer, dimension(class_num), intent(in) :: mapjveg
 Integer ilat,ilon,jlat,recpos,mthrng,imth,lrp,ctmp,ltmp,nlrp,k
-integer i,j,ntmp,ix,iy,tiy,tix
-integer class_num
+integer i,j,ntmp,ix,iy,tiy,tix,vegtmp
 Integer, dimension(1:2) :: llint
 real, dimension(:,:,:), allocatable :: laiin
 real bx,by,bdelta,tbx,tby,tbdelta
@@ -489,8 +490,6 @@ else
   mthrng=1
   open(11,FILE=laifilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')  
 end if
-
-class_num=num/(1+mthrng)
 
 allocate(lbuff(43200,nscale,mthrng))
 
@@ -595,7 +594,20 @@ Do ilat=1,lldim(2)
     ncount=0
     do j=1,nscale
       do i=llint(1)+1,llint(1)+nscale
-        ctmp=mod(databuffer(i,j)+256,256)
+        vegtmp=mod(databuffer(i,j)+256,256)
+	if ( vegtmp==0 ) then
+          ctmp=0
+	else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
+	  ctmp=max(min(vegtmp,class_num),1)
+	else
+          ctmp = -1
+	  do k = 1,class_num
+            if ( vegtmp==mapjveg(k) ) then
+              ctmp = k
+              exit
+            end if
+          end do
+	end if
         if (ctmp>=0.and.ctmp<=class_num) then
           coverout(ilon,ilat,ctmp)=coverout(ilon,ilat,ctmp)+1.
           ncount(ctmp)=ncount(ctmp)+1
@@ -780,27 +792,27 @@ End
 ! (i.e., no storage, simply read and bin)
 !
 
-Subroutine igbpstream(sibdim,coverout,countn,num,month,ozlaipatch,vegfilename,laifilename)
+Subroutine igbpstream(sibdim,coverout,countn,num,month,ozlaipatch,vegfilename,laifilename,class_num,mapjveg)
 
 Use ccinterp
 
 Implicit None
 
 logical, intent(in) :: ozlaipatch
-integer, intent(in) :: num,month
+integer, intent(in) :: num,month,class_num
 Integer, dimension(2), intent(in) :: sibdim
 Real, dimension(1:sibdim(1),1:sibdim(2),0:num), intent(out) :: coverout
 real, dimension(:,:,:), allocatable :: laiin
 Real aglon,aglat,alci,alcj,bx,by,bdelta,tbx,tby,tbdelta
 Real callon,callat
 Integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: countn
+integer, dimension(class_num), intent(in) :: mapjveg
 Integer*1, dimension(1:43200) :: databuffer
 Integer*1, dimension(1:10800) :: datatemp
 Integer*1, dimension(1:43200,1:12) :: lbuff
 integer, dimension(1:sibdim(1),1:sibdim(2),0:num) :: ncount
 Integer ilat,ilon,lci,lcj,nface,ctmp,ltmp,mthrng,imth,lrp,nlrp,k
-integer ntmp,ix,iy,tix,tiy
-integer class_num
+integer ntmp,ix,iy,tix,tiy,vegtmp,i
 character*2 cmth
 Character*10 fname
 character(len=*), intent(in) :: vegfilename, laifilename
@@ -822,8 +834,6 @@ else
   mthrng=1
   open(11,FILE=laifilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')  
 end if
-
-class_num=num/(1+mthrng)
 
 if (ozlaipatch) then
   write(6,*) "CSIRO LAI dataset patch"
@@ -909,7 +919,20 @@ Do ilat=1,21600
     lcj = nint(alcj)
     lcj = lcj+nface*sibdim(1)
     
-    ctmp=mod(databuffer(ilon)+256,256)
+    vegtmp=mod(databuffer(ilon)+256,256)
+    if ( vegtmp==0 ) then
+      ctmp=0
+    else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
+      ctmp=max(min(vegtmp,class_num),1)
+    else
+      ctmp = -1
+      do i = 1,class_num
+        if ( vegtmp==mapjveg(i) ) then
+          ctmp=i
+          exit
+        end if
+      end do
+    end if
     if (ctmp>=0.and.ctmp<=class_num) then
       coverout(lci,lcj,ctmp)=coverout(lci,lcj,ctmp)+1.
       ncount(lci,lcj,ctmp)=ncount(lci,lcj,ctmp)+1
@@ -1567,7 +1590,8 @@ end do
 return
 end
 
-subroutine modifylanddata(dataout,glonlat,sibdim,num,month,datafilename,laifilename,class_num)
+subroutine modifylanddata(dataout,glonlat,sibdim,num,month,datafilename,laifilename,class_num, &
+                          mapjveg)
 
 use ccinterp
 use netcdf_m
@@ -1580,9 +1604,10 @@ integer, dimension(2) :: dimid, dimlen
 integer, dimension(3) :: dimid_lai, dimlen_lai
 integer, dimension(3) :: start, ncount
 integer, dimension(sibdim(1),sibdim(2)) :: countlocal
+integer, dimension(class_num), intent(in) :: mapjveg
 integer ncid, ncidlai, varid, ierr
 integer lci, lcj, nface, iveg, imonth
-integer i, j
+integer i, j, vegtmp, k
 real, dimension(sibdim(1),sibdim(2),0:num), intent(inout) :: dataout
 real, dimension(sibdim(1),sibdim(2),0:num) :: datalocal
 real, dimension(sibdim(1),sibdim(2),12) :: lailocal
@@ -1645,19 +1670,60 @@ if ( datafilename/='' ) then
       lci = nint(alci)
       lcj = nint(alcj)
       lcj = lcj+nface*sibdim(1)
-      iveg = coverin(i,j)
-      if ( iveg>class_num .or. iveg<0 ) then
-        write(6,*) "ERROR: land_cover data is outside range specified for input vegetation classes"
+      vegtmp = coverin(i,j) 
+      if ( vegtmp==0 ) then
+        iveg=0
+      else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
+        iveg=max(min(vegtmp,class_num),1)
+      else
+        iveg = -1
+        do k = 1,class_num
+          if ( mapjveg(k)==coverin(i,j) ) then
+            iveg = k
+            exit
+          end if
+        end do
+      end if
+      if ( iveg==-1 ) then
+        write(6,*) "ERROR: land_cover data is not defined in mapping data"
+	write(6,*) "Invalid land_cover index ",coverin(i,j)," at lat,lon=",aglat,aglon
+	write(6,*) "Valid indices are ",mapjveg(1:class_num)
         call finishbanner
         stop -1
       end if
-      datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
-      countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+      if ( iveg>=0 .and. iveg<=class_num ) then
+        datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
+        countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+      end if
     end do
     if ( mod(j,10)==0 .or. j==dimlen(2) ) then
       write(6,*) j,"/",dimlen(2)
     end if
   end do
+  
+  ! Average LAI before redistributing vegetation classes
+  lailocal(:,:,:) = 0.
+  if ( month==0 ) then
+    do imonth = 1,12
+      do iveg = 1,class_num
+        lailocal(:,:,imonth) = lailocal(:,:,imonth) + dataout(:,:,iveg)*dataout(:,:,class_num+(iveg-1)*12+imonth) 
+      end do
+      do iveg = 1,class_num
+        where ( countlocal(:,:)>0 )
+          dataout(:,:,class_num+(iveg-1)*12+imonth) = lailocal(:,:,imonth)
+	end where
+      end do
+    end do
+  else
+    do iveg = 1,class_num
+      lailocal(:,:,month) = lailocal(:,:,month) + dataout(:,:,iveg)*dataout(:,:,class_num+(iveg-1)+1)
+    end do
+    do iveg = 1,class_num
+      where ( countlocal(:,:)>0 )
+        dataout(:,:,class_num+(iveg-1)+1) = lailocal(:,:,month)
+      end where
+    end do
+  end if
   
   ! replace dataout with non-trival input data
   do iveg = 0,class_num
@@ -1665,6 +1731,7 @@ if ( datafilename/='' ) then
       dataout(:,:,iveg) = datalocal(:,:,iveg)/real(countlocal(:,:))
     end where
   end do
+  
   deallocate( coverin, lonin, latin )
   ierr = nf_close(ncid)
   
