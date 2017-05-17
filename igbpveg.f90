@@ -66,6 +66,11 @@ options(:,2) = ''
 call readswitch(options,nopts)
 call defaults(options,nopts)
 
+veginput=''
+soilinput=''
+laiinput=''
+albvisinput=''
+albnirinput=''
 outputmode=''
 pftconfig=''
 mapconfig=''
@@ -313,6 +318,9 @@ real, dimension(:), allocatable :: rootbeta, c4frac, vbeta
 real, dimension(:), allocatable :: bldheight, hwratio, sigvegc, sigmabld
 real, dimension(:), allocatable :: industryfg, trafficfg, roofalpha
 real, dimension(:), allocatable :: wallalpha, roadalpha, vegalphac, zovegc
+real, dimension(:), allocatable :: a1gs, d0gs, alpha, convex, cfrd
+real, dimension(:), allocatable :: gswmin, conkc0, conko0, ekc, eko, g0, g1
+real, dimension(:), allocatable :: zr, clitt
 real, dimension(:,:), allocatable :: refl, taul
 real, dimension(:,:), allocatable :: mapfrac
 character(len=ch_len), dimension(:), allocatable :: pft_desc
@@ -375,6 +383,9 @@ if ( fname(9)/='' .and. outmode==1 ) then
   allocate( vcmax(pft_len), rpcoef(pft_len), rootbeta(pft_len), c4frac(pft_len) )
   allocate( vbeta(pft_len) )
   allocate( refl(pft_len,2), taul(pft_len,2) )
+  allocate( a1gs(pft_len), d0gs(pft_len), alpha(pft_len), convex(pft_len), cfrd(pft_len) )
+  allocate( gswmin(pft_len), conkc0(pft_len), conko0(pft_len), ekc(pft_len), eko(pft_len), g0(pft_len), g1(pft_len) )
+  allocate( zr(pft_len), clitt(pft_len) )
 
   do i = 1,pft_len
         
@@ -402,9 +413,12 @@ if ( fname(9)/='' .and. outmode==1 ) then
     read(40,*) notused, notused, notused, notused
     read(40,*) notused, notused, canst1(i), shelrb(i), notused, extkn(i)
     read(40,*) vcmax(i), notused, rpcoef(i), notused
-    read(40,*) notused, notused, vbeta(i), rootbeta(i)
+    read(40,*) notused, notused, vbeta(i), rootbeta(i), zr(i), clitt(i)
     read(40,*) notused, notused, notused, notused, notused
     read(40,*) notused, notused, notused, notused, notused
+    read(40,*) a1gs(i), d0gs(i), alpha(i), convex(i), cfrd(i)
+    read(40,*) gswmin(i), conkc0(i), conko0(i), ekc(i), eko(i)
+    read(40,*) g0(i), g1(i)
       
   end do
 
@@ -420,6 +434,9 @@ else
   allocate( vcmax(pft_len), rpcoef(pft_len), rootbeta(pft_len), c4frac(pft_len) )
   allocate( vbeta(pft_len) )
   allocate( refl(pft_len,2), taul(pft_len,2) )
+  allocate( a1gs(pft_len), d0gs(pft_len), alpha(pft_len), convex(pft_len), cfrd(pft_len) )
+  allocate( gswmin(pft_len), conkc0(pft_len), conko0(pft_len), ekc(pft_len), eko(pft_len), g0(pft_len), g1(pft_len) )
+  allocate( zr(pft_len), clitt(pft_len) )
   pft_desc(1) = "evergreen_needleleaf"  
   pft_desc(2) = "evergreen_broadleaf"
   pft_desc(3) = "deciduous_needleleaf"
@@ -456,7 +473,23 @@ else
   rootbeta=(/ 0.943,0.962,0.966,0.961,0.964,0.943,0.943,0.943,0.961,0.961,0.943,0.975,0.961,0.961,0.961,0.961,0.961,0.962 /)
   c4frac=(/ 0., 0., 0., 0., 0., 0., 1., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0. /)
   vbeta=(/ 2., 2., 2., 2., 4., 4., 4., 4., 2., 2., 4., 4., 2., 4., 4., 4., 4., 2. /)
-
+  a1gs=(/ 9., 9., 9., 9., 9., 9., 4., 9., 9., 4., 9., 9., 9., 9., 9., 9., 9., 9. /)
+  d0gs=1500.
+  alpha=(/ 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.05, 0.2, 0.2, 0.05, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2 /)
+  convex=(/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.8, 0.01, 0.01, 0.8, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01 /)
+  cfrd=(/ 0.015, 0.015, 0.015, 0.015, 0.015, 0.015, 0.025, 0.015, 0.015, 0.025, 0.015, 0.015, 0.015, 0.015, 0.015, 0.015, &
+          0.015, 0.015 /)
+  gswmin=(/ 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.04, 0.01, 0.01, 0.04, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01 /)
+  conkc0=302.e-6
+  conko0=256.e-3
+  ekc=59430.
+  eko=36000.
+  g0=0.
+  g1=(/ 2.346064, 4.114762, 2.346064, 4.447321, 4.694803, 5.248500, 1.616178, 2.222156, 5.789377, 1.616178, 5.248500, 5.248500, &
+        0.000000, 5.248500, 5.248500, 5.248500, 5.248500, 2.346064 /)
+  zr=(/ 1.8, 3., 2., 2., 2.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1.8, 3.1, 3., 1., 1., 1., 1., 3. /)
+  clitt=(/ 20., 6., 10., 13., 2., 2., 0.3, 0.3, 0., 0., 2., 2., 0., 0., 0., 0., 0., 6. /) 
+  
 end if
 
 ! process urban parameters
@@ -893,7 +926,7 @@ do tt=1,mthrng
   call ncatt(ncidarr,'lon0',lonlat(1))
   call ncatt(ncidarr,'lat0',lonlat(2))
   call ncatt(ncidarr,'schmidt',schmidt)
-  call ncatt(ncidarr,'cableversion',223.) ! CABLE version for data
+  call ncatt(ncidarr,'cableversion',3939.) ! CABLE version for data
   if ( outmode==1 ) then
     call ncatt(ncidarr,'cableformat',1.)
     call ncatt(ncidarr,'atebformat',1.)
@@ -974,6 +1007,62 @@ do tt=1,mthrng
     call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
     outputdesc(1)='vbeta'
     outputdesc(2)='vbeta'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='a1gs'
+    outputdesc(2)='a1'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='d0gs'
+    outputdesc(2)='d0'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='alpha'
+    outputdesc(2)='alpha'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='convex'
+    outputdesc(2)='convex'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='cfrd'
+    outputdesc(2)='cfrd'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='gswmin'
+    outputdesc(2)='gswmin'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='conkc0'
+    outputdesc(2)='conkc0'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='conko0'
+    outputdesc(2)='conko0'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='ekc'
+    outputdesc(2)='ekc'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='eko'
+    outputdesc(2)='eko'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='g0'
+    outputdesc(2)='g0'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='g1'
+    outputdesc(2)='g1'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='zr'
+    outputdesc(2)='zr'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
+    outputdesc(1)='clitt'
+    outputdesc(2)='clitt'
     outputdesc(3)='none'
     call ncadd_1dvar(ncidarr,outputdesc,5,pft_dimid)
     
@@ -1155,6 +1244,20 @@ do tt=1,mthrng
     call ncput_1dvar_real(ncidarr,'rootbeta',pft_len,rootbeta)
     call ncput_1dvar_real(ncidarr,'c4frac',pft_len,c4frac)
     call ncput_1dvar_real(ncidarr,'vbeta',pft_len,vbeta)
+    call ncput_1dvar_real(ncidarr,'a1gs',pft_len,a1gs)
+    call ncput_1dvar_real(ncidarr,'d0gs',pft_len,d0gs)
+    call ncput_1dvar_real(ncidarr,'alpha',pft_len,alpha)
+    call ncput_1dvar_real(ncidarr,'convex',pft_len,convex)
+    call ncput_1dvar_real(ncidarr,'cfrd',pft_len,cfrd)
+    call ncput_1dvar_real(ncidarr,'gswmin',pft_len,gswmin)
+    call ncput_1dvar_real(ncidarr,'conkc0',pft_len,conkc0)
+    call ncput_1dvar_real(ncidarr,'conko0',pft_len,conko0)
+    call ncput_1dvar_real(ncidarr,'ekc',pft_len,ekc)
+    call ncput_1dvar_real(ncidarr,'eko',pft_len,eko)
+    call ncput_1dvar_real(ncidarr,'g0',pft_len,g0)
+    call ncput_1dvar_real(ncidarr,'g1',pft_len,g1)
+    call ncput_1dvar_real(ncidarr,'zr',pft_len,zr)
+    call ncput_1dvar_real(ncidarr,'clitt',pft_len,clitt)
     
     call ncput_1dvar_text(ncidarr,'atebname',ateb_len,ateb_desc)
     call ncput_1dvar_real(ncidarr,'bldheight',ateb_len,bldheight)
@@ -1177,6 +1280,9 @@ end do
 deallocate( pft_desc, csiropft, hc, xfang, leaf_w, leaf_l )
 deallocate( canst1, shelrb, extkn, refl, taul, vcmax )
 deallocate( rpcoef, rootbeta, c4frac, vbeta )
+deallocate( a1gs, d0gs, alpha, convex, cfrd )
+deallocate( gswmin, conkc0, conko0, ekc, eko, g0, g1 )
+deallocate( zr, clitt )
 
 deallocate(landdata,urbandata,lsdata)
 deallocate(vfrac,vtype,idata,vlai)
@@ -1229,7 +1335,7 @@ do ilat=1,sibdim(2)
 end do
 
 newdata(:,:,1:class_num*(1+mthrng))=landdata(:,:,1:class_num*(1+mthrng))
-! use openmpi here?
+!$OMP PARALLEL DO
 do i=1,class_num
   if ( .not.mapwater(i) ) then
     write(6,*) "Fill class ",i
@@ -1245,6 +1351,7 @@ do i=1,class_num
     end do
   end if
 end do
+!$OMP END PARALLEL DO
 
 do ilat=1,sibdim(2)
   do ilon=1,sibdim(1)

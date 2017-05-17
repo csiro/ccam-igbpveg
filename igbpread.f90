@@ -382,7 +382,7 @@ End Do
 
 if (datatype=='land') then
   Allocate(sermask(1:sibdim(1),1:sibdim(2)),sermask2(1:sibdim(1),1:sibdim(2)))
-  ! use openmp here?
+!$OMP PARALLEL DO
   do k=1,class_num
     if ( .not.mapwater(k) ) then
       sermask=dataout(:,:,k)>0.
@@ -440,6 +440,7 @@ if (datatype=='land') then
       dataout(:,:,class_num+(k-1)*mthrng+1:class_num+k*mthrng)=0.  
     end if
   end do
+!$OMP END PARALLEL DO
   Deallocate(sermask,sermask2)
 end if
 
@@ -1686,8 +1687,8 @@ if ( datafilename/='' ) then
       end if
       if ( iveg==-1 ) then
         write(6,*) "ERROR: land_cover data is not defined in mapping data"
-	write(6,*) "Invalid land_cover index ",coverin(i,j)," at lat,lon=",aglat,aglon
-	write(6,*) "Valid indices are ",mapjveg(1:class_num)
+        write(6,*) "Invalid land_cover index ",coverin(i,j)," at lat,lon=",aglat,aglon
+        write(6,*) "Valid indices are ",mapjveg(1:class_num)
         call finishbanner
         stop -1
       end if
@@ -1697,7 +1698,7 @@ if ( datafilename/='' ) then
       end if
     end do
     if ( mod(j,10)==0 .or. j==dimlen(2) ) then
-      write(6,*) j,"/",dimlen(2)
+      write(6,*) "User land_cover ",j,"/",dimlen(2)
     end if
   end do
   
@@ -1711,7 +1712,7 @@ if ( datafilename/='' ) then
       do iveg = 1,class_num
         where ( countlocal(:,:)>0 )
           dataout(:,:,class_num+(iveg-1)*12+imonth) = lailocal(:,:,imonth)
-	end where
+        end where
       end do
     end do
   else
@@ -1747,6 +1748,7 @@ if ( laifilename/='' ) then
     stop -1
   end if
   ierr = nf_inq_varid(ncidlai,'LAI',varid)
+  if ( ierr/=nf_noerr ) ierr = nf_inq_varid(ncidlai,'lai',varid)
   if ( ierr/=nf_noerr ) then
     write(6,*) "ERROR: Cannot locate LAI variable in lai file ",trim(laifilename)
     call finishbanner
@@ -1812,7 +1814,7 @@ if ( laifilename/='' ) then
       countlocal(lci,lcj) = countlocal(lci,lcj) + 1
     end do
     if ( mod(j,10)==0 .or. j==dimlen_lai(2) ) then
-      write(6,*) j,"/",dimlen_lai(2)
+      write(6,*) "User LAI ",j,"/",dimlen_lai(2)
     end if
   end do
   
