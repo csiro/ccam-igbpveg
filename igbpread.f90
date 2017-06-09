@@ -1608,7 +1608,7 @@ integer, dimension(sibdim(1),sibdim(2)) :: countlocal
 integer, dimension(class_num), intent(in) :: mapjveg
 integer ncid, ncidlai, varid, ierr
 integer lci, lcj, nface, iveg, imonth
-integer i, j, vegtmp, k
+integer i, j, vegtmp, k, varndims
 real, dimension(sibdim(1),sibdim(2),0:num), intent(inout) :: dataout
 real, dimension(sibdim(1),sibdim(2),0:num) :: datalocal
 real, dimension(sibdim(1),sibdim(2),12) :: lailocal
@@ -1638,12 +1638,30 @@ if ( datafilename/='' ) then
   ierr = nf_inq_vardimid(ncid,varid,dimid(1:2))
   ierr = nf_inq_dim(ncid,dimid(1),dimname(1),dimlen(1))
   ierr = nf_inq_dim(ncid,dimid(2),dimname(2),dimlen(2))
+  ierr = nf_inq_varndims(ncid,varid,varndims)
   write(6,*) "Reading land_cover data from ",trim(datafilename)
   write(6,*) "Found size ",dimlen(1:2)
   allocate( coverin(dimlen(1),dimlen(2)), lonin(dimlen(1)), latin(dimlen(2)) )
-  start(1:2) = 1
-  ncount(1:2) = dimlen(1:2)
-  ierr = nf_get_vara_int(ncid,varid,start(1:2),ncount(1:2),coverin)
+  select case(varndims)
+    case(2)
+      start(1:2) = 1
+      ncount(1:2) = dimlen(1:2)
+      ierr = nf_get_vara_int(ncid,varid,start(1:2),ncount(1:2),coverin)
+    case(3)
+      start(1:3) = 1
+      ncount(1:2) = dimlen(1:2)
+      ncount(3) = 1
+      ierr = nf_get_vara_int(ncid,varid,start(1:3),ncount(1:3),coverin)
+    case default
+      write(6,*) "ERROR: Cannot process land_cover data with ndims ",varndims
+      call finishbanner
+      stop -1
+  end select
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot read land_cover data"
+    call finishbanner
+    stop -1
+  end if
   ierr = nf_inq_varid(ncid,trim(dimname(1)),varid)
   if ( ierr/=nf_noerr ) then
     write(6,*) "ERROR: Cannot locate coordinate information for ",trim(dimname(1))
