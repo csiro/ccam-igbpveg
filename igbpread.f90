@@ -157,7 +157,7 @@ If (fastigbp) then
           If (All(lldim>0)) then
 
             Allocate(coverout(lldim(1),lldim(2),0:num))
-	  
+  
             Select Case(datatype)
               Case('land')
                 Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg)
@@ -318,7 +318,7 @@ If (subsec/=0) then
       If (lldim(1)>0.AND.lldim(2)>0) then
 
         Allocate(coverout(lldim(1),lldim(2),0:num))
-	
+
         Select Case(datatype)
           Case('land')
             Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg)

@@ -6,6 +6,7 @@ INC = -I $(NETCDF_ROOT)/include
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf -lnetcdff 
 PPFLAG90 = -fpp
 PPFLAG77 = -fpp
+DEBUGFLAG = -check all -debug all -fpe0
 endif
 
 ifeq ($(GFORTRAN),yes)
@@ -13,6 +14,19 @@ FC = gfortran
 XFLAGS = -O2 -mtune=native -march=native
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
+DEBUGFLAG = -g -Wall -Wextra -fbounds-check
+endif
+
+ifeq ($(CRAY),yes)
+FC = ftn
+XFLAGS = 
+PPFLAG90 = -eZ
+PPFLAG77 = -eZ
+DEBUGFLAG =
+endif
+
+ifeq ($(TEST),yes)
+XFLAGS += $(DEBUGFLAG)
 endif
 
 OBJT = igbpveg.o igbpread.o readswitch.o ncwrite.o misc.o ccinterp.o\

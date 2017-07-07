@@ -38,16 +38,17 @@ character*1024 pftconfig, mapconfig, atebconfig
 character*1024 user_veginput, user_laiinput
 integer binlimit, nopts, month
 integer outmode
-logical fastigbp,igbplsmask,ozlaipatch,tile
+logical fastigbp,igbplsmask,ozlaipatch,tile,zerozs
 
 namelist/vegnml/ topofile,fastigbp,                  &
                  landtypeout,igbplsmask,newtopofile, &
-                 binlimit,month,ozlaipatch,          &
+                 binlimit,month,ozlaipatch,          &  
                  tile,outputmode, veginput,          &
                  soilinput, laiinput, albvisinput,   &
                  albnirinput,pftconfig,mapconfig,    &
                  atebconfig,                         &
-                 user_veginput, user_laiinput
+                 user_veginput, user_laiinput,       &
+                 zerozs
 
 ! Start banner
 write(6,*) "=============================================================================="
@@ -78,6 +79,7 @@ atebconfig=''
 ozlaipatch=.false.
 user_veginput=''
 user_laiinput=''
+zerozs=.true.
 
 ! Read namelist
 write(6,*) 'Input &vegnml namelist'
@@ -104,7 +106,7 @@ if ( outputmode=='cablepft' ) then
   outmode=1
 end if
 
-call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode)
+call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode,zerozs)
 
 deallocate(options)
 
@@ -164,6 +166,7 @@ Write(6,*) '    igbplsmask=t'
 !Write(6,*) '    ozlaipatch=f'
 Write(6,*) '    tile=t'
 Write(6,*) '    binlimit=2'
+write(6,*) '    zerozs=.true.'
 Write(6,*) '    outputmode="cablepft"'
 write(6,*) '    pftconfig="def_veg_params.txt"'
 write(6,*) '    mapconfig="def_veg_mapping.txt"'
@@ -192,6 +195,8 @@ Write(6,*) '    binlimit      = The minimum ratio between the grid'
 Write(6,*) '                    length scale and the length scale of'
 Write(6,*) '                    the aggregated land-use data (see notes'
 Write(6,*) '                    below).'
+write(6,*) '    zerozs        = Set orography height to zero for oceans'
+write(6,*) '                    (default = true)'
 Write(6,*) '    outputmode    = format of output file.'
 Write(6,*) '                    igbp     Use IGBP classes (default)'
 Write(6,*) '                    cablepft Use CABLE PFTs'
@@ -262,13 +267,13 @@ End
 ! This subroutine processes the sib data
 !
 
-Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode)
+Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode,zerozs)
 
 Use ccinterp
 
 Implicit None
 
-Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile
+Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile,zerozs
 Integer, intent(in) :: nopts,binlimit,month,outmode
 Character(len=*), dimension(nopts,2), intent(in) :: options
 Character(len=*), dimension(13), intent(in) :: fname
@@ -769,7 +774,7 @@ if ( igbplsmask ) then
     oceandata=0.
   end where
   lsdata=real(nint(testdata(:,:)))
-  call cleantopo(tunit,fname(1),fname(3),lsdata,oceandata,sibdim)
+  call cleantopo(tunit,fname(1),fname(3),lsdata,oceandata,sibdim,zerozs)
 else
   write(6,*) "Using topography land/sea mask"
   call gettopols(tunit,fname(1),lsdata,sibdim)
@@ -1514,7 +1519,7 @@ end
 ! data file.
 !
 
-Subroutine cleantopo(topounit,toponame,topoout,lsmskin,oceanin,sibdim)
+Subroutine cleantopo(topounit,toponame,topoout,lsmskin,oceanin,sibdim,zerozs)
 
 use netcdf_m
 
@@ -1534,6 +1539,7 @@ Real, dimension(sibdim(1),sibdim(2)) :: topo,sd,lsmsk
 Real, dimension(sibdim(1),sibdim(2)) :: tmax, tmin
 real, dimension(sibdim(2)) :: dum
 Real, dimension(1) :: ra,rb,rc,rd
+logical, intent(in) :: zerozs
 ilout=Min(sibdim(1),30) ! To be compatiable with terread
 
 Write(6,*) "Adjust topography data for consistancy with land-sea mask"
@@ -1576,12 +1582,14 @@ if ( ierr/=0 ) then
 end if
 
 lsmsk = real(1-nint(lsmskin))
-where ( nint(oceanin)==1 .and. nint(lsmskin)==1 )
-  topo(:,:) = 0.
-  sd(:,:)   = 0.
-  tmax(:,:) = 0.
-  tmin(:,:) = 0.
-end where
+if ( zerozs ) then
+  where ( nint(oceanin)==1 .and. nint(lsmskin)==1 )
+    topo(:,:) = 0.
+    sd(:,:)   = 0.
+    tmax(:,:) = 0.
+    tmin(:,:) = 0.
+  end where
+end if
 
 if (lnctopo==1) then
   ierr=nf_create(topoout,nf_clobber,ncid)
