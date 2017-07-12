@@ -157,7 +157,7 @@ If (fastigbp) then
           If (All(lldim>0)) then
 
             Allocate(coverout(lldim(1),lldim(2),0:num))
-  
+	  
             Select Case(datatype)
               Case('land')
                 Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg)
@@ -318,7 +318,7 @@ If (subsec/=0) then
       If (lldim(1)>0.AND.lldim(2)>0) then
 
         Allocate(coverout(lldim(1),lldim(2),0:num))
-
+	
         Select Case(datatype)
           Case('land')
             Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg)
@@ -456,6 +456,8 @@ End
 
 Subroutine igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,vegfilename,laifilename,class_num,mapjveg)
 
+use netcdf_m
+
 Implicit None
 
 logical, intent(in) :: ozlaipatch
@@ -463,33 +465,82 @@ Integer, intent(in) :: nscale,num,month,class_num
 Real, dimension(1:2), intent(in) :: latlon
 Integer, dimension(1:2), intent(in) :: lldim
 Real, dimension(lldim(1),lldim(2),0:num), intent(inout) :: coverout
-Integer*1, dimension(1:43200,1:nscale) :: databuffer
-Integer*1, dimension(:,:,:), allocatable :: lbuff
-Integer*1, dimension(1:43200) :: ltemp2
-Integer*1, dimension(1:43200) :: datatemp
+Integer*1, dimension(43200) :: datatemp
+integer, dimension(43200,nscale) :: databuffer
+Integer, dimension(43200) :: ltemp2
+integer, dimension(:,:,:), allocatable :: lbuff
+integer, dimension(43200) :: i4datatemp
 integer, dimension(0:num) :: ncount
-Integer, dimension(1:2,1:2) :: jin,jout
+Integer, dimension(2,2) :: jin,jout
 integer, dimension(class_num), intent(in) :: mapjveg
 Integer ilat,ilon,jlat,recpos,mthrng,imth,lrp,ctmp,ltmp,nlrp,k
 integer i,j,ntmp,ix,iy,tiy,tix,vegtmp
-Integer, dimension(1:2) :: llint
+Integer, dimension(2) :: llint
+integer ierr
+integer, dimension(0:12) :: ncid, varid
+logical, dimension(0:12) :: ncfile
 real, dimension(:,:,:), allocatable :: laiin
 real bx,by,bdelta,tbx,tby,tbdelta
 character*2 cmth
 Character*10 fname
 character(len=*), intent(in) :: vegfilename, laifilename
 
-! Must be compiled using 1 byte record lengths
-Open(10,FILE=vegfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=43200,STATUS='OLD')
+ierr = nf90_open(trim(vegfilename)//'.nc',nf90_nowrite,ncid(0))
+if ( ierr==nf90_noerr ) then
+  ncfile(0) = .true.
+  write(6,*) "Found netcdf version ",trim(vegfilename)
+  ierr = nf90_inq_varid(ncid(0),"vegt",varid(0))
+else
+  ierr = nf90_open(trim(vegfilename),nf90_nowrite,ncid(0))
+  if ( ierr==nf90_noerr ) then
+    ncfile(0) = .true.
+    write(6,*) "Found netcdf version ",trim(vegfilename)
+    ierr = nf90_inq_varid(ncid(0),"vegt",varid(0))
+  else    
+    ncfile(0) = .false.
+    ! Must be compiled using 1 byte record lengths
+    Open(10,FILE=vegfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=43200,STATUS='OLD')
+  end if
+end if
 if (month==0) then
   mthrng=12
   do imth=1,mthrng
     write(fname,'("slai",I2.2,".img")') imth
-    open(10+imth,FILE=trim(laifilename)//'/'//fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+    ierr = nf90_open(trim(trim(laifilename)//'/'//fname)//'.nc',nf90_nowrite,ncid(imth))
+    if ( ierr==nf90_noerr ) then
+      ncfile(imth) = .true.
+      write(6,*) "Found netcdf version ",trim(trim(laifilename)//'/'//fname)
+      ierr = nf90_inq_varid(ncid(imth),"LAI",varid(imth))
+    else
+      ierr = nf90_open(trim(trim(laifilename)//'/'//fname),nf90_nowrite,ncid(imth))
+      if ( ierr==nf90_noerr ) then
+        ncfile(imth) = .true.
+        write(6,*) "Found netcdf version ",trim(trim(laifilename)//'/'//fname)
+        ierr = nf90_inq_varid(ncid(imth),"LAI",varid(imth)) 
+      else
+        ncfile(imth) = .false.  
+        open(10+imth,FILE=trim(laifilename)//'/'//fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+      end if
+    end if 
   end do
 else
   mthrng=1
-  open(11,FILE=laifilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')  
+  ierr = nf90_open(trim(laifilename)//'.nc',nf90_nowrite,ncid(1))
+  if ( ierr==nf90_noerr ) then
+    ncfile(1) = .true.
+    write(6,*) "Found netcdf version ",trim(laifilename)
+    ierr = nf90_inq_varid(ncid(1),"LAI",varid(1))
+  else
+    ierr = nf90_open(trim(laifilename),nf90_nowrite,ncid(1))
+    if ( ierr==nf90_noerr ) then
+      ncfile(1) = .true.
+      write(6,*) "Found netcdf version ",trim(laifilename)
+      ierr = nf90_inq_varid(ncid(1),"LAI",varid(1)) 
+    else
+      ncfile(1) = .false.  
+      open(11,FILE=laifilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')  
+    end if
+  end if  
 end if
 
 allocate(lbuff(43200,nscale,mthrng))
@@ -554,10 +605,15 @@ Do ilat=1,lldim(2)
   llint(2)=nint((90.-latlon(2))*120.)+(ilat-1)*nscale
   Do jlat=1,nscale
     recpos=llint(2)+jlat
-    Read(10,REC=recpos) datatemp
+    if ( ncfile(0) ) then
+      ierr = nf90_get_var(ncid(0),varid(0),i4datatemp,start=(/1,recpos/),count=(/43200,1/))  
+    else  
+      Read(10,REC=recpos) datatemp
+      i4datatemp = datatemp
+    end if  
     ! Shift lon to zero
-    databuffer(jin(1,1):jin(1,2),jlat)=datatemp(jout(1,1):jout(1,2))
-    databuffer(jin(2,1):jin(2,2),jlat)=datatemp(jout(2,1):jout(2,2))
+    databuffer(jin(1,1):jin(1,2),jlat)=i4datatemp(jout(1,1):jout(1,2))
+    databuffer(jin(2,1):jin(2,2),jlat)=i4datatemp(jout(2,1):jout(2,2))
   End Do
   
   do imth=1,mthrng
@@ -568,9 +624,15 @@ Do ilat=1,lldim(2)
       nlrp=int(real(recpos+3)/4.)
       if (lrp/=nlrp) then
         lrp=nlrp
-        read(10+imth,REC=lrp) datatemp(1:10800)
+        if ( ncfile(imth) ) then
+          ierr = nf90_get_var(ncid(imth),varid(imth),i4datatemp(1:10800), &
+                   start=(/1,lrp/),count=(/10800,1/))  
+        else  
+          read(10+imth,REC=lrp) datatemp(1:10800)
+          i4datatemp(1:10800) = datatemp(1:10800)
+        end if  
         do k=1,10800
-          ltemp2(4*k-3:4*k)=datatemp(k)
+          ltemp2(4*k-3:4*k)=i4datatemp(k)
         end do
         if (ozlaipatch) then
           tiy=nint((by-90.+(real(llint(2)+jlat)-0.5)/120.)/bdelta+0.5)
@@ -596,19 +658,19 @@ Do ilat=1,lldim(2)
     do j=1,nscale
       do i=llint(1)+1,llint(1)+nscale
         vegtmp=mod(databuffer(i,j)+256,256)
-	if ( vegtmp==0 ) then
+        if ( vegtmp==0 ) then
           ctmp=0
-	else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
-	  ctmp=max(min(vegtmp,class_num),1)
-	else
+        else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
+          ctmp=max(min(vegtmp,class_num),1)
+        else
           ctmp = -1
-	  do k = 1,class_num
+          do k = 1,class_num
             if ( vegtmp==mapjveg(k) ) then
               ctmp = k
               exit
             end if
           end do
-	end if
+        end if
         if (ctmp>=0.and.ctmp<=class_num) then
           coverout(ilon,ilat,ctmp)=coverout(ilon,ilat,ctmp)+1.
           ncount(ctmp)=ncount(ctmp)+1
@@ -633,9 +695,17 @@ End Do
 deallocate(lbuff)
 if (ozlaipatch) deallocate(laiin)
 
-Close(10)
+if ( ncfile(0) ) then
+  ierr = nf90_close(ncid(0))
+else  
+  Close(10)
+end if  
 do imth=1,mthrng
-  close(10+imth)
+  if ( ncfile(imth) ) then
+    ierr = nf90_close(ncid(imth))
+  else  
+    close(10+imth)
+  end if
 end do
 
 Return
@@ -648,25 +718,45 @@ End
 
 Subroutine soilread(latlon,nscale_4,lldim_4,coverout,soildatafile)
 
+use netcdf_m
+
 Implicit None
 
 Integer, intent(in) :: nscale_4
-Real, dimension(1:2), intent(in) :: latlon
-Integer, dimension(1:2), intent(in) :: lldim_4
+Real, dimension(2), intent(in) :: latlon
+Integer, dimension(2), intent(in) :: lldim_4
 Real, dimension(lldim_4(1),lldim_4(2),0:8), intent(out) :: coverout
 real, dimension(0:13) :: faosoil
-integer*1, dimension(nscale_4,nscale_4) :: dataslice
-Integer*1, dimension(1:10800,1:nscale_4) :: databuffer
-Integer*1, dimension(1:10800) :: datatemp
-Integer, dimension(1:2,1:2) :: jin,jout
+integer, dimension(nscale_4,nscale_4) :: dataslice
+Integer, dimension(10800,1:nscale_4) :: databuffer
+Integer*1, dimension(10800) :: datatemp
+integer, dimension(10800) :: i4datatemp
+Integer, dimension(2,2) :: jin,jout
 Integer ilat,ilon,jlat,recpos,i
-Integer, dimension(1:2) :: llint_4
+integer ncid, varid, ierr
+Integer, dimension(2) :: llint_4
+logical ncfile
 real nsum
 integer, dimension(0:13), parameter :: masmap=(/ 0, 1, 1, 4, 2, 4, 7, 2, 2, 5, 6, 3, 8, 9 /)
 character(len=*), intent(in) :: soildatafile
 
-! Must be compiled using 1 byte record lengths
-Open(20,FILE=soildatafile,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+ierr = nf90_open(trim(soildatafile)//'.nc',nf90_nowrite,ncid)
+if ( ierr==nf90_noerr ) then
+  ncfile = .true.
+  write(6,*) "Found netcdf version ",trim(soildatafile)
+  ierr = nf90_inq_varid(ncid,"soilt",varid)
+else  
+  ierr = nf90_open(trim(soildatafile),nf90_nowrite,ncid)
+  if ( ierr==nf90_noerr ) then
+    ncfile = .true.
+    write(6,*) "Found netcdf version ",trim(soildatafile)
+    ierr = nf90_inq_varid(ncid,"soilt",varid)    
+  else
+    ncfile = .false.
+    ! Must be compiled using 1 byte record lengths
+    Open(20,FILE=soildatafile,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+  end if
+end if
 
 ! To speed-up the code, 43200x(nscale) blocks of the sib file are read
 ! at a time.  The data is then averaged in memory.  This system speeds-up the
@@ -685,10 +775,15 @@ Do ilat=1,lldim_4(2)
   llint_4(2)=nint((90.-latlon(2))*30.)+(ilat-1)*nscale_4
   Do jlat=1,nscale_4
     recpos=llint_4(2)+jlat
-    Read(20,REC=recpos) datatemp
+    if ( ncfile ) then
+      ierr = nf90_get_var(ncid,varid,i4datatemp,start=(/1,recpos/),count=(/10800,1/))  
+    else    
+      Read(20,REC=recpos) datatemp
+      i4datatemp = datatemp
+    end if  
     ! Shift lon to zero
-    databuffer(jin(1,1):jin(1,2),jlat)=datatemp(jout(1,1):jout(1,2))
-    databuffer(jin(2,1):jin(2,2),jlat)=datatemp(jout(2,1):jout(2,2))
+    databuffer(jin(1,1):jin(1,2),jlat)=i4datatemp(jout(1,1):jout(1,2))
+    databuffer(jin(2,1):jin(2,2),jlat)=i4datatemp(jout(2,1):jout(2,2))
   End Do
   
   Do ilon=1,lldim_4(1)
@@ -707,7 +802,11 @@ Do ilat=1,lldim_4(2)
   End Do
 End Do
 
-Close(20)
+if ( ncfile ) then
+  ierr = nf90_close(ncid)
+else  
+  Close(20)
+end if
 
 Return
 End
@@ -719,21 +818,26 @@ End
 
 Subroutine albedoread(latlon,nscale_4,lldim_4,dataout,datatype,albfilename)
 
+use netcdf_m
+
 Implicit None
 
 Integer, intent(in) :: nscale_4
 Integer, dimension(1:2), intent(in) :: lldim_4
-Integer, dimension(1:10800,1:nscale_4) :: databuffer
-Integer*1, dimension(1:10800) :: datatemp
+Integer, dimension(10800,1:nscale_4) :: databuffer
+Integer*1, dimension(10800) :: datatemp
+integer, dimension(10800) :: i4datatemp
 Integer, dimension(1:2) :: llint_4
 Integer ilat,ilon,jlat,recpos,ncount
-Integer, dimension(1:2,1:2) :: jin,jout
-Real, dimension(1:2), intent(in) :: latlon
+Integer, dimension(2,2) :: jin,jout
+integer ncid, varid, ierr
+Real, dimension(2), intent(in) :: latlon
 Real, dimension(lldim_4(1),lldim_4(2)), intent(out) :: dataout
 Character(len=*), intent(in) :: datatype
 character(len=*), intent(in) :: albfilename
 Character*20 cmsg
-Logical, dimension(1:nscale_4,1:nscale_4) :: sermask
+Logical, dimension(nscale_4,nscale_4) :: sermask
+logical ncfile
 
 Call solvejshift(latlon(1),jin,jout,30)
 
@@ -745,8 +849,23 @@ select case(datatype)
 end select
 write(6,*) 'Reading ',trim(albfilename)
 
-! Must be compiled using 1 byte record lengths
-Open(40,FILE=albfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+ierr = nf90_open(trim(albfilename)//'.nc',nf90_nowrite,ncid)
+if ( ierr==nf90_noerr ) then
+  ncfile = .true.
+  write(6,*) "Found netcdf version ",trim(albfilename)
+  ierr = nf90_inq_varid(ncid,datatype,varid)
+else  
+  ierr = nf90_open(trim(albfilename),nf90_nowrite,ncid)
+  if ( ierr==nf90_noerr ) then
+    ncfile = .true.
+    write(6,*) "Found netcdf version ",trim(albfilename)
+    ierr = nf90_inq_varid(ncid,datatype,varid)    
+  else
+    ncfile = .false.
+    ! Must be compiled using 1 byte record lengths
+    Open(40,FILE=albfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+  end if
+end if 
 
 Do ilat=1,lldim_4(2)
 
@@ -758,10 +877,15 @@ Do ilat=1,lldim_4(2)
   llint_4(2)=nint((90.-latlon(2))*30.)+(ilat-1)*nscale_4
   Do jlat=1,nscale_4
     recpos=llint_4(2)+jlat
-    Read(40,REC=recpos) datatemp
+    if ( ncfile ) then
+      ierr = nf90_get_var(ncid,varid,i4datatemp,start=(/1,recpos/),count=(/10800,1/))  
+    else  
+      Read(40,REC=recpos) datatemp
+      i4datatemp = datatemp
+    end if  
     ! Shift lon to zero
-    databuffer(jin(1,1):jin(1,2),jlat)=datatemp(jout(1,1):jout(1,2))
-    databuffer(jin(2,1):jin(2,2),jlat)=datatemp(jout(2,1):jout(2,2))
+    databuffer(jin(1,1):jin(1,2),jlat)=i4datatemp(jout(1,1):jout(1,2))
+    databuffer(jin(2,1):jin(2,2),jlat)=i4datatemp(jout(2,1):jout(2,2))
   End Do
   
   where (databuffer<0)
@@ -782,7 +906,11 @@ Do ilat=1,lldim_4(2)
   End Do
 End Do
 
-Close(40)
+if ( ncfile ) then
+  ierr = nf90_close(ncid)  
+else
+  Close(40)
+end if
 
 Return
 End
@@ -796,6 +924,7 @@ End
 Subroutine igbpstream(sibdim,coverout,countn,num,month,ozlaipatch,vegfilename,laifilename,class_num,mapjveg)
 
 Use ccinterp
+use netcdf_m
 
 Implicit None
 
@@ -811,9 +940,14 @@ integer, dimension(class_num), intent(in) :: mapjveg
 Integer*1, dimension(1:43200) :: databuffer
 Integer*1, dimension(1:10800) :: datatemp
 Integer*1, dimension(1:43200,1:12) :: lbuff
+integer, dimension(43200) :: i4databuffer
+integer, dimension(10800) :: i4datatemp
 integer, dimension(1:sibdim(1),1:sibdim(2),0:num) :: ncount
 Integer ilat,ilon,lci,lcj,nface,ctmp,ltmp,mthrng,imth,lrp,nlrp,k
 integer ntmp,ix,iy,tix,tiy,vegtmp,i
+integer ierr
+integer, dimension(0:12) :: ncid, varid
+logical, dimension(0:12) :: ncfile
 character*2 cmth
 Character*10 fname
 character(len=*), intent(in) :: vegfilename, laifilename
@@ -823,17 +957,62 @@ countn=0
 
 Write(6,*) "Read USGS + LAI data (stream)"
 
-! Must be compiled using 1 byte record lengths
-Open(10,FILE=vegfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=43200,STATUS='OLD')
+ierr = nf90_open(trim(vegfilename)//'.nc',nf90_nowrite,ncid(0))
+if ( ierr==nf90_noerr ) then
+  ncfile(0) = .true.
+  write(6,*) "Found netcdf version ",trim(vegfilename)
+  ierr = nf90_inq_varid(ncid(0),"vegt",varid(0))
+else
+  ierr = nf90_open(trim(vegfilename),nf90_nowrite,ncid(0))  
+  if ( ierr==nf90_noerr ) then
+    ncfile(0) = .true.
+    write(6,*) "Found netcdf version ",trim(vegfilename)
+    ierr = nf90_inq_varid(ncid(0),"vegt",varid(0))
+  else  
+    ncfile(0) = .false.
+    ! Must be compiled using 1 byte record lengths
+    Open(10,FILE=vegfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=43200,STATUS='OLD')
+  end if  
+end if  
 if (month==0) then
   mthrng=12
   do imth=1,mthrng
     write(fname,'("slai",I2.2,".img")') imth
-    open(10+imth,FILE=trim(laifilename)//'/'//fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+    ierr = nf90_open(trim(trim(laifilename)//'/'//fname)//'.nc',nf90_nowrite,ncid(imth))
+    if ( ierr==nf90_noerr ) then
+      ncfile(imth) = .true.
+      write(6,*) "Found netcdf version ",trim(trim(laifilename)//'/'//fname)
+      ierr = nf90_inq_varid(ncid(imth),"LAI",varid(imth))
+    else
+      ierr = nf90_open(trim(laifilename)//'/'//fname,nf90_nowrite,ncid(imth)) 
+      if ( ierr==nf90_noerr ) then
+        ncfile(imth) = .true.
+        write(6,*) "Found netcdf version ",trim(trim(laifilename)//'/'//fname)
+        ierr = nf90_inq_varid(ncid(imth),"LAI",varid(imth))
+      else
+        ncfile(imth) = .false.  
+        open(10+imth,FILE=trim(laifilename)//'/'//fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+      end if  
+    end if  
   end do
 else
   mthrng=1
-  open(11,FILE=laifilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')  
+  ierr = nf90_open(trim(laifilename)//'.nc',nf90_nowrite,ncid(1))
+  if ( ierr==nf90_noerr ) then
+    ncfile(1) = .true.
+    write(6,*) "Found netcdf version ",trim(laifilename)
+    ierr = nf90_inq_varid(ncid(1),"LAI",varid(1))
+  else
+    ierr = nf90_open(trim(laifilename),nf90_nowrite,ncid(1))  
+    if ( ierr==nf90_noerr ) then
+      ncfile(1) = .true.
+      write(6,*) "Found netcdf version ",trim(laifilename)
+      ierr = nf90_inq_varid(ncid(1),"LAI",varid(1))
+    else  
+      ncfile(1) = .false.  
+      open(11,FILE=laifilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')  
+    end if  
+  end if  
 end if
 
 if (ozlaipatch) then
@@ -885,7 +1064,12 @@ Do ilat=1,21600
   end if
   
   ! Read data
-  Read(10,REC=ilat) databuffer
+  if ( ncfile(0) ) then
+    ierr = nf90_get_var(ncid(0),varid(0),i4databuffer,start=(/1,ilat/),count=(/43200,1/))
+  else  
+    Read(10,REC=ilat) databuffer
+    i4databuffer = databuffer
+  end if  
   aglat=callat(90.,ilat,1)
 
   ! read corrosponding lai data and fill to 1km grid
@@ -893,9 +1077,14 @@ Do ilat=1,21600
   if (lrp/=nlrp) then
     lrp=nlrp
     do imth=1,mthrng
-      read(10+imth,REC=lrp) datatemp
+      if ( ncfile(imth) ) then
+        ierr = nf90_get_var(ncid(imth),varid(imth),i4datatemp,start=(/1,lrp/),count=(/10800,1/))  
+      else  
+        read(10+imth,REC=lrp) datatemp
+        i4datatemp = datatemp
+      end if  
       do k=1,10800
-        lbuff(4*k-3:4*k,imth)=datatemp(k)
+        lbuff(4*k-3:4*k,imth)=i4datatemp(k)
       end do
       if (ozlaipatch) then
         tiy=nint((by-90.+(real(ilat)-0.5)/120.)/bdelta+0.5)
@@ -920,7 +1109,7 @@ Do ilat=1,21600
     lcj = nint(alcj)
     lcj = lcj+nface*sibdim(1)
     
-    vegtmp=mod(databuffer(ilon)+256,256)
+    vegtmp=mod(i4databuffer(ilon)+256,256)
     if ( vegtmp==0 ) then
       ctmp=0
     else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
@@ -960,9 +1149,17 @@ coverout=coverout/real(max(ncount,1))
 
 if (ozlaipatch) deallocate(laiin)
 
-Close(10)
+if ( ncfile(0) ) then
+  ierr = nf90_close(ncid(0))
+else
+  Close(10)
+end if
 do imth=1,mthrng
-  close(10+imth)
+  if ( ncfile(imth) ) then
+    ierr = nf90_close(ncid(imth))
+  else  
+    close(10+imth)
+  end if  
 end do
 
 Return
@@ -978,17 +1175,21 @@ End
 Subroutine soilstream(sibdim,coverout,countn,soilfilename)
 
 Use ccinterp
+use netcdf_m
 
 Implicit None
 
 Integer, dimension(2), intent(in) :: sibdim
-Real, dimension(1:sibdim(1),1:sibdim(2),0:8), intent(out) :: coverout
+Real, dimension(sibdim(1),sibdim(2),0:8), intent(out) :: coverout
 Real aglon,aglat,alci,alcj
 Real callon,callat
-Integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: countn
-Integer*1, dimension(1:10800) :: databuffer
+Integer, dimension(sibdim(1),sibdim(2)), intent(out) :: countn
+Integer*1, dimension(10800) :: databuffer
+Integer, dimension(10800) :: i4databuffer
 Integer ilat,ilon,lci,lcj,nface,cpos,i
+integer ncid, varid, ierr
 integer, dimension(0:13), parameter :: masmap=(/ 0, 1, 1, 4, 2, 4, 7, 2, 2, 5, 6, 3, 8, 9 /)
+logical ncfile
 character(len=*), intent(in) :: soilfilename
 
 coverout=0
@@ -996,8 +1197,23 @@ countn=0
 
 Write(6,*) "Read HWSD data (stream)"
 
-! Must be compiled using 1 byte record lengths
-Open(20,FILE=soilfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+ierr = nf90_open(trim(soilfilename)//'.nc',nf90_nowrite,ncid)
+if ( ierr==nf90_noerr ) then
+  ncfile = .true.
+  write(6,*) "Found netcdf version ",trim(soilfilename)
+  ierr = nf90_inq_varid(ncid,"soilt",varid)
+else  
+  ierr = nf90_open(trim(soilfilename),nf90_nowrite,ncid)
+  if ( ierr==nf90_noerr ) then
+    ncfile = .true.
+    write(6,*) "Found netcdf version ",trim(soilfilename)
+    ierr = nf90_inq_varid(ncid,"soilt",varid)    
+  else
+    ncfile = .false.
+    ! Must be compiled using 1 byte record lengths
+    Open(20,FILE=soilfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+  end if
+end if  
 
 Do ilat=1,5400
 
@@ -1006,7 +1222,12 @@ Do ilat=1,5400
   end if
   
   ! Read data
-  Read(20,REC=ilat) databuffer
+  if ( ncfile ) then
+    ierr = nf90_get_var(ncid,varid,i4databuffer,start=(/1,ilat/),count=(/10800,1/)) 
+  else    
+    Read(20,REC=ilat) databuffer
+    i4databuffer = databuffer
+  end if  
   aglat=callat(90.,ilat,1)
   
   Do ilon=1,10800
@@ -1018,7 +1239,7 @@ Do ilat=1,5400
     lcj = nint(alcj)
     lcj = lcj+nface*sibdim(1)
     
-    cpos=databuffer(ilon)
+    cpos=i4databuffer(ilon)
     if ((cpos.ge.1).and.(cpos.le.13)) then
       If (coverout(lci,lcj,0).LT.0.) then
         coverout(lci,lcj,:)=0.
@@ -1036,7 +1257,11 @@ Do ilat=1,5400
   End Do
 End Do
 
-Close(20)
+if ( ncfile ) then
+  ierr = nf90_close(ncid)    
+else
+  Close(20)
+end if  
 
 Return
 End
@@ -1050,17 +1275,20 @@ End
 Subroutine albedostream(sibdim,coverout,countn,datatype,albfilename)
 
 Use ccinterp
+use netcdf_m
 
 Implicit None
 
 Integer, dimension(2), intent(in) :: sibdim
-Integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: countn
-Integer, dimension(1:10800) :: databuffer
-Integer*1, dimension(1:10800) :: datatemp
+Integer, dimension(sibdim(1),sibdim(2)), intent(out) :: countn
+Integer, dimension(10800) :: databuffer
+Integer*1, dimension(10800) :: datatemp
 Integer ilat,ilon,lci,lcj,nface
-Real, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: coverout
+integer ncid, varid, ierr
+Real, dimension(sibdim(1),sibdim(2)), intent(out) :: coverout
 Real aglon,aglat,alci,alcj
 Real callon,callat
+logical ncfile
 Character(len=*), intent(in) :: datatype
 Character*20 cmsg
 character(len=*), intent(in) :: albfilename
@@ -1076,8 +1304,23 @@ select case(datatype)
 end select
 write(6,*) 'Reading (stream) ',trim(albfilename)
 
-! Must be compiled using 1 byte record lengths
-Open(40,FILE=albfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+ierr = nf90_open(trim(albfilename)//'.nc',nf90_nowrite,ncid)
+if ( ierr==nf90_noerr ) then
+  ncfile = .true.
+  write(6,*) "Found netcdf version ",trim(albfilename)
+  ierr = nf90_inq_varid(ncid,datatype,varid)
+else  
+  ierr = nf90_open(trim(albfilename),nf90_nowrite,ncid)
+  if ( ierr==nf90_noerr ) then
+    ncfile = .true.
+    write(6,*) "Found netcdf version ",trim(albfilename)
+    ierr = nf90_inq_varid(ncid,datatype,varid)    
+  else
+    ncfile = .false.
+    ! Must be compiled using 1 byte record lengths
+    Open(40,FILE=albfilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+  end if
+end if
 
 Do ilat=1,5400
   aglat=callat(90.,ilat,4)
@@ -1087,9 +1330,13 @@ Do ilat=1,5400
   end if
   
   ! Read data
-  Read(40,REC=ilat) datatemp
+  if ( ncfile ) then
+    ierr = nf90_get_var(ncid,varid,databuffer,start=(/1,ilat/),count=(/10800,1/)) 
+  else    
+    Read(40,REC=ilat) datatemp
+    databuffer = datatemp
+  end if  
   
-  databuffer=datatemp
   where (databuffer<0)
     databuffer=databuffer+256
   end where
@@ -1118,7 +1365,11 @@ Do ilat=1,5400
   End Do
 End Do
 
-Close(40)
+if ( ncfile ) then
+  ierr = nf90_close(ncid)  
+else    
+  Close(40)
+end if
 
 Return
 End
@@ -1165,7 +1416,7 @@ Subroutine dataconvert(datain,raw,nscale,num)
 Implicit None
 
 Integer, intent(in) :: nscale,num
-Integer*1, dimension(1:nscale,1:nscale), intent(in) :: datain
+Integer, dimension(1:nscale,1:nscale), intent(in) :: datain
 Real, dimension(0:num), intent(out) :: raw
 Integer i,j,datatmp
 
