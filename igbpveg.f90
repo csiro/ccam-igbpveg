@@ -397,6 +397,7 @@ if ( fname(9)/='' .and. outmode==1 ) then
     read(40,*,iostat=ioerror) jveg, vegtypetmp, vegnametmp
     if ( ioerror/=0 ) then
       write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 1 of PFT number ",i,"/",pft_len
       call finishbanner
       stop -1
     end if
@@ -412,18 +413,93 @@ if ( fname(9)/='' .and. outmode==1 ) then
     csiropft(i) = real(jveg)
     pft_desc(i) = vegnametmp
         
-    read(40,*) hc(i), xfang(i), leaf_w(i), leaf_l(i), c4frac(i)
-    read(40,*) refl(i,1), refl(i,2)
-    read(40,*) taul(i,1), taul(i,2)
-    read(40,*) notused, notused, notused, notused
-    read(40,*) notused, notused, canst1(i), shelrb(i), notused, extkn(i)
-    read(40,*) vcmax(i), notused, rpcoef(i), notused
-    read(40,*) notused, notused, vbeta(i), rootbeta(i), zr(i), clitt(i)
-    read(40,*) notused, notused, notused, notused, notused
-    read(40,*) notused, notused, notused, notused, notused
-    read(40,*) a1gs(i), d0gs(i), alpha(i), convex(i), cfrd(i)
-    read(40,*) gswmin(i), conkc0(i), conko0(i), ekc(i), eko(i)
-    read(40,*) g0(i), g1(i)
+    read(40,*,iostat=ioerror) hc(i), xfang(i), leaf_w(i), leaf_l(i), c4frac(i)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 2 of PFT number ",i,"/",pft_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) refl(i,1), refl(i,2)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 3 of PFT number ",i,"/",pft_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) taul(i,1), taul(i,2)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 4 of PFT number ",i,"/",pft_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) notused, notused, notused, notused
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 5 of PFT number ",i,"/",pft_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) notused, notused, canst1(i), shelrb(i), notused, extkn(i)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 6 of PFT number ",i,"/",pft_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) vcmax(i), notused, rpcoef(i), notused
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 7 of PFT number ",i,"/",pft_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) notused, notused, vbeta(i), rootbeta(i), zr(i), clitt(i)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 8 of PFT number ",i,"/",pft_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) notused, notused, notused, notused, notused
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 9 of PFT number ",i,"/",pft_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) notused, notused, notused, notused, notused
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 10 of PFT number ",i,"/",pft_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) a1gs(i), d0gs(i), alpha(i), convex(i), cfrd(i)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 11 of PFT number ",i,"/",pft_len
+      write(6,*) "Possibly using old PFT file format"
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) gswmin(i), conkc0(i), conko0(i), ekc(i), eko(i)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 12 of PFT number ",i,"/",pft_len
+      write(6,*) "Possibly using old PFT file format"
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) g0(i), g1(i)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read pftconfig file ",trim(fname(9))
+      write(6,*) "Formatting error in line 13 of PFT number ",i,"/",pft_len
+      write(6,*) "Possibly using old PFT file format"
+      call finishbanner
+      stop -1
+    end if
       
   end do
 
@@ -526,15 +602,40 @@ if ( fname(13)/='' .and. outmode==1 ) then
     read(40,*,iostat=ioerror) jateb, atebtypetmp
     if ( ioerror/=0 ) then
       write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+      write(6,*) "Formatting error in line 1 of urban class ",i,"/",ateb_len
       call finishbanner
       stop -1
     end if
     write(6,*) "Processing aTEB class ",trim(atebtypetmp)
         
-    read(40,*) bldheight(i), hwratio(i), sigvegc(i), sigmabld(i)
-    read(40,*) industryfg(i), trafficfg(i)
-    read(40,*) roofalpha(i), wallalpha(i), roadalpha(i), vegalphac(i)
-    read(40,*) zovegc(i)
+    read(40,*,iostat=ioerror) bldheight(i), hwratio(i), sigvegc(i), sigmabld(i)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+      write(6,*) "Formatting error in line 2 of urban class ",i,"/",ateb_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) industryfg(i), trafficfg(i)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+      write(6,*) "Formatting error in line 3 of urban class ",i,"/",ateb_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) roofalpha(i), wallalpha(i), roadalpha(i), vegalphac(i)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+      write(6,*) "Formatting error in line 4 of urban class ",i,"/",ateb_len
+      call finishbanner
+      stop -1
+    end if
+    read(40,*,iostat=ioerror) zovegc(i)
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+      write(6,*) "Formatting error in line 5 of urban class ",i,"/",ateb_len
+      call finishbanner
+      stop -1
+    end if
       
   end do
   
@@ -624,7 +725,7 @@ if ( fname(10)/='' .and. outmode==1 ) then
       stop -1
     end if
     
-    write(6,*) "Processed ",trim(jdesc)," with ",maxindex
+    write(6,*) "Processed ",trim(jdesc)," with ",maxindex," component out of 5"
     
   end do
   close(40)
