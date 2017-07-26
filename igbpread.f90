@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -823,11 +823,11 @@ use netcdf_m
 Implicit None
 
 Integer, intent(in) :: nscale_4
-Integer, dimension(1:2), intent(in) :: lldim_4
+Integer, dimension(2), intent(in) :: lldim_4
 Integer, dimension(10800,1:nscale_4) :: databuffer
 Integer*1, dimension(10800) :: datatemp
 integer, dimension(10800) :: i4datatemp
-Integer, dimension(1:2) :: llint_4
+Integer, dimension(2) :: llint_4
 Integer ilat,ilon,jlat,recpos,ncount
 Integer, dimension(2,2) :: jin,jout
 integer ncid, varid, ierr
@@ -835,7 +835,7 @@ Real, dimension(2), intent(in) :: latlon
 Real, dimension(lldim_4(1),lldim_4(2)), intent(out) :: dataout
 Character(len=*), intent(in) :: datatype
 character(len=*), intent(in) :: albfilename
-Character*20 cmsg
+Character(len=20) :: cmsg
 Logical, dimension(nscale_4,nscale_4) :: sermask
 logical ncfile
 
@@ -1910,6 +1910,7 @@ if ( datafilename/='' ) then
   end select
   if ( ierr/=nf_noerr ) then
     write(6,*) "ERROR: Cannot read land_cover data"
+    write(6,*) nf_strerror(ierr)
     call finishbanner
     stop -1
   end if
