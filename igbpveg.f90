@@ -58,6 +58,11 @@ write(6,*) "====================================================================
 write(6,*) 'IGBPVEG - IGBP 1km to CC grid'
 write(6,*) version
 
+#ifndef stacklimit
+! For linux only - removes stacklimit on all processors
+call setstacklimit(-1)
+#endif 
+
 ! Read switches
 nopts=1
 allocate (options(nopts,2))
@@ -67,11 +72,11 @@ options(:,2) = ''
 call readswitch(options,nopts)
 call defaults(options,nopts)
 
-veginput=''
-soilinput=''
+veginput='gigbp2_0ll.img'
+soilinput='usda4.img'
 laiinput=''
-albvisinput=''
-albnirinput=''
+albvisinput='salbvis223.img'
+albnirinput='salbnir223.img'
 outputmode=''
 pftconfig=''
 mapconfig=''
@@ -159,8 +164,8 @@ Write(6,*) '    landtypeout="veg"'
 Write(6,*) '    veginput="gigbp2_0ll.img"'
 Write(6,*) '    soilinput="usda4.img"'
 Write(6,*) '    laiinput="slai01.img"'
-Write(6,*) '    albvisinput="albvis223.img"'
-Write(6,*) '    albnirinput="albnir223.img"'
+Write(6,*) '    albvisinput="salbvis223.img"'
+Write(6,*) '    albnirinput="salbnir223.img"'
 Write(6,*) '    fastigbp=t'
 Write(6,*) '    igbplsmask=t'
 !Write(6,*) '    ozlaipatch=f'
