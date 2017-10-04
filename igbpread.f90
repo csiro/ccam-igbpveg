@@ -1860,6 +1860,7 @@ integer, dimension(class_num), intent(in) :: mapjveg
 integer ncid, ncidlai, varid, ierr
 integer lci, lcj, nface, iveg, imonth
 integer i, j, vegtmp, k, varndims
+integer missing_int
 real, dimension(sibdim(1),sibdim(2),0:num), intent(inout) :: dataout
 real, dimension(sibdim(1),sibdim(2),0:num) :: datalocal
 real, dimension(sibdim(1),sibdim(2),12) :: lailocal
@@ -1867,9 +1868,14 @@ real, dimension(2), intent(in) :: glonlat
 real, dimension(:), allocatable :: lonin, latin, lonin_lai, latin_lai
 real, dimension(:,:,:), allocatable :: laiin
 real aglon, aglat, alci, alcj
+real missing_real
 integer, dimension(:,:), allocatable :: coverin
 character(len=*), intent(in) :: datafilename, laifilename
 character(len=1024), dimension(3) :: dimname
+logical found_missing
+
+missing_int = -1
+missing_real = -1.
 
 ! Veg file parameters
 if ( datafilename/='' ) then
@@ -1886,6 +1892,19 @@ if ( datafilename/='' ) then
     call finishbanner
     stop -1
   end if
+  found_missing = .false.
+  ierr = nf_get_att_int(ncid,varid,"missing_value",missing_int)
+  if ( ierr==nf_noerr ) then
+    found_missing = .true.
+  else
+    ierr = nf_get_att_int(ncid,varid,"_FillValue",missing_int) 
+    if ( ierr==nf_noerr ) then
+      found_missing = .true.  
+    end if    
+  end if   
+  if ( found_missing ) then
+    write(6,*) "Found missing value ",missing_int 
+  end if    
   ierr = nf_inq_vardimid(ncid,varid,dimid(1:2))
   ierr = nf_inq_dim(ncid,dimid(1),dimname(1),dimlen(1))
   ierr = nf_inq_dim(ncid,dimid(2),dimname(2),dimlen(2))
@@ -1940,12 +1959,15 @@ if ( datafilename/='' ) then
       call lltoijmod(aglon,aglat,alci,alcj,nface)
       lci = nint(alci)
       lcj = nint(alcj)
-      lcj = lcj+nface*sibdim(1)
+      lcj = lcj + nface*sibdim(1)
       vegtmp = coverin(i,j) 
       if ( vegtmp==0 ) then
         iveg=0
       else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
         iveg=max(min(vegtmp,class_num),1)
+      else if ( found_missing .and. vegtmp==missing_int ) then
+        ! missing
+        iveg = -1 
       else
         iveg = -1
         do k = 1,class_num
@@ -1954,13 +1976,13 @@ if ( datafilename/='' ) then
             exit
           end if
         end do
-      end if
-      if ( iveg==-1 ) then
-        write(6,*) "ERROR: land_cover data is not defined in mapping data"
-        write(6,*) "Invalid land_cover index ",coverin(i,j)," at lat,lon=",aglat,aglon
-        write(6,*) "Valid indices are ",mapjveg(1:class_num)
-        call finishbanner
-        stop -1
+        if ( iveg==-1 ) then
+          write(6,*) "ERROR: land_cover data is not defined in mapping data"
+          write(6,*) "Invalid land_cover index ",coverin(i,j)," at lat,lon=",aglat,aglon
+          write(6,*) "Valid indices are ",mapjveg(1:class_num)
+          call finishbanner
+          stop -1
+        end if
       end if
       if ( iveg>=0 .and. iveg<=class_num ) then
         datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
@@ -2024,6 +2046,19 @@ if ( laifilename/='' ) then
     call finishbanner
     stop -1
   end if
+  found_missing = .false.
+  ierr = nf_get_att_real(ncidlai,varid,"missing_value",missing_real)
+  if ( ierr==nf_noerr ) then
+    found_missing = .true.
+  else
+    ierr = nf_get_att_real(ncidlai,varid,"_FillValue",missing_real) 
+    if ( ierr==nf_noerr ) then
+      found_missing = .true.  
+    end if    
+  end if   
+  if ( found_missing ) then
+    write(6,*) "Found missing value ",missing_real
+  end if 
   ierr = nf_inq_vardimid(ncidlai,varid,dimid_lai(1:3))
   ierr = nf_inq_dim(ncidlai,dimid_lai(1),dimname(1),dimlen_lai(1))
   ierr = nf_inq_dim(ncidlai,dimid_lai(2),dimname(2),dimlen_lai(2))
@@ -2080,8 +2115,10 @@ if ( laifilename/='' ) then
       lci = nint(alci)
       lcj = nint(alcj)
       lcj = lcj+nface*sibdim(1)
-      lailocal(lci,lcj,1:dimlen_lai(3)) = lailocal(lci,lcj,1:dimlen_lai(3)) + laiin(i,j,1:dimlen_lai(3))
-      countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+      if ( .not.found_missing .or. all( laiin(i,j,1:dimlen_lai(3))/=missing_real ) ) then
+        lailocal(lci,lcj,1:dimlen_lai(3)) = lailocal(lci,lcj,1:dimlen_lai(3)) + laiin(i,j,1:dimlen_lai(3))
+        countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+      end if  
     end do
     if ( mod(j,10)==0 .or. j==dimlen_lai(2) ) then
       write(6,*) "User LAI ",j,"/",dimlen_lai(2)
