@@ -328,6 +328,10 @@ real, dimension(:), allocatable :: rootbeta, c4frac, vbeta
 real, dimension(:), allocatable :: bldheight, hwratio, sigvegc, sigmabld
 real, dimension(:), allocatable :: industryfg, trafficfg, roofalpha
 real, dimension(:), allocatable :: wallalpha, roadalpha, vegalphac, zovegc
+real, dimension(:,:), allocatable :: roofthick, roofcp, roofcond
+real, dimension(:,:), allocatable :: wallthick, wallcp, wallcond
+real, dimension(:,:), allocatable :: slabthick, slabcp, slabcond
+real, dimension(:,:), allocatable :: roadthick, roadcp, roadcond
 real, dimension(:), allocatable :: a1gs, d0gs, alpha, convex, cfrd
 real, dimension(:), allocatable :: gswmin, conkc0, conko0, ekc, eko, g0, g1
 real, dimension(:), allocatable :: zr, clitt
@@ -339,6 +343,7 @@ character(len=256) :: comments, largestring
 character(len=10) :: vegtypetmp
 character(len=25) :: vegnametmp, atebtypetmp
 character(len=25) :: jdesc, kdesc
+character(len=25) :: vname
 logical, dimension(:), allocatable :: mapwater, mapice
 logical :: testurban, testwater, testice, matchfound
 
@@ -601,6 +606,58 @@ if ( fname(13)/='' .and. outmode==1 ) then
   allocate( bldheight(ateb_len), hwratio(ateb_len), sigvegc(ateb_len), sigmabld(ateb_len) )
   allocate( industryfg(ateb_len), trafficfg(ateb_len), roofalpha(ateb_len) )
   allocate( wallalpha(ateb_len), roadalpha(ateb_len), vegalphac(ateb_len), zovegc(ateb_len) )
+  allocate( roofthick(ateb_len,4), roofcp(ateb_len,4), roofcond(ateb_len,4) )
+  allocate( wallthick(ateb_len,4), wallcp(ateb_len,4), wallcond(ateb_len,4) )
+  allocate( slabthick(ateb_len,4), slabcp(ateb_len,4), slabcond(ateb_len,4) )
+  allocate( roadthick(ateb_len,4), roadcp(ateb_len,4), roadcond(ateb_len,4) )
+  roofthick(:,1) = 0.01
+  roofthick(:,2) = 0.09
+  roofthick(:,3) = 0.40
+  roofthick(:,4) = 0.10
+  roofcp(:,1) = 2.11E6
+  roofcp(:,2) = 2.11E6
+  roofcp(:,3) = 0.28E6
+  roofcp(:,4) = 0.29E6
+  roofcond(:,1) = 1.5100
+  roofcond(:,2) = 1.5100
+  roofcond(:,3) = 0.0800
+  roofcond(:,4) = 0.0500
+  wallthick(:,1) = 0.01
+  wallthick(:,2) = 0.04
+  wallthick(:,3) = 0.10
+  wallthick(:,4) = 0.05
+  wallcp(:,1) = 1.55E6
+  wallcp(:,2) = 1.55E6
+  wallcp(:,3) = 1.55E6
+  wallcp(:,4) = 0.29E6
+  wallcond(:,1) = 0.9338
+  wallcond(:,2) = 0.9338
+  wallcond(:,3) = 0.9338
+  wallcond(:,4) = 0.0500
+  slabthick(:,1) = 0.05
+  slabthick(:,2) = 0.05
+  slabthick(:,3) = 0.05
+  slabthick(:,4) = 0.05
+  slabcp(:,1) = 1.55E6
+  slabcp(:,2) = 1.55E6
+  slabcp(:,3) = 1.55E6
+  slabcp(:,4) = 1.55E6
+  slabcond(:,1) = 0.9338
+  slabcond(:,2) = 0.9338
+  slabcond(:,3) = 0.9338
+  slabcond(:,4) = 0.9338
+  roadthick(:,1) = 0.01
+  roadthick(:,2) = 0.04
+  roadthick(:,3) = 0.45
+  roadthick(:,4) = 3.5
+  roadcp(:,1) = 1.94E6
+  roadcp(:,2) = 1.94E6
+  roadcp(:,3) = 1.28E6
+  roadcp(:,4) = 1.28E6
+  roadcond(:,1) = 0.7454
+  roadcond(:,2) = 0.7454
+  roadcond(:,3) = 0.2513
+  roadcond(:,4) = 0.2513
   
   do i = 1,ateb_len
         
@@ -641,6 +698,88 @@ if ( fname(13)/='' .and. outmode==1 ) then
       call finishbanner
       stop -1
     end if
+    
+    ! new format
+    read(40,*,iostat=ioerror) roofthick(i,1),roofthick(i,2),roofthick(i,3),roofthick(i,4)
+    if ( ioerror==0 ) then
+      read(40,*,iostat=ioerror) roofcp(i,1),roofcp(i,2),roofcp(i,3),roofcp(i,4)    
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 7 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if  
+      read(40,*,iostat=ioerror) roofcond(i,1),roofcond(i,2),roofcond(i,3),roofcond(i,4)    
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 8 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if 
+      read(40,*,iostat=ioerror) wallthick(i,1),wallthick(i,2),wallthick(i,3),wallthick(i,4)    
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 9 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if 
+      read(40,*,iostat=ioerror) wallcp(i,1),wallcp(i,2),wallcp(i,3),wallcp(i,4)    
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 10 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if  
+      read(40,*,iostat=ioerror) wallcond(i,1),wallcond(i,2),wallcond(i,3),wallcond(i,4)    
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 11 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if 
+      read(40,*,iostat=ioerror) slabthick(i,1),slabthick(i,2),slabthick(i,3),slabthick(i,4)    
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 12 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if 
+      read(40,*,iostat=ioerror) slabcp(i,1),slabcp(i,2),slabcp(i,3),slabcp(i,4)    
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 13 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if  
+      read(40,*,iostat=ioerror) slabcond(i,1),slabcond(i,2),slabcond(i,3),slabcond(i,4)    
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 14 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if 
+      read(40,*,iostat=ioerror) roadthick(i,1),roadthick(i,2),roadthick(i,3),roadthick(i,4)    
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 15 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if 
+      read(40,*,iostat=ioerror) roadcp(i,1),roadcp(i,2),roadcp(i,3),roadcp(i,4)    
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 16 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if  
+      read(40,*,iostat=ioerror) roadcond(i,1),roadcond(i,2),roadcond(i,3),roadcond(i,4)    
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 17 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if 
+    end if
       
   end do
   
@@ -653,6 +792,10 @@ else
   allocate( bldheight(ateb_len), hwratio(ateb_len), sigvegc(ateb_len), sigmabld(ateb_len) )
   allocate( industryfg(ateb_len), trafficfg(ateb_len), roofalpha(ateb_len) )
   allocate( wallalpha(ateb_len), roadalpha(ateb_len), vegalphac(ateb_len), zovegc(ateb_len) )
+  allocate( roofthick(ateb_len,4), roofcp(ateb_len,4), roofcond(ateb_len,4) )
+  allocate( wallthick(ateb_len,4), wallcp(ateb_len,4), wallcond(ateb_len,4) )
+  allocate( slabthick(ateb_len,4), slabcp(ateb_len,4), slabcond(ateb_len,4) )
+  allocate( roadthick(ateb_len,4), roadcp(ateb_len,4), roadcond(ateb_len,4) )
   ateb_desc(1) = "Urban-generic"
   ateb_desc(2) = "Urban-low"
   ateb_desc(3) = "Urban-medium"
@@ -672,6 +815,54 @@ else
   roadalpha(:) = (/ 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10 /)
   vegalphac(:) = (/ 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20 /)
   zovegc(:) = (/ 0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1 /)
+  roofthick(:,1) = 0.01
+  roofthick(:,2) = 0.09
+  roofthick(:,3) = 0.40
+  roofthick(:,4) = 0.10
+  roofcp(:,1) = 2.11E6
+  roofcp(:,2) = 2.11E6
+  roofcp(:,3) = 0.28E6
+  roofcp(:,4) = 0.29E6
+  roofcond(:,1) = 1.5100
+  roofcond(:,2) = 1.5100
+  roofcond(:,3) = 0.0800
+  roofcond(:,4) = 0.0500
+  wallthick(:,1) = 0.01
+  wallthick(:,2) = 0.04
+  wallthick(:,3) = 0.10
+  wallthick(:,4) = 0.05
+  wallcp(:,1) = 1.55E6
+  wallcp(:,2) = 1.55E6
+  wallcp(:,3) = 1.55E6
+  wallcp(:,4) = 0.29E6
+  wallcond(:,1) = 0.9338
+  wallcond(:,2) = 0.9338
+  wallcond(:,3) = 0.9338
+  wallcond(:,4) = 0.0500
+  slabthick(:,1) = 0.05
+  slabthick(:,2) = 0.05
+  slabthick(:,3) = 0.05
+  slabthick(:,4) = 0.05
+  slabcp(:,1) = 1.55E6
+  slabcp(:,2) = 1.55E6
+  slabcp(:,3) = 1.55E6
+  slabcp(:,4) = 1.55E6
+  slabcond(:,1) = 0.9338
+  slabcond(:,2) = 0.9338
+  slabcond(:,3) = 0.9338
+  slabcond(:,4) = 0.9338
+  roadthick(:,1) = 0.01
+  roadthick(:,2) = 0.04
+  roadthick(:,3) = 0.45
+  roadthick(:,4) = 3.5
+  roadcp(:,1) = 1.94E6
+  roadcp(:,2) = 1.94E6
+  roadcp(:,3) = 1.28E6
+  roadcp(:,4) = 1.28E6
+  roadcond(:,1) = 0.7454
+  roadcond(:,2) = 0.7454
+  roadcond(:,3) = 0.2513
+  roadcond(:,4) = 0.2513
 end if
 
 
@@ -1040,7 +1231,7 @@ do tt=1,mthrng
   call ncatt(ncidarr,'cableversion',3939.) ! CABLE version for data
   if ( outmode==1 ) then
     call ncatt(ncidarr,'cableformat',1.)
-    call ncatt(ncidarr,'atebformat',1.)
+    call ncatt(ncidarr,'atebformat',2.)
   else
     call ncatt(ncidarr,'cableformat',0.)
     call ncatt(ncidarr,'atebformat',0.)
@@ -1225,6 +1416,56 @@ do tt=1,mthrng
     outputdesc(2)='Canyon vegetation roughness length'
     outputdesc(3)='m'
     call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    do i = 1,4
+      write(outputdesc(1),'("roof_thick_l",(I1.1))') i
+      write(outputdesc(2),'("Roof layer ",(I1.1)," thickness")') i
+      outputdesc(3)='m'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+      write(outputdesc(1),'("roof_cp_l",(I1.1))') i
+      write(outputdesc(2),'("Roof layer ",(I1.1)," heat capacity")') i
+      outputdesc(3)='J/m3/K'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+      write(outputdesc(1),'("roof_cond_l",(I1.1))') i
+      write(outputdesc(2),'("Roof layer ",(I1.1)," heat conductivity")') i
+      outputdesc(3)='W/m/K'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+      write(outputdesc(1),'("wall_thick_l",(I1.1))') i
+      write(outputdesc(2),'("Wall layer ",(I1.1)," thickness")') i
+      outputdesc(3)='m'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+      write(outputdesc(1),'("wall_cp_l",(I1.1))') i
+      write(outputdesc(2),'("Wall layer ",(I1.1)," heat capacity")') i
+      outputdesc(3)='J/m3/K'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+      write(outputdesc(1),'("wall_cond_l",(I1.1))') i
+      write(outputdesc(2),'("Wall layer ",(I1.1)," heat conductivity")') i
+      outputdesc(3)='W/m/K'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+      write(outputdesc(1),'("slab_thick_l",(I1.1))') i
+      write(outputdesc(2),'("Slab layer ",(I1.1)," thickness")') i
+      outputdesc(3)='m'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+      write(outputdesc(1),'("slab_cp_l",(I1.1))') i
+      write(outputdesc(2),'("Slab layer ",(I1.1)," heat capacity")') i
+      outputdesc(3)='J/m3/K'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+      write(outputdesc(1),'("slab_cond_l",(I1.1))') i
+      write(outputdesc(2),'("Slab layer ",(I1.1)," heat conductivity")') i
+      outputdesc(3)='W/m/K'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+      write(outputdesc(1),'("road_thick_l",(I1.1))') i
+      write(outputdesc(2),'("Road layer ",(I1.1)," thickness")') i
+      outputdesc(3)='m'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+      write(outputdesc(1),'("road_cp_l",(I1.1))') i
+      write(outputdesc(2),'("Road layer ",(I1.1)," heat capacity")') i
+      outputdesc(3)='J/m3/K'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+      write(outputdesc(1),'("road_cond_l",(I1.1))') i
+      write(outputdesc(2),'("Road layer ",(I1.1)," heat conductivity")') i
+      outputdesc(3)='W/m/K'
+      call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    end do  
   end if
 
   call ncenddef(ncidarr)
@@ -1382,6 +1623,32 @@ do tt=1,mthrng
     call ncput_1dvar_real(ncidarr,'roadalpha',ateb_len,roadalpha)
     call ncput_1dvar_real(ncidarr,'vegalphac',ateb_len,vegalphac)
     call ncput_1dvar_real(ncidarr,'zovegc',ateb_len,zovegc)
+    do i = 1,4
+      write(vname,'("roof_thick_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,roofthick(:,i))
+      write(vname,'("roof_cp_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,roofcp(:,i))
+      write(vname,'("roof_cond_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,roofcond(:,i))
+      write(vname,'("wall_thick_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,wallthick(:,i))
+      write(vname,'("wall_cp_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,wallcp(:,i))
+      write(vname,'("wall_cond_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,wallcond(:,i))
+      write(vname,'("slab_thick_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,slabthick(:,i))
+      write(vname,'("slab_cp_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,slabcp(:,i))
+      write(vname,'("slab_cond_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,slabcond(:,i))
+      write(vname,'("road_thick_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,roadthick(:,i))
+      write(vname,'("road_cp_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,roadcp(:,i))
+      write(vname,'("road_cond_l",(I1.1))') i  
+      call ncput_1dvar_real(ncidarr,vname,ateb_len,roadcond(:,i))
+    end do  
   end if
   
   call ncclose(ncidarr)
@@ -1405,6 +1672,15 @@ deallocate(rdata)
 deallocate( mapindex, mapfrac, mapwater, mapice )
 deallocate( mapjveg )
 deallocate( sermsk )
+
+deallocate( ateb_desc )
+deallocate( bldheight, hwratio, sigvegc, sigmabld )
+deallocate( industryfg, trafficfg, roofalpha )
+deallocate( wallalpha, roadalpha, vegalphac, zovegc )
+deallocate( roofthick, roofcp, roofcond )
+deallocate( wallthick, wallcp, wallcond )
+deallocate( slabthick, slabcp, slabcond )
+deallocate( roadthick, roadcp, roadcond )
 
 return
 end
