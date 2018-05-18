@@ -81,15 +81,21 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
          eps, dx2, dy2, sumwts, coslong, sinlong, coslat, sinlat, zz, demu11, &
          demv11, demu21, demv21, demu31, demv31 
 
-   integer, dimension(ifull) :: i_nw, i_sw, i_es, i_ws 
-   real(kind=rx), dimension(ifull) :: axx, ayy, azz, bxx, byy, bzz
-   real(kind=rx), dimension(iquad,iquad) :: em4, ax4, ay4, az4, zz4
-   real(kind=rx), dimension(ifull) :: cosa
+   integer, dimension(:), allocatable :: i_nw, i_sw, i_es, i_ws 
+   real(kind=rx), dimension(:), allocatable :: axx, ayy, azz, bxx, byy, bzz
+   real(kind=rx), dimension(:,:), allocatable :: em4, ax4, ay4, az4, zz4
+   real(kind=rx), dimension(:), allocatable :: cosa
 
    integer :: ijk
 !  If abs(cos(lat)) < polelim than assume point is exactly at pole.
    real(kind=rx), parameter :: polelim = 10*epsilon(1.0)
 
+   ! Allocate local arrays
+   allocate( i_nw(ifull), i_sw(ifull), i_es(ifull), i_ws(ifull) ) 
+   allocate( axx(ifull), ayy(ifull), azz(ifull), bxx(ifull), byy(ifull), bzz(ifull) )
+   allocate( em4(iquad,iquad), ax4(iquad,iquad), ay4(iquad,iquad), az4(iquad,iquad), zz4(iquad,iquad) )
+   allocate( cosa(ifull) )
+   
 !  Allocate all the public arrays
    allocate ( xx4(iquad,iquad), yy4(iquad,iquad) )
    allocate ( i_n(ifull),  i_s(ifull), i_w(ifull), i_e(ifull), i_nn(ifull),   &
@@ -198,7 +204,7 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
          end do
       endif
 !     print *,"isb il/2,n ",is(ind(il/2,1,n)),n
-   end do ! n loop 
+   end do! n loop 
  
    i_nn = i_n(i_n) 
    i_ss = i_s(i_s) 
@@ -384,10 +390,10 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
                     i0, j0, n0, in0, jn0, nn0, is0, js0, ns0, ie0, je0,     &
                     ne0, iw0, jw0, nw0, inn0, jnn0, nnn0, iss0, jss0, nss0, &
                     iee0, jee0, nee0, iww0, jww0, nww0 
-            end do ! i loop 
-         end do ! j loop 
-      end do ! n loop 
-   endif ! (diag.eq.3) 
+            end do! i loop 
+         end do! j loop 
+      end do! n loop 
+   endif! (diag.eq.3) 
  
 !----------------------------------------------------------------------------
 !  calculate grid information using quadruple resolution grid
@@ -467,7 +473,7 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
       end if
 !     x, y, z are coords on sphere  -1 to 1 
       call norm ( x, y, z ) 
-   endif ! (npanels.eq.5) 
+   endif! (npanels.eq.5) 
  
    if (npanels == 13) then 
       if ( ntang /= 2 ) then 
@@ -512,8 +518,8 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
             x(ind(i,il+1-j,4)) = -x(ind(i,j,4))
             y(ind(i,il+1-j,4)) =  y(ind(i,j,4))
             z(ind(i,il+1-j,4)) =  z(ind(i,j,4))
-         enddo ! i loop
-      enddo ! j loop
+         enddo! i loop
+      enddo! j loop
       do jx=1,il
          jj=4*(jx+il) -2*il -1
          do iy=jx,il             ! SW half of panel 6
@@ -533,7 +539,7 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
             y(ind(i,jx,2)) = -y(ind(il+1-i,jx,2))
             z(ind(i,jx,2)) =  z(ind(il+1-i,jx,2))
          enddo  ! i loop
-      enddo ! jx loop
+      enddo! jx loop
 !!$c                      nn=2
 !!$c                      print *,'x for panel ',nn
 !!$c                      do j=il,1,-1
@@ -598,7 +604,7 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
          yy4(ii,jj) = temp 
       end do! ii loop 
       end do! jj loop 
-   endif ! (npanels.eq.13) 
+   endif! (npanels.eq.13) 
  
    if ( diag /= 0 ) then
       print *, "basic grid length ds =", ds 
@@ -625,8 +631,8 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
                write(unit=*,fmt="(a,3f7.3,2x,3f7.3)")  &
                     " xin,yin,zin,x,y,z ", xin, yin, zin, x(iq), y(iq), z(iq) 
             end if
-         end do ! n loop 
-      end do ! iq loop 
+         end do! n loop 
+      end do! iq loop 
  
       if (ntang /= 2) then 
 !        With schmidt must average em to get emu & emv
@@ -634,7 +640,7 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
          emu(1:ifull) = 0.5_rx * ( em + em(i_e) ) 
          emv(1:ifull) = 0.5_rx * ( em + em(i_n) ) 
       endif
-   endif !  (schmidt.ne.1.0) 
+   endif!  (schmidt.ne.1.0) 
  
 !!$      if (diag == 2) call printp ("x   ", x) 
 !!$      if (diag == 2) call printp ("y   ", y) 
@@ -667,7 +673,7 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
             print *, "iq,x,y,z w ", iq, x(i_w(iq)), y(i_w(iq)), z(i_w(iq)) 
             print *, "iq,x,y,z s ", iq, x(i_s(iq)), y(i_s(iq)), z(i_s(iq)) 
          end if
-      end do ! iq loop 
+      end do! iq loop 
 
 !     Form axx and bxx tangential to the sphere
       call cross3 (axx, ayy, azz, bx(1:ifull), by(1:ifull), bz(1:ifull), &
@@ -710,8 +716,8 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
 !        emu = 1.0 / emu
 !        emv = 1.0 / emv
          emuv = 1.0 / emuv
-      endif ! (ntang.eq.2) 
-   endif ! (ntang.eq.0) 
+      endif! (ntang.eq.2) 
+   endif! (ntang.eq.0) 
    if ( diag /= 0 ) then
       do iq = il - 2, il 
          print *, "iq,em,emu,emv", iq, em(iq), emu(iq), emv(iq) 
@@ -902,6 +908,11 @@ subroutine setxyz ( il, jl, kl, npanels, ifull, iquad, diag, id, jd,        &
  
 !!!contains
 
+   deallocate( i_nw, i_sw, i_es, i_ws ) 
+   deallocate( axx, ayy, azz, bxx, byy, bzz )
+   deallocate( em4, ax4, ay4, az4, zz4 )
+   deallocate( cosa )
+   
 end subroutine setxyz
 
 subroutine vecpanel(ax, ay, az) 
