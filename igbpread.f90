@@ -597,7 +597,7 @@ coverout=0.
 
 Do ilat=1,lldim(2)
 
-  if ((mod(ilat,10).eq.0).or.(ilat.eq.lldim(2))) then
+  if ((mod(ilat,50).eq.0).or.(ilat.eq.lldim(2))) then
     Write(6,*) 'USGS + LAI - ',ilat,'/',lldim(2)
   end if
   
@@ -767,7 +767,7 @@ Call solvejshift(latlon(1),jin,jout,30)
 
 Do ilat=1,lldim_4(2)
 
-  if ((mod(ilat,10).eq.0).or.(ilat.eq.lldim_4(2))) then
+  if ((mod(ilat,50).eq.0).or.(ilat.eq.lldim_4(2))) then
     Write(6,*) 'HWSD - ',ilat,'/',lldim_4(2)
   end if
   
@@ -869,7 +869,7 @@ end if
 
 Do ilat=1,lldim_4(2)
 
-  if ( mod(ilat,10)==0 .or. ilat==lldim_4(2) ) then
+  if ( mod(ilat,50)==0 .or. ilat==lldim_4(2) ) then
     Write(6,*) cmsg,ilat,'/',lldim_4(2)
   end if
   
@@ -1059,7 +1059,7 @@ lrp=-1
 
 Do ilat=1,21600
 
-  if (mod(ilat,10).eq.0) then
+  if (mod(ilat,50).eq.0) then
     Write(6,*) 'USGS + LAI - ',ilat,'/ 21600'
   end if
   
@@ -1217,7 +1217,7 @@ end if
 
 Do ilat=1,5400
 
-  if (mod(ilat,10).eq.0) then
+  if (mod(ilat,50).eq.0) then
     Write(6,*) 'HWSD - ',ilat,'/ 5400'
   end if
   
@@ -1325,7 +1325,7 @@ end if
 Do ilat=1,5400
   aglat=callat(90.,ilat,4)
 
-  if (mod(ilat,10).eq.0) then
+  if (mod(ilat,50).eq.0) then
     Write(6,*) cmsg,ilat,'/ 5400'
   end if
   
