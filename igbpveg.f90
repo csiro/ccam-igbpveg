@@ -28,7 +28,7 @@ Implicit None
 include 'version.h'
 
 character*1024, dimension(:,:), allocatable :: options
-character*1024, dimension(13) :: fname
+character*1024, dimension(14) :: fname
 character*1024 topofile
 character*1024 landtypeout
 character*1024 newtopofile
@@ -36,6 +36,7 @@ character*1024 outputmode
 character*1024 veginput, soilinput, laiinput, albvisinput, albnirinput
 character*1024 pftconfig, mapconfig, atebconfig
 character*1024 user_veginput, user_laiinput
+character*1024 soilconfig
 integer binlimit, nopts, month
 integer outmode
 logical fastigbp,igbplsmask,ozlaipatch,tile,zerozs
@@ -48,7 +49,7 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  albnirinput,pftconfig,mapconfig,    &
                  atebconfig,                         &
                  user_veginput, user_laiinput,       &
-                 zerozs
+                 zerozs,soilconfig
 
 ! Start banner
 write(6,*) "=============================================================================="
@@ -105,6 +106,7 @@ fname(10)=mapconfig
 fname(11)=user_veginput
 fname(12)=user_laiinput
 fname(13)=atebconfig
+fname(14)=soilconfig
 
 outmode=0
 if ( outputmode=='cablepft' ) then
@@ -178,6 +180,7 @@ write(6,*) '    mapconfig="def_veg_mapping.txt"'
 write(6,*) '    atebconfig="def_urban_params.txt"'
 write(6,*) '    user_veginput="myveg.nc"'
 write(6,*) '    user_laiinput="mylai.nc"'
+write(6,*) '    soilconfig="def_soil_params.txt"'
 Write(6,*) '  &end'
 Write(6,*)
 Write(6,*) '  where:'
@@ -215,6 +218,7 @@ write(6,*) '                    PFTs defined in pftconfig'
 write(6,*) '    atebconfig    = Location of the aTEB definition file'
 write(6,*) '    user_veginput = Location of user modified vegetation'
 write(6,*) '    user_laiinput = Location of user modified LAI'
+write(6,*) '    soilconfig    = Location of the Soil definition file'
 Write(6,*)
 Write(6,*) 'NOTES: fastigbp mode will speed up the code by aggregating'
 Write(6,*) '       land-use data at a coarser resolution before'
@@ -313,11 +317,13 @@ logical, dimension(:), allocatable :: sermsk
 
 integer :: pft_len = 18
 integer :: class_num = 17
-integer, parameter :: ch_len = 40 ! also defined in ncwrite.f90
+integer, parameter :: ch_len = 50 ! also defined in ncwrite.f90
 integer pft_dimid, ioerror, jveg
 integer maxindex, iposbeg, iposend
 integer :: ateb_len = 8
 integer ateb_dimid, jateb
+integer :: soil_len = 9
+integer soil_dimid
 integer, dimension(:), allocatable :: mapjveg
 integer, dimension(:,:), allocatable :: mapindex
 real notused
@@ -337,8 +343,20 @@ real, dimension(:), allocatable :: gswmin, conkc0, conko0, ekc, eko, g0, g1
 real, dimension(:), allocatable :: zr, clitt
 real, dimension(:,:), allocatable :: refl, taul
 real, dimension(:,:), allocatable :: mapfrac
+real, dimension(:), allocatable :: silt
+real, dimension(:), allocatable :: clay
+real, dimension(:), allocatable :: sand
+real, dimension(:), allocatable :: swilt
+real, dimension(:), allocatable :: sfc
+real, dimension(:), allocatable :: ssat
+real, dimension(:), allocatable :: bch
+real, dimension(:), allocatable :: hyds
+real, dimension(:), allocatable :: sucs
+real, dimension(:), allocatable :: rhosoil
+real, dimension(:), allocatable :: css
 character(len=ch_len), dimension(:), allocatable :: pft_desc
 character(len=ch_len), dimension(:), allocatable :: ateb_desc
+character(len=ch_len), dimension(:), allocatable :: soil_desc
 character(len=256) :: comments, largestring
 character(len=10) :: vegtypetmp
 character(len=25) :: vegnametmp, atebtypetmp
@@ -346,6 +364,7 @@ character(len=25) :: jdesc, kdesc
 character(len=25) :: vname
 logical, dimension(:), allocatable :: mapwater, mapice
 logical :: testurban, testwater, testice, matchfound
+character(len=2) :: dum
 
 mthrng=1
 if ( month==0 ) then
@@ -580,6 +599,131 @@ else
         0.000000, 5.248500, 5.248500, 5.248500, 5.248500, 2.346064 /)
   zr=(/ 1.8, 3., 2., 2., 2.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1.8, 3.1, 3., 1., 1., 1., 1., 3. /)
   clitt=(/ 20., 6., 10., 13., 2., 2., 0.3, 0.3, 0., 0., 2., 2., 0., 0., 0., 0., 0., 6. /) 
+  
+end if
+
+! process soil parameters
+if ( fname(14)/='' .and. outmode==1 ) then
+    
+  write(6,*) "Defining user specified soil parameters"
+  open(unit=40,file=fname(14),status='old',action='read',iostat=ioerror)
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot open soilconfig file ",trim(fname(14))
+    call finishbanner
+    stop -1
+  end if
+  
+  read(40,*) comments
+  read(40,*) comments
+  read(40,*) soil_len
+
+  allocate( soil_desc(soil_len) )
+  allocate( silt(soil_len) )
+  allocate( clay(soil_len) )
+  allocate( sand(soil_len) )
+  allocate( swilt(soil_len) )
+  allocate( sfc(soil_len) )
+  allocate( ssat(soil_len) )
+  allocate( bch(soil_len) )
+  allocate( hyds(soil_len) )
+  allocate( sucs(soil_len) )
+  allocate( rhosoil(soil_len) )
+  allocate( css(soil_len) )
+
+  read(40,*) comments
+  read(40,*) comments
+  do i = 1,soil_len
+    !read(40,*) comments !soil type description
+    read(40,'(a2,i6,a)') dum, j, soil_desc(i) 
+    if ( ioerror/=0 ) then
+      write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+      write(6,*) "Formatting error in line",5+i,"reading soil type description"
+      if ( i /= j ) then
+        write(6,*) "soil index does is not sequential"
+      end if
+      call finishbanner
+      stop -1
+    end if
+  end do
+  read(40,*) comments
+  read(40,*) comments
+  read(40,*,iostat=ioerror) silt
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+    write(6,*) "Formatting error in line",7+soil_len+1,"reading silt fraction"
+    call finishbanner
+    stop -1
+  end if
+  read(40,*,iostat=ioerror) clay
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+    write(6,*) "Formatting error in line",8+soil_len+1,"reading clay fraction"
+    call finishbanner
+    stop -1
+  end if
+  read(40,*,iostat=ioerror) sand
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+    write(6,*) "Formatting error in line",9+soil_len+1,"reading sand fraction"
+    call finishbanner
+    stop -1
+  end if
+  read(40,*,iostat=ioerror) swilt
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+    write(6,*) "Formatting error in line",10+soil_len+1,"reading swilt"
+    call finishbanner
+    stop -1
+  end if
+  read(40,*,iostat=ioerror) sfc
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+    write(6,*) "Formatting error in line",11+soil_len+1,"reading sfc"
+    call finishbanner
+    stop -1
+  end if
+  read(40,*,iostat=ioerror) ssat
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+    write(6,*) "Formatting error in line",12+soil_len+1,"reading ssat"
+    call finishbanner
+    stop -1
+  end if
+  read(40,*,iostat=ioerror) bch
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+    write(6,*) "Formatting error in line",13+soil_len+1,"reading bch"
+    call finishbanner
+    stop -1
+  end if
+  read(40,*,iostat=ioerror) hyds
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+    write(6,*) "Formatting error in line",14+soil_len+1,"reading hyds"
+    call finishbanner
+    stop -1
+  end if
+  read(40,*,iostat=ioerror) sucs
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+    write(6,*) "Formatting error in line",15+soil_len+1,"reading sucs"
+    call finishbanner
+    stop -1
+  end if
+  read(40,*,iostat=ioerror) rhosoil
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+    write(6,*) "Formatting error in line",16+soil_len+1,"reading rhosoil"
+    call finishbanner
+    stop -1
+  end if
+  read(40,*,iostat=ioerror) css
+  if ( ioerror/=0 ) then
+    write(6,*) "ERROR: Cannot read soilconfig file ",trim(fname(14))
+    write(6,*) "Formatting error in line",17+soil_len+1,"reading css"
+    call finishbanner
+    stop -1
+  end if
   
 end if
 
@@ -1132,6 +1276,7 @@ do tt=1,mthrng
   if ( outmode==1 ) then
     call ncadd_dimension(ncidarr,'pft',pft_len,pft_dimid)
     call ncadd_dimension(ncidarr,'ateb',ateb_len,ateb_dimid)
+    call ncadd_dimension(ncidarr,'soil',soil_len,soil_dimid)
   end if
   outputdesc(1)='soilt'
   outputdesc(2)='Soil classification'
@@ -1232,9 +1377,11 @@ do tt=1,mthrng
   if ( outmode==1 ) then
     call ncatt(ncidarr,'cableformat',1.)
     call ncatt(ncidarr,'atebformat',2.)
+    call ncatt(ncidarr,'soilformat',1.)
   else
     call ncatt(ncidarr,'cableformat',0.)
     call ncatt(ncidarr,'atebformat',0.)
+    call ncatt(ncidarr,'soilformat',0.)
   end if
 
   ! PFT metadata
@@ -1466,6 +1613,55 @@ do tt=1,mthrng
       outputdesc(3)='W/m/K'
       call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
     end do  
+
+    outputdesc(1)='soilname'
+    outputdesc(2)='Soil type description'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,2,soil_dimid)
+    outputdesc(1)='silt'
+    outputdesc(2)='Silt fraction of soil'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    outputdesc(1)='clay'
+    outputdesc(2)='Clay fraction of soil'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    outputdesc(1)='sand'
+    outputdesc(2)='Sand fraction of soil'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    outputdesc(1)='swilt'
+    outputdesc(2)='H2O volume at wilting'
+    outputdesc(3)='m3'
+    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    outputdesc(1)='sfc'
+    outputdesc(2)='H2O volume at field capacity'
+    outputdesc(3)='m3'
+    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    outputdesc(1)='ssat'
+    outputdesc(2)='H2O volume at saturation'
+    outputdesc(3)='m3'
+    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    outputdesc(1)='bch'
+    outputdesc(2)='Parameter b in Campbell equation'
+    outputdesc(3)='unknown'
+    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    outputdesc(1)='hyds'
+    outputdesc(2)='Hydraulic conductivity at saturation'
+    outputdesc(3)='m/s'
+    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    outputdesc(1)='sucs'
+    outputdesc(2)='Suction at saturation'
+    outputdesc(3)='m'
+    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    outputdesc(1)='rhosoil'
+    outputdesc(2)='Soil density'
+    outputdesc(3)='kg/m3'
+    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    outputdesc(1)='css'
+    outputdesc(2)='Specific heat capacity of soil'
+    outputdesc(3)='kJ/kg/K'
+    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
   end if
 
   call ncenddef(ncidarr)
@@ -1649,6 +1845,18 @@ do tt=1,mthrng
       write(vname,'("road_cond_l",(I1.1))') i  
       call ncput_1dvar_real(ncidarr,vname,ateb_len,roadcond(:,i))
     end do  
+    call ncput_1dvar_text(ncidarr,'soilname',soil_len,soil_desc)
+    call ncput_1dvar_real(ncidarr,'silt',soil_len,silt)
+    call ncput_1dvar_real(ncidarr,'clay',soil_len,clay)
+    call ncput_1dvar_real(ncidarr,'sand',soil_len,sand)
+    call ncput_1dvar_real(ncidarr,'swilt',soil_len,swilt)
+    call ncput_1dvar_real(ncidarr,'sfc',soil_len,sfc)
+    call ncput_1dvar_real(ncidarr,'ssat',soil_len,ssat)
+    call ncput_1dvar_real(ncidarr,'bch',soil_len,bch)
+    call ncput_1dvar_real(ncidarr,'hyds',soil_len,hyds)
+    call ncput_1dvar_real(ncidarr,'sucs',soil_len,sucs)
+    call ncput_1dvar_real(ncidarr,'rhosoil',soil_len,rhosoil)
+    call ncput_1dvar_real(ncidarr,'css',soil_len,css)
   end if
   
   call ncclose(ncidarr)
@@ -1681,6 +1889,9 @@ deallocate( roofthick, roofcp, roofcond )
 deallocate( wallthick, wallcp, wallcond )
 deallocate( slabthick, slabcp, slabcond )
 deallocate( roadthick, roadcp, roadcond )
+
+deallocate( silt, clay, sand, swilt, sfc, ssat )
+deallocate( bch, hyds, sucs, rhosoil, css )
 
 return
 end
