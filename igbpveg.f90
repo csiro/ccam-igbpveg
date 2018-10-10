@@ -86,6 +86,7 @@ ozlaipatch=.false.
 user_veginput=''
 user_laiinput=''
 zerozs=.true.
+soilconfig=''
 
 ! Read namelist
 write(6,*) 'Input &vegnml namelist'
@@ -1276,7 +1277,9 @@ do tt=1,mthrng
   if ( outmode==1 ) then
     call ncadd_dimension(ncidarr,'pft',pft_len,pft_dimid)
     call ncadd_dimension(ncidarr,'ateb',ateb_len,ateb_dimid)
-    call ncadd_dimension(ncidarr,'soil',soil_len,soil_dimid)
+    if ( fname(14)/='' ) then
+      call ncadd_dimension(ncidarr,'soil',soil_len,soil_dimid)
+    end if
   end if
   outputdesc(1)='soilt'
   outputdesc(2)='Soil classification'
@@ -1377,11 +1380,15 @@ do tt=1,mthrng
   if ( outmode==1 ) then
     call ncatt(ncidarr,'cableformat',1.)
     call ncatt(ncidarr,'atebformat',2.)
-    call ncatt(ncidarr,'soilformat',1.)
+    if ( fname(14)/='' ) then
+      call ncatt(ncidarr,'soilformat',1.)
+    end if
   else
     call ncatt(ncidarr,'cableformat',0.)
     call ncatt(ncidarr,'atebformat',0.)
-    call ncatt(ncidarr,'soilformat',0.)
+    if ( fname(14)/='' ) then
+      call ncatt(ncidarr,'soilformat',0.)
+    end if
   end if
 
   ! PFT metadata
@@ -1614,54 +1621,56 @@ do tt=1,mthrng
       call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
     end do  
 
-    outputdesc(1)='soilname'
-    outputdesc(2)='Soil type description'
-    outputdesc(3)='none'
-    call ncadd_1dvar(ncidarr,outputdesc,2,soil_dimid)
-    outputdesc(1)='silt'
-    outputdesc(2)='Silt fraction of soil'
-    outputdesc(3)='none'
-    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
-    outputdesc(1)='clay'
-    outputdesc(2)='Clay fraction of soil'
-    outputdesc(3)='none'
-    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
-    outputdesc(1)='sand'
-    outputdesc(2)='Sand fraction of soil'
-    outputdesc(3)='none'
-    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
-    outputdesc(1)='swilt'
-    outputdesc(2)='H2O volume at wilting'
-    outputdesc(3)='m3'
-    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
-    outputdesc(1)='sfc'
-    outputdesc(2)='H2O volume at field capacity'
-    outputdesc(3)='m3'
-    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
-    outputdesc(1)='ssat'
-    outputdesc(2)='H2O volume at saturation'
-    outputdesc(3)='m3'
-    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
-    outputdesc(1)='bch'
-    outputdesc(2)='Parameter b in Campbell equation'
-    outputdesc(3)='unknown'
-    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
-    outputdesc(1)='hyds'
-    outputdesc(2)='Hydraulic conductivity at saturation'
-    outputdesc(3)='m/s'
-    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
-    outputdesc(1)='sucs'
-    outputdesc(2)='Suction at saturation'
-    outputdesc(3)='m'
-    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
-    outputdesc(1)='rhosoil'
-    outputdesc(2)='Soil density'
-    outputdesc(3)='kg/m3'
-    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
-    outputdesc(1)='css'
-    outputdesc(2)='Specific heat capacity of soil'
-    outputdesc(3)='kJ/kg/K'
-    call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    if ( fname(14)/='' ) then
+      outputdesc(1)='soilname'
+      outputdesc(2)='Soil type description'
+      outputdesc(3)='none'
+      call ncadd_1dvar(ncidarr,outputdesc,2,soil_dimid)
+      outputdesc(1)='silt'
+      outputdesc(2)='Silt fraction of soil'
+      outputdesc(3)='none'
+      call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+      outputdesc(1)='clay'
+      outputdesc(2)='Clay fraction of soil'
+      outputdesc(3)='none'
+      call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+      outputdesc(1)='sand'
+      outputdesc(2)='Sand fraction of soil'
+      outputdesc(3)='none'
+      call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+      outputdesc(1)='swilt'
+      outputdesc(2)='H2O volume at wilting'
+      outputdesc(3)='m3'
+      call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+      outputdesc(1)='sfc'
+      outputdesc(2)='H2O volume at field capacity'
+      outputdesc(3)='m3'
+      call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+      outputdesc(1)='ssat'
+      outputdesc(2)='H2O volume at saturation'
+      outputdesc(3)='m3'
+      call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+      outputdesc(1)='bch'
+      outputdesc(2)='Parameter b in Campbell equation'
+      outputdesc(3)='unknown'
+      call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+      outputdesc(1)='hyds'
+      outputdesc(2)='Hydraulic conductivity at saturation'
+      outputdesc(3)='m/s'
+      call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+      outputdesc(1)='sucs'
+      outputdesc(2)='Suction at saturation'
+      outputdesc(3)='m'
+      call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+      outputdesc(1)='rhosoil'
+      outputdesc(2)='Soil density'
+      outputdesc(3)='kg/m3'
+      call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+      outputdesc(1)='css'
+      outputdesc(2)='Specific heat capacity of soil'
+      outputdesc(3)='kJ/kg/K'
+      call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
+    end if
   end if
 
   call ncenddef(ncidarr)
@@ -1845,18 +1854,20 @@ do tt=1,mthrng
       write(vname,'("road_cond_l",(I1.1))') i  
       call ncput_1dvar_real(ncidarr,vname,ateb_len,roadcond(:,i))
     end do  
-    call ncput_1dvar_text(ncidarr,'soilname',soil_len,soil_desc)
-    call ncput_1dvar_real(ncidarr,'silt',soil_len,silt)
-    call ncput_1dvar_real(ncidarr,'clay',soil_len,clay)
-    call ncput_1dvar_real(ncidarr,'sand',soil_len,sand)
-    call ncput_1dvar_real(ncidarr,'swilt',soil_len,swilt)
-    call ncput_1dvar_real(ncidarr,'sfc',soil_len,sfc)
-    call ncput_1dvar_real(ncidarr,'ssat',soil_len,ssat)
-    call ncput_1dvar_real(ncidarr,'bch',soil_len,bch)
-    call ncput_1dvar_real(ncidarr,'hyds',soil_len,hyds)
-    call ncput_1dvar_real(ncidarr,'sucs',soil_len,sucs)
-    call ncput_1dvar_real(ncidarr,'rhosoil',soil_len,rhosoil)
-    call ncput_1dvar_real(ncidarr,'css',soil_len,css)
+    if ( fname(14)/='' ) then
+      call ncput_1dvar_text(ncidarr,'soilname',soil_len,soil_desc)
+      call ncput_1dvar_real(ncidarr,'silt',soil_len,silt)
+      call ncput_1dvar_real(ncidarr,'clay',soil_len,clay)
+      call ncput_1dvar_real(ncidarr,'sand',soil_len,sand)
+      call ncput_1dvar_real(ncidarr,'swilt',soil_len,swilt)
+      call ncput_1dvar_real(ncidarr,'sfc',soil_len,sfc)
+      call ncput_1dvar_real(ncidarr,'ssat',soil_len,ssat)
+      call ncput_1dvar_real(ncidarr,'bch',soil_len,bch)
+      call ncput_1dvar_real(ncidarr,'hyds',soil_len,hyds)
+      call ncput_1dvar_real(ncidarr,'sucs',soil_len,sucs)
+      call ncput_1dvar_real(ncidarr,'rhosoil',soil_len,rhosoil)
+      call ncput_1dvar_real(ncidarr,'css',soil_len,css)
+    end if
   end if
   
   call ncclose(ncidarr)
@@ -1890,8 +1901,10 @@ deallocate( wallthick, wallcp, wallcond )
 deallocate( slabthick, slabcp, slabcond )
 deallocate( roadthick, roadcp, roadcond )
 
-deallocate( silt, clay, sand, swilt, sfc, ssat )
-deallocate( bch, hyds, sucs, rhosoil, css )
+if ( fname(14)/='' .and. outmode==1 ) then
+  deallocate( silt, clay, sand, swilt, sfc, ssat )
+  deallocate( bch, hyds, sucs, rhosoil, css )
+end if
 
 return
 end
