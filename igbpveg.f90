@@ -1652,7 +1652,7 @@ do tt=1,mthrng
       call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
       outputdesc(1)='bch'
       outputdesc(2)='Parameter b in Campbell equation'
-      outputdesc(3)='unknown'
+      outputdesc(3)='none'
       call ncadd_1dvar(ncidarr,outputdesc,5,soil_dimid)
       outputdesc(1)='hyds'
       outputdesc(2)='Hydraulic conductivity at saturation'
