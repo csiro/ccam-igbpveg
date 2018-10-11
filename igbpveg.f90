@@ -1380,7 +1380,11 @@ do tt=1,mthrng
   if ( outmode==1 ) then
     call ncatt(ncidarr,'cableformat',1.)
     call ncatt(ncidarr,'atebformat',2.)
-    call ncatt(ncidarr,'soilformat',1.)
+    if ( fname(14)/='' ) then
+      call ncatt(ncidarr,'soilformat',1.)
+    else
+      call ncatt(ncidarr,'soilformat',0.)
+    end if
   else
     call ncatt(ncidarr,'cableformat',0.)
     call ncatt(ncidarr,'atebformat',0.)

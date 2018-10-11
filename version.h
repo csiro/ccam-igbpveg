@@ -1,1 +1,1 @@
-      character(len=*), parameter :: version ='IGBPVEG r4067'
+      character(len=*), parameter :: version ='IGBPVEG r4067:4068M'
