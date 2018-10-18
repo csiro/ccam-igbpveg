@@ -1679,6 +1679,26 @@ do tt=1,mthrng
       outputdesc(3)='W/m/K'
       call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
     end do  
+    outputdesc(1)='infiltration'
+    outputdesc(2)='Infiltration air volume changes per hour'
+    outputdesc(3)='m3/m3'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='internalgain'
+    outputdesc(2)='Internal gains sensible heat flux'
+    outputdesc(3)='W/m2'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='bldtemp'
+    outputdesc(2)='Comfort temperature'
+    outputdesc(3)='K'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='heatprop'
+    outputdesc(2)='Fraction of spaces with heating devices'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='coolprop'
+    outputdesc(2)='Fraction of spaces with cooling devices'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
     outputdesc(1)='soilname'
     outputdesc(2)='Soil type description'
     outputdesc(3)='none'
