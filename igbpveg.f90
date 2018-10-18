@@ -335,6 +335,8 @@ real, dimension(:), allocatable :: rootbeta, c4frac, vbeta
 real, dimension(:), allocatable :: bldheight, hwratio, sigvegc, sigmabld
 real, dimension(:), allocatable :: industryfg, trafficfg, roofalpha
 real, dimension(:), allocatable :: wallalpha, roadalpha, vegalphac, zovegc
+real, dimension(:), allocatable :: infiltration, internalgain, bldtemp
+real, dimension(:), allocatable :: heatprop, coolprop
 real, dimension(:,:), allocatable :: roofthick, roofcp, roofcond
 real, dimension(:,:), allocatable :: wallthick, wallcp, wallcond
 real, dimension(:,:), allocatable :: slabthick, slabcp, slabcond
@@ -788,6 +790,8 @@ if ( fname(13)/='' .and. outmode==1 ) then
   allocate( bldheight(ateb_len), hwratio(ateb_len), sigvegc(ateb_len), sigmabld(ateb_len) )
   allocate( industryfg(ateb_len), trafficfg(ateb_len), roofalpha(ateb_len) )
   allocate( wallalpha(ateb_len), roadalpha(ateb_len), vegalphac(ateb_len), zovegc(ateb_len) )
+  allocate( infiltration(ateb_len), internalgain(ateb_len), bldtemp(ateb_len) )
+  allocate( heatprop(ateb_len), coolprop(ateb_len) )
   allocate( roofthick(ateb_len,4), roofcp(ateb_len,4), roofcond(ateb_len,4) )
   allocate( wallthick(ateb_len,4), wallcp(ateb_len,4), wallcond(ateb_len,4) )
   allocate( slabthick(ateb_len,4), slabcp(ateb_len,4), slabcond(ateb_len,4) )
@@ -840,6 +844,11 @@ if ( fname(13)/='' .and. outmode==1 ) then
   roadcond(:,2) = 0.7454
   roadcond(:,3) = 0.2513
   roadcond(:,4) = 0.2513
+  infiltration(:) = 0.5
+  internalgain(:) = 50.
+  bldtemp(:) = 291.16
+  heatprop(:) = 1.
+  coolprop(:) = 1.
   
   do i = 1,ateb_len
         
@@ -881,7 +890,7 @@ if ( fname(13)/='' .and. outmode==1 ) then
       stop -1
     end if
     
-    ! new format
+    ! v2 format    
     read(40,*,iostat=ioerror) roofthick(i,1),roofthick(i,2),roofthick(i,3),roofthick(i,4)
     if ( ioerror==0 ) then
       read(40,*,iostat=ioerror) roofcp(i,1),roofcp(i,2),roofcp(i,3),roofcp(i,4)    
@@ -962,6 +971,18 @@ if ( fname(13)/='' .and. outmode==1 ) then
         stop -1
       end if 
     end if
+    
+    ! v3 format
+    read(40,*,iostat=ioerror) infiltration(i),internalgain(i),bldtemp(i)
+    if ( ioerror==0 ) then
+      read(40,*,iostat=ioerror) heatprop(i),coolprop(i)
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 19 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if 
+    end if
       
   end do
   
@@ -974,6 +995,8 @@ else
   allocate( bldheight(ateb_len), hwratio(ateb_len), sigvegc(ateb_len), sigmabld(ateb_len) )
   allocate( industryfg(ateb_len), trafficfg(ateb_len), roofalpha(ateb_len) )
   allocate( wallalpha(ateb_len), roadalpha(ateb_len), vegalphac(ateb_len), zovegc(ateb_len) )
+  allocate( infiltration(ateb_len), internalgain(ateb_len), bldtemp(ateb_len) )
+  allocate( heatprop(ateb_len), coolprop(ateb_len) )
   allocate( roofthick(ateb_len,4), roofcp(ateb_len,4), roofcond(ateb_len,4) )
   allocate( wallthick(ateb_len,4), wallcp(ateb_len,4), wallcond(ateb_len,4) )
   allocate( slabthick(ateb_len,4), slabcp(ateb_len,4), slabcond(ateb_len,4) )
@@ -1045,6 +1068,11 @@ else
   roadcond(:,2) = 0.7454
   roadcond(:,3) = 0.2513
   roadcond(:,4) = 0.2513
+  infiltration(:) = 0.5
+  internalgain(:) = 50.
+  bldtemp(:) = 291.16
+  heatprop(:) = 1.
+  coolprop(:) = 1.
 end if
 
 
@@ -1882,6 +1910,11 @@ do tt=1,mthrng
       write(vname,'("road_cond_l",(I1.1))') i  
       call ncput_1dvar_real(ncidarr,vname,ateb_len,roadcond(:,i))
     end do  
+    call ncput_1dvar_real(ncidarr,'infiltration',ateb_len,infiltration)
+    call ncput_1dvar_real(ncidarr,'internalgain',ateb_len,internalgain)
+    call ncput_1dvar_real(ncidarr,'bldtemp',ateb_len,bldtemp)
+    call ncput_1dvar_real(ncidarr,'heatprop',ateb_len,heatprop)
+    call ncput_1dvar_real(ncidarr,'coolprop',ateb_len,coolprop)
     call ncput_1dvar_text(ncidarr,'soilname',soil_len,soil_desc)
     call ncput_1dvar_real(ncidarr,'silt',soil_len,silt)
     call ncput_1dvar_real(ncidarr,'clay',soil_len,clay)
@@ -1922,6 +1955,8 @@ deallocate( ateb_desc )
 deallocate( bldheight, hwratio, sigvegc, sigmabld )
 deallocate( industryfg, trafficfg, roofalpha )
 deallocate( wallalpha, roadalpha, vegalphac, zovegc )
+deallocate( infiltration, internalgain, bldtemp )
+deallocate( heatprop, coolprop )
 deallocate( roofthick, roofcp, roofcond )
 deallocate( wallthick, wallcp, wallcond )
 deallocate( slabthick, slabcp, slabcond )
