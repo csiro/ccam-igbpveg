@@ -1442,7 +1442,7 @@ do tt=1,mthrng
   call ncatt(ncidarr,'cableversion',3939.) ! CABLE version for data
   if ( outmode==1 ) then
     call ncatt(ncidarr,'cableformat',1.)
-    call ncatt(ncidarr,'atebformat',2.)
+    call ncatt(ncidarr,'atebformat',3.)
     call ncatt(ncidarr,'soilformat',1.)
   else
     call ncatt(ncidarr,'cableformat',0.)
