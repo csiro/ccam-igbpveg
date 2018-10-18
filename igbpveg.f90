@@ -847,8 +847,8 @@ if ( fname(13)/='' .and. outmode==1 ) then
   infiltration(:) = 0.5
   internalgain(:) = 50.
   bldtemp(:) = 291.16
-  heatprop(:) = 1.
-  coolprop(:) = 1.
+  heatprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
+  coolprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
   
   do i = 1,ateb_len
         
@@ -1071,8 +1071,8 @@ else
   infiltration(:) = 0.5
   internalgain(:) = 50.
   bldtemp(:) = 291.16
-  heatprop(:) = 1.
-  coolprop(:) = 1.
+  heatprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
+  coolprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
 end if
 
 
