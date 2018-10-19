@@ -845,7 +845,7 @@ if ( fname(13)/='' .and. outmode==1 ) then
   roadcond(:,3) = 0.2513
   roadcond(:,4) = 0.2513
   infiltration(:) = 0.5
-  internalgain(:) = 50.
+  internalgain(:) = 5.
   bldtemp(:) = 291.16
   heatprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
   coolprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
@@ -1069,7 +1069,7 @@ else
   roadcond(:,3) = 0.2513
   roadcond(:,4) = 0.2513
   infiltration(:) = 0.5
-  internalgain(:) = 50.
+  internalgain(:) = 5.
   bldtemp(:) = 291.16
   heatprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
   coolprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
