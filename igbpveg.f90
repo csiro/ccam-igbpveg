@@ -286,7 +286,7 @@ Implicit None
 Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile,zerozs
 Integer, intent(in) :: nopts,binlimit,month,outmode
 Character(len=*), dimension(nopts,2), intent(in) :: options
-Character(len=*), dimension(13), intent(in) :: fname
+Character(len=*), dimension(14), intent(in) :: fname
 character*1024 filename
 Character*80, dimension(1:3) :: outputdesc
 Character*1024 returnoption,csize
