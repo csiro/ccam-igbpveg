@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -781,11 +781,17 @@ if ( fname(13)/='' .and. outmode==1 ) then
   read(40,*) comments
   read(40,*) ateb_len
   
-  if ( ateb_len/=8 ) then
-    write(6,*) "ERROR: aTEB requires 8 classes"
+  if ( ateb_len>99 ) then
+    write(6,*) "ERROR: Maximum number of aTEB classes is 99"
     call finishbanner
     stop -1
   end if
+  !if ( ateb_len/=8 ) then
+  !  write(6,*) "ERROR: aTEB requires 8 classes"
+  !  call finishbanner
+  !  stop -1
+  !end if
+  
   allocate( ateb_desc(ateb_len) )
   allocate( bldheight(ateb_len), hwratio(ateb_len), sigvegc(ateb_len), sigmabld(ateb_len) )
   allocate( industryfg(ateb_len), trafficfg(ateb_len), roofalpha(ateb_len) )
@@ -847,19 +853,24 @@ if ( fname(13)/='' .and. outmode==1 ) then
   infiltration(:) = 0.5
   internalgain(:) = 5.
   bldtemp(:) = 291.16
-  heatprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
-  coolprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
+  heatprop(:) = 0.5
+  coolprop(:) = 0.5
+  if ( ateb_len==8 ) then
+    ! backwards compatibility  
+    heatprop(1:8) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
+    coolprop(1:8) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
+  end if  
   
   do i = 1,ateb_len
         
-    read(40,*,iostat=ioerror) jateb, atebtypetmp
+    read(40,*,iostat=ioerror) jateb, ateb_desc(i)
     if ( ioerror/=0 ) then
       write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
       write(6,*) "Formatting error in line 1 of urban class ",i,"/",ateb_len
       call finishbanner
       stop -1
     end if
-    write(6,*) "Processing aTEB class ",trim(atebtypetmp)
+    write(6,*) "Processing aTEB class ",trim(ateb_desc(i))
         
     read(40,*,iostat=ioerror) bldheight(i), hwratio(i), sigvegc(i), sigmabld(i)
     if ( ioerror/=0 ) then
@@ -1120,12 +1131,12 @@ if ( fname(10)/='' .and. outmode==1 ) then
       if ( iposbeg==-1 ) exit
       call findentry_character(largestring,iposbeg,iposend,.false.,kdesc)
       if ( iposbeg==-1 ) exit
-      call findindex(kdesc,pft_desc,pft_len,mapindex(i,j))
+      call findindex(kdesc,pft_desc,pft_len,ateb_desc,ateb_len,mapindex(i,j))
       maxindex=j
     end do
     
     if ( maxindex<1 ) then
-      write(6,*) "ERROR: No valid PFTs in mapconfig line"
+      write(6,*) "ERROR: No valid PFTs or urban classes in mapconfig line"
       write(6,*) trim(largestring)
       call finishbanner
       stop -1
@@ -1249,7 +1260,7 @@ do i = 1,class_num
   urbanmaxfrac = 0.
   urbantotalfrac = 0.
   do j = 1,5
-    if ( mapindex(i,j)<-100 .and. mapindex(i,j)>-109 ) then
+    if ( mapindex(i,j)<-100 .and. mapindex(i,j)>-200 ) then
       urbandata(:,:) = urbandata(:,:) + landdata(:,:,i)*mapfrac(i,j)
       urbantotalfrac = urbantotalfrac + mapfrac(i,j)
       if ( mapfrac(i,j)>urbanmaxfrac ) then
@@ -2666,15 +2677,16 @@ end if
 return
 end subroutine findentry_logical
     
-subroutine findindex(kdesc,pft_desc,pft_len,mapindex)
+subroutine findindex(kdesc,pft_desc,pft_len,ateb_desc,ateb_len,mapindex)
 
 implicit none
 
-integer, intent(in) :: pft_len
+integer, intent(in) :: pft_len, ateb_len
 integer, intent(out) :: mapindex
 integer k
 character(len=*), intent(in) :: kdesc
-character(len=*), dimension(pft_len), intent(In) :: pft_desc
+character(len=*), dimension(pft_len), intent(in) :: pft_desc
+character(len=*), dimension(ateb_len), intent(in) :: ateb_desc
 logical matchfound
 
 if ( trim(kdesc)=="(Mixed)" .or. trim(kdesc)=="(mixed)" ) then    
@@ -2713,7 +2725,15 @@ else
     end if
   end do
   if ( .not.matchfound ) then
-    write(6,*) "ERROR: Cannot find ",trim(kdesc)," in PFT list"
+    do k = 1,ateb_len
+      if ( trim(kdesc)==trim(ateb_desc(k)) ) then
+        matchfound = .true.
+        mapindex = -100 - k
+      end if
+    end do    
+  end if    
+  if ( .not.matchfound ) then
+    write(6,*) "ERROR: Cannot find ",trim(kdesc)," in PFT or urban list"
     call finishbanner
     stop -1
   end if
