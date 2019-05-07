@@ -179,9 +179,9 @@ Write(6,*) '    outputmode="cablepft"'
 write(6,*) '    pftconfig="def_veg_params.txt"'
 write(6,*) '    mapconfig="def_veg_mapping.txt"'
 write(6,*) '    atebconfig="def_urban_params.txt"'
+write(6,*) '    soilconfig="def_soil_params.txt"'
 write(6,*) '    user_veginput="myveg.nc"'
 write(6,*) '    user_laiinput="mylai.nc"'
-write(6,*) '    soilconfig="def_soil_params.txt"'
 Write(6,*) '  &end'
 Write(6,*)
 Write(6,*) '  where:'
@@ -759,7 +759,8 @@ else
   bch = (/ 4.2, 7.1, 11.4, 5.15, 10.4, 10.4, 7.12, 5.83, 7.1 /)    
   css = (/ 850., 850., 850., 850., 850., 850., 850., 1920., 2100. /) 
   hyds = (/ 166.e-6, 4.e-6, 1.e-6, 21.e-6, 2.e-6, 1.e-6, 6.e-6,800.e-6, 1.e-6 /)
-  rhosoil = (/ 2600., 2600., 2600., 2600., 2600., 2600., 2600., 1300.,  910. /)
+  !rhosoil = (/ 2600., 2600., 2600., 2600., 2600., 2600., 2600., 1300.,  910. /)
+  rhosoil = (/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910. /)     
   sucs = (/ -.106, -.591, -.405, -.348, -.153, -.49, -.299,-.356, -.153 /)
   clay = (/ .09, .3, .67, .2, .42, .48, .27, .17, .30 /)
   sand = (/ .83, .37, .16, .6, .52, .27, .58, .13, .37 /)
