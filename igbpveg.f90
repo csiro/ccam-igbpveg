@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -286,7 +286,7 @@ Implicit None
 Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile,zerozs
 Integer, intent(in) :: nopts,binlimit,month,outmode
 Character(len=*), dimension(nopts,2), intent(in) :: options
-Character(len=*), dimension(13), intent(in) :: fname
+Character(len=*), dimension(14), intent(in) :: fname
 character*1024 filename
 Character*80, dimension(1:3) :: outputdesc
 Character*1024 returnoption,csize
@@ -335,6 +335,8 @@ real, dimension(:), allocatable :: rootbeta, c4frac, vbeta
 real, dimension(:), allocatable :: bldheight, hwratio, sigvegc, sigmabld
 real, dimension(:), allocatable :: industryfg, trafficfg, roofalpha
 real, dimension(:), allocatable :: wallalpha, roadalpha, vegalphac, zovegc
+real, dimension(:), allocatable :: infiltration, internalgain, bldtemp
+real, dimension(:), allocatable :: heatprop, coolprop
 real, dimension(:,:), allocatable :: roofthick, roofcp, roofcond
 real, dimension(:,:), allocatable :: wallthick, wallcp, wallcond
 real, dimension(:,:), allocatable :: slabthick, slabcp, slabcond
@@ -779,15 +781,23 @@ if ( fname(13)/='' .and. outmode==1 ) then
   read(40,*) comments
   read(40,*) ateb_len
   
-  if ( ateb_len/=8 ) then
-    write(6,*) "ERROR: aTEB requires 8 classes"
+  if ( ateb_len>99 ) then
+    write(6,*) "ERROR: Maximum number of aTEB classes is 99"
     call finishbanner
     stop -1
   end if
+  !if ( ateb_len/=8 ) then
+  !  write(6,*) "ERROR: aTEB requires 8 classes"
+  !  call finishbanner
+  !  stop -1
+  !end if
+  
   allocate( ateb_desc(ateb_len) )
   allocate( bldheight(ateb_len), hwratio(ateb_len), sigvegc(ateb_len), sigmabld(ateb_len) )
   allocate( industryfg(ateb_len), trafficfg(ateb_len), roofalpha(ateb_len) )
   allocate( wallalpha(ateb_len), roadalpha(ateb_len), vegalphac(ateb_len), zovegc(ateb_len) )
+  allocate( infiltration(ateb_len), internalgain(ateb_len), bldtemp(ateb_len) )
+  allocate( heatprop(ateb_len), coolprop(ateb_len) )
   allocate( roofthick(ateb_len,4), roofcp(ateb_len,4), roofcond(ateb_len,4) )
   allocate( wallthick(ateb_len,4), wallcp(ateb_len,4), wallcond(ateb_len,4) )
   allocate( slabthick(ateb_len,4), slabcp(ateb_len,4), slabcond(ateb_len,4) )
@@ -840,17 +850,27 @@ if ( fname(13)/='' .and. outmode==1 ) then
   roadcond(:,2) = 0.7454
   roadcond(:,3) = 0.2513
   roadcond(:,4) = 0.2513
+  infiltration(:) = 0.5
+  internalgain(:) = 5.
+  bldtemp(:) = 291.16
+  heatprop(:) = 0.5
+  coolprop(:) = 0.5
+  if ( ateb_len==8 ) then
+    ! backwards compatibility  
+    heatprop(1:8) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
+    coolprop(1:8) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
+  end if  
   
   do i = 1,ateb_len
         
-    read(40,*,iostat=ioerror) jateb, atebtypetmp
+    read(40,*,iostat=ioerror) jateb, ateb_desc(i)
     if ( ioerror/=0 ) then
       write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
       write(6,*) "Formatting error in line 1 of urban class ",i,"/",ateb_len
       call finishbanner
       stop -1
     end if
-    write(6,*) "Processing aTEB class ",trim(atebtypetmp)
+    write(6,*) "Processing aTEB class ",trim(ateb_desc(i))
         
     read(40,*,iostat=ioerror) bldheight(i), hwratio(i), sigvegc(i), sigmabld(i)
     if ( ioerror/=0 ) then
@@ -881,7 +901,7 @@ if ( fname(13)/='' .and. outmode==1 ) then
       stop -1
     end if
     
-    ! new format
+    ! v2 format    
     read(40,*,iostat=ioerror) roofthick(i,1),roofthick(i,2),roofthick(i,3),roofthick(i,4)
     if ( ioerror==0 ) then
       read(40,*,iostat=ioerror) roofcp(i,1),roofcp(i,2),roofcp(i,3),roofcp(i,4)    
@@ -962,6 +982,18 @@ if ( fname(13)/='' .and. outmode==1 ) then
         stop -1
       end if 
     end if
+    
+    ! v3 format
+    read(40,*,iostat=ioerror) infiltration(i),internalgain(i),bldtemp(i)
+    if ( ioerror==0 ) then
+      read(40,*,iostat=ioerror) heatprop(i),coolprop(i)
+      if ( ioerror/=0 ) then
+        write(6,*) "ERROR: Cannot read atebconfig file ",trim(fname(13))
+        write(6,*) "Formatting error in line 19 of urban class ",i,"/",ateb_len
+        call finishbanner
+        stop -1
+      end if 
+    end if
       
   end do
   
@@ -974,6 +1006,8 @@ else
   allocate( bldheight(ateb_len), hwratio(ateb_len), sigvegc(ateb_len), sigmabld(ateb_len) )
   allocate( industryfg(ateb_len), trafficfg(ateb_len), roofalpha(ateb_len) )
   allocate( wallalpha(ateb_len), roadalpha(ateb_len), vegalphac(ateb_len), zovegc(ateb_len) )
+  allocate( infiltration(ateb_len), internalgain(ateb_len), bldtemp(ateb_len) )
+  allocate( heatprop(ateb_len), coolprop(ateb_len) )
   allocate( roofthick(ateb_len,4), roofcp(ateb_len,4), roofcond(ateb_len,4) )
   allocate( wallthick(ateb_len,4), wallcp(ateb_len,4), wallcond(ateb_len,4) )
   allocate( slabthick(ateb_len,4), slabcp(ateb_len,4), slabcond(ateb_len,4) )
@@ -1045,6 +1079,11 @@ else
   roadcond(:,2) = 0.7454
   roadcond(:,3) = 0.2513
   roadcond(:,4) = 0.2513
+  infiltration(:) = 0.5
+  internalgain(:) = 5.
+  bldtemp(:) = 291.16
+  heatprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
+  coolprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
 end if
 
 
@@ -1092,12 +1131,12 @@ if ( fname(10)/='' .and. outmode==1 ) then
       if ( iposbeg==-1 ) exit
       call findentry_character(largestring,iposbeg,iposend,.false.,kdesc)
       if ( iposbeg==-1 ) exit
-      call findindex(kdesc,pft_desc,pft_len,mapindex(i,j))
+      call findindex(kdesc,pft_desc,pft_len,ateb_desc,ateb_len,mapindex(i,j))
       maxindex=j
     end do
     
     if ( maxindex<1 ) then
-      write(6,*) "ERROR: No valid PFTs in mapconfig line"
+      write(6,*) "ERROR: No valid PFTs or urban classes in mapconfig line"
       write(6,*) trim(largestring)
       call finishbanner
       stop -1
@@ -1221,7 +1260,7 @@ do i = 1,class_num
   urbanmaxfrac = 0.
   urbantotalfrac = 0.
   do j = 1,5
-    if ( mapindex(i,j)<-100 .and. mapindex(i,j)>-109 ) then
+    if ( mapindex(i,j)<-100 .and. mapindex(i,j)>-200 ) then
       urbandata(:,:) = urbandata(:,:) + landdata(:,:,i)*mapfrac(i,j)
       urbantotalfrac = urbantotalfrac + mapfrac(i,j)
       if ( mapfrac(i,j)>urbanmaxfrac ) then
@@ -1414,7 +1453,7 @@ do tt=1,mthrng
   call ncatt(ncidarr,'cableversion',3939.) ! CABLE version for data
   if ( outmode==1 ) then
     call ncatt(ncidarr,'cableformat',1.)
-    call ncatt(ncidarr,'atebformat',2.)
+    call ncatt(ncidarr,'atebformat',3.)
     call ncatt(ncidarr,'soilformat',1.)
   else
     call ncatt(ncidarr,'cableformat',0.)
@@ -1651,6 +1690,26 @@ do tt=1,mthrng
       outputdesc(3)='W/m/K'
       call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
     end do  
+    outputdesc(1)='infiltration'
+    outputdesc(2)='Infiltration air volume changes per hour'
+    outputdesc(3)='m3/m3'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='internalgain'
+    outputdesc(2)='Internal gains sensible heat flux'
+    outputdesc(3)='W/m2'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='bldtemp'
+    outputdesc(2)='Comfort temperature'
+    outputdesc(3)='K'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='heatprop'
+    outputdesc(2)='Fraction of spaces with heating devices'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+    outputdesc(1)='coolprop'
+    outputdesc(2)='Fraction of spaces with cooling devices'
+    outputdesc(3)='none'
+    call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
     outputdesc(1)='soilname'
     outputdesc(2)='Soil type description'
     outputdesc(3)='none'
@@ -1882,6 +1941,11 @@ do tt=1,mthrng
       write(vname,'("road_cond_l",(I1.1))') i  
       call ncput_1dvar_real(ncidarr,vname,ateb_len,roadcond(:,i))
     end do  
+    call ncput_1dvar_real(ncidarr,'infiltration',ateb_len,infiltration)
+    call ncput_1dvar_real(ncidarr,'internalgain',ateb_len,internalgain)
+    call ncput_1dvar_real(ncidarr,'bldtemp',ateb_len,bldtemp)
+    call ncput_1dvar_real(ncidarr,'heatprop',ateb_len,heatprop)
+    call ncput_1dvar_real(ncidarr,'coolprop',ateb_len,coolprop)
     call ncput_1dvar_text(ncidarr,'soilname',soil_len,soil_desc)
     call ncput_1dvar_real(ncidarr,'silt',soil_len,silt)
     call ncput_1dvar_real(ncidarr,'clay',soil_len,clay)
@@ -1922,6 +1986,8 @@ deallocate( ateb_desc )
 deallocate( bldheight, hwratio, sigvegc, sigmabld )
 deallocate( industryfg, trafficfg, roofalpha )
 deallocate( wallalpha, roadalpha, vegalphac, zovegc )
+deallocate( infiltration, internalgain, bldtemp )
+deallocate( heatprop, coolprop )
 deallocate( roofthick, roofcp, roofcond )
 deallocate( wallthick, wallcp, wallcond )
 deallocate( slabthick, slabcp, slabcond )
@@ -2611,15 +2677,16 @@ end if
 return
 end subroutine findentry_logical
     
-subroutine findindex(kdesc,pft_desc,pft_len,mapindex)
+subroutine findindex(kdesc,pft_desc,pft_len,ateb_desc,ateb_len,mapindex)
 
 implicit none
 
-integer, intent(in) :: pft_len
+integer, intent(in) :: pft_len, ateb_len
 integer, intent(out) :: mapindex
 integer k
 character(len=*), intent(in) :: kdesc
-character(len=*), dimension(pft_len), intent(In) :: pft_desc
+character(len=*), dimension(pft_len), intent(in) :: pft_desc
+character(len=*), dimension(ateb_len), intent(in) :: ateb_desc
 logical matchfound
 
 if ( trim(kdesc)=="(Mixed)" .or. trim(kdesc)=="(mixed)" ) then    
@@ -2658,7 +2725,15 @@ else
     end if
   end do
   if ( .not.matchfound ) then
-    write(6,*) "ERROR: Cannot find ",trim(kdesc)," in PFT list"
+    do k = 1,ateb_len
+      if ( trim(kdesc)==trim(ateb_desc(k)) ) then
+        matchfound = .true.
+        mapindex = -100 - k
+      end if
+    end do    
+  end if    
+  if ( .not.matchfound ) then
+    write(6,*) "ERROR: Cannot find ",trim(kdesc)," in PFT or urban list"
     call finishbanner
     stop -1
   end if
