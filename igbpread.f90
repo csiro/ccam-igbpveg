@@ -1980,7 +1980,7 @@ if ( datafilename/='' ) then
 
 !---------- using frac ------------
 numclassin=-1
-lci=class_num
+lci=-1
 if ( ovegfrac ) then
   numclassin=0
   lci=class_num
