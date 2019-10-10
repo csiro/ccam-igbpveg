@@ -39,7 +39,7 @@ character*1024 user_veginput, user_laiinput
 character*1024 soilconfig
 integer binlimit, nopts, month
 integer outmode
-logical fastigbp,igbplsmask,ozlaipatch,tile,zerozs
+logical fastigbp,igbplsmask,ozlaipatch,tile,zerozs,ovegfrac
 
 namelist/vegnml/ topofile,fastigbp,                  &
                  landtypeout,igbplsmask,newtopofile, &
@@ -48,7 +48,7 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  soilinput, laiinput, albvisinput,   &
                  albnirinput,pftconfig,mapconfig,    &
                  atebconfig,                         &
-                 user_veginput, user_laiinput,       &
+                 user_veginput, user_laiinput,ovegfrac,       &
                  zerozs,soilconfig
 
 ! Start banner
@@ -84,6 +84,7 @@ mapconfig=''
 atebconfig=''
 ozlaipatch=.false.
 user_veginput=''
+ovegfrac=.false.
 user_laiinput=''
 zerozs=.true.
 soilconfig=''
@@ -114,7 +115,7 @@ if ( outputmode=='cablepft' ) then
   outmode=1
 end if
 
-call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode,zerozs)
+call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode,zerozs,ovegfrac)
 
 deallocate(options)
 
@@ -182,6 +183,7 @@ write(6,*) '    atebconfig="def_urban_params.txt"'
 write(6,*) '    soilconfig="def_soil_params.txt"'
 write(6,*) '    user_veginput="myveg.nc"'
 write(6,*) '    user_laiinput="mylai.nc"'
+write(6,*) '    ovegfrac=".false."'
 Write(6,*) '  &end'
 Write(6,*)
 Write(6,*) '  where:'
@@ -219,6 +221,7 @@ write(6,*) '                    PFTs defined in pftconfig'
 write(6,*) '    atebconfig    = Location of the aTEB definition file'
 write(6,*) '    user_veginput = Location of user modified vegetation'
 write(6,*) '    user_laiinput = Location of user modified LAI'
+write(6,*) '    ovegfrac      = Use veg fraction for each type from user file'
 write(6,*) '    soilconfig    = Location of the Soil definition file'
 Write(6,*)
 Write(6,*) 'NOTES: fastigbp mode will speed up the code by aggregating'
@@ -277,13 +280,13 @@ End
 ! This subroutine processes the sib data
 !
 
-Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode,zerozs)
+Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode,zerozs,ovegfrac)
 
 Use ccinterp
 
 Implicit None
 
-Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile,zerozs
+Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile,zerozs,ovegfrac
 Integer, intent(in) :: nopts,binlimit,month,outmode
 Character(len=*), dimension(nopts,2), intent(in) :: options
 Character(len=*), dimension(14), intent(in) :: fname
@@ -1244,13 +1247,15 @@ call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,o
              class_num,mapjveg,mapwater)
 
 if ( fname(11)/='' .or. fname(12)/='' ) then
-  call modifylanddata(landdata,lonlat,sibdim,class_num*(1+mthrng),month,fname(11),fname(12),class_num,mapjveg)
+  call modifylanddata(landdata,lonlat,sibdim,class_num*(1+mthrng),month,fname(11),fname(12),class_num,mapjveg,gridout,ovegfrac)
 end if
 
 deallocate(gridout)
 allocate(urbandata(sibdim(1),sibdim(2)),lsdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
 allocate(urbantype(sibdim(1),sibdim(2)))
 allocate(testdata(sibdim(1),sibdim(2)))
+
+write(6,*)"after modify",landdata(49,159,0)
 
 write(6,*) "Preparing data..."
 ! extract urban cover and remove from landdata
@@ -1277,7 +1282,12 @@ do i = 1,class_num
     landdata(:,:,i) = 0. ! remove 100% urban classes
   end if
 end do
+
+write(6,*)"pre igbpfix",landdata(49,159,0),urbandata(49,159)
+
 call igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapwater)
+
+write(6,*)"after igbpfix",landdata(49,159,0)
 
 if ( igbplsmask ) then
   write(6,*) "Using IGBP land/sea mask"
@@ -1286,6 +1296,7 @@ if ( igbplsmask ) then
     if ( mapwater(i) ) then
       testdata(:,:) = testdata(:,:) + landdata(:,:,i)
     end if
+    write(6,*)"testdata",i,testdata(49,159)
   end do
   where ( testdata(:,:)>0. )
     oceandata=landdata(:,:,0)/testdata(:,:)
@@ -1294,6 +1305,7 @@ if ( igbplsmask ) then
   end where
   lsdata=real(nint(testdata(:,:)))
   call cleantopo(tunit,fname(1),fname(3),lsdata,oceandata,sibdim,zerozs)
+  write(6,*)"after cleantopo",testdata(49,159)
 else
   write(6,*) "Using topography land/sea mask"
   call gettopols(tunit,fname(1),lsdata,sibdim)
