@@ -1878,7 +1878,7 @@ logical found_missing
 
 !---------- using frac ------------
 integer, dimension(sibdim(1),sibdim(2),0:num) :: countfrac
-integer ilcn, jlcn, ilcx, jlcx, ivegfrac
+integer ilcn, jlcn, ilcx, jlcx, ivegfrac,ivegstart,ivegend
 real lcinn, lcjnn, lcixx, lcjxx
 real diaglon,diaglat,dx,dy,dgridin
 real, parameter :: circe=40075.
@@ -1979,13 +1979,13 @@ if ( datafilename/='' ) then
   countlocal(:,:) = 0
 
 !---------- using frac ------------
-numclassin=-1
-lci=-1
+ivegstart=-1
+ivegend=-1
 if ( ovegfrac ) then
-  numclassin=0
-  lci=class_num
+  ivegstart=0
+  ivegend=class_num
 endif
-do ivegfrac = numclassin,lci
+do ivegfrac = ivegstart,ivegend
  select case(ivegfrac)
   case(-1)
     cmsg='land_cover'
