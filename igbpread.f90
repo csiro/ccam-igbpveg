@@ -1985,7 +1985,7 @@ if ( ovegfrac ) then
   numclassin=0
   lci=class_num
 endif
-do ivegfrac = numclassin,class_num
+do ivegfrac = numclassin,lci
  select case(ivegfrac)
   case(-1)
     cmsg='land_cover'
