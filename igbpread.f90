@@ -1851,7 +1851,7 @@ use netcdf_m
 implicit none
 
 integer, intent(in) :: num, month, class_num
-integer, intent(in) :: ovegfrac
+logical, intent(in) :: ovegfrac
 integer, dimension(2), intent(in) :: sibdim
 integer, dimension(2) :: dimid, dimlen 
 integer, dimension(3) :: dimid_lai, dimlen_lai
