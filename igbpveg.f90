@@ -27,16 +27,16 @@ Implicit None
 
 include 'version.h'
 
-character*1024, dimension(:,:), allocatable :: options
-character*1024, dimension(14) :: fname
-character*1024 topofile
-character*1024 landtypeout
-character*1024 newtopofile
-character*1024 outputmode
-character*1024 veginput, soilinput, laiinput, albvisinput, albnirinput
-character*1024 pftconfig, mapconfig, atebconfig
-character*1024 user_veginput, user_laiinput
-character*1024 soilconfig
+character(len=1024), dimension(:,:), allocatable :: options
+character(len=1024), dimension(14) :: fname
+character(len=1024) topofile
+character(len=1024) landtypeout
+character(len=1024) newtopofile
+character(len=1024) outputmode
+character(len=1024) veginput, soilinput, laiinput, albvisinput, albnirinput
+character(len=1024) pftconfig, mapconfig, atebconfig
+character(len=1024) user_veginput, user_laiinput
+character(len=1024) soilconfig
 integer binlimit, nopts, month
 integer outmode
 logical fastigbp,igbplsmask,ozlaipatch,tile,zerozs,ovegfrac
@@ -290,17 +290,16 @@ Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile,zerozs,ovegfrac
 Integer, intent(in) :: nopts,binlimit,month,outmode
 Character(len=*), dimension(nopts,2), intent(in) :: options
 Character(len=*), dimension(14), intent(in) :: fname
-character*1024 filename
-Character*80, dimension(1:3) :: outputdesc
-Character*1024 returnoption,csize
-Character*47 header
-Character*9 formout
-Character*2 monthout
+character(len=1024) filename
+Character(len=80), dimension(1:3) :: outputdesc
+Character(len=1024) returnoption,csize
+Character(len=47) header
+Character(len=9) formout
+Character(len=2) monthout
 real, dimension(:,:,:), allocatable :: vlai
 Real, dimension(:,:,:), allocatable :: landdata,soildata,rlld,vfrac,tmp
 Real, dimension(:,:), allocatable :: gridout,lsdata,urbandata,oceandata,albvisdata,albnirdata
 real, dimension(:,:), allocatable :: testdata
-!real, dimension(:,:), allocatable :: savannafrac
 real, dimension(:,:), allocatable :: rdata
 Real, dimension(3,2) :: alonlat
 Real, dimension(2) :: lonlat
@@ -1255,8 +1254,6 @@ allocate(urbandata(sibdim(1),sibdim(2)),lsdata(sibdim(1),sibdim(2)),oceandata(si
 allocate(urbantype(sibdim(1),sibdim(2)))
 allocate(testdata(sibdim(1),sibdim(2)))
 
-write(6,*)"after modify",landdata(49,159,0)
-
 write(6,*) "Preparing data..."
 ! extract urban cover and remove from landdata
 urbantype(:,:)=1
@@ -1283,11 +1280,7 @@ do i = 1,class_num
   end if
 end do
 
-write(6,*)"pre igbpfix",landdata(49,159,0),urbandata(49,159)
-
 call igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapwater)
-
-write(6,*)"after igbpfix",landdata(49,159,0)
 
 if ( igbplsmask ) then
   write(6,*) "Using IGBP land/sea mask"
@@ -1296,7 +1289,6 @@ if ( igbplsmask ) then
     if ( mapwater(i) ) then
       testdata(:,:) = testdata(:,:) + landdata(:,:,i)
     end if
-    write(6,*)"testdata",i,testdata(49,159)
   end do
   where ( testdata(:,:)>0. )
     oceandata=landdata(:,:,0)/testdata(:,:)
@@ -1305,7 +1297,6 @@ if ( igbplsmask ) then
   end where
   lsdata=real(nint(testdata(:,:)))
   call cleantopo(tunit,fname(1),fname(3),lsdata,oceandata,sibdim,zerozs)
-  write(6,*)"after cleantopo",testdata(49,159)
 else
   write(6,*) "Using topography land/sea mask"
   call gettopols(tunit,fname(1),lsdata,sibdim)
@@ -1874,13 +1865,6 @@ do tt=1,mthrng
   urbanfrac=1.
   rdata=urbandata*urbanfrac
   call ncwritedatgen(ncidarr,rdata,dimcount,varid(7))
-
-  ! Savanna fraction 
-  ! to be depreciated
-  !if ( outmode==1 ) then
-  !  dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
-  !  call ncwritedatgen(ncidarr,savannafrac,dimcount,varid(21))
-  !end if
   
   if ( outmode==1 ) then
     call ncput_1dvar_text(ncidarr,'pftname',pft_len,pft_desc)
@@ -2051,7 +2035,7 @@ do ilat=1,sibdim(2)
 end do
 
 newdata(:,:,1:class_num*(1+mthrng))=landdata(:,:,1:class_num*(1+mthrng))
-!$OMP PARALLEL DO
+!$OMP PARALLEL DO DEFAULT(NONE) SHARED(mapwater,newdata,sibdim,allmsk,reqmsk,mthrng,class_num) PRIVATE(i,j)
 do i=1,class_num
   if ( .not.mapwater(i) ) then
     write(6,*) "Fill class ",i
@@ -2381,7 +2365,6 @@ real, dimension(sibdim(1),sibdim(2),5), intent(inout) :: vfrac, vlai
 real, dimension(class_num,5), intent(in) :: mapfrac
 real, dimension(pft_len) :: newlai
 real, dimension(pft_len) :: newgrid
-!real, dimension(sibdim(1),sibdim(2)), intent(out) :: savannafrac
 real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsdata
 real, dimension(sibdim(1),sibdim(2),2), intent(in) :: rlld
 real fc3, fc4, ftu, fg3, fg4, clat, nsum
@@ -2531,9 +2514,6 @@ do j = 1,sibdim(2)
           end if
         end do
       end do
-      !if (newgrid(2)>0.) then
-      !  savannafrac(i,j)=savannafrac(i,j)/newgrid(2)
-      !end if
       where ( newgrid(:)>0. )
         newlai(:) = newlai(:)/newgrid(:)
       end where
