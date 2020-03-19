@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -29,13 +29,13 @@
 !
 
 Subroutine getdata(dataout,glonlat,grid,tlld,sibdim,num,sibsize,datatype,fastigbp,ozlaipatch,binlimit,month, &
-                   datafilename,laifilename,class_num,mapjveg,mapwater)
+                   year,datafilename,laifilename,class_num,mapjveg,mapwater)
 
 Use ccinterp
 
 Implicit None
 
-Integer, intent(in) :: sibsize,num,binlimit,month,class_num
+Integer, intent(in) :: sibsize,num,binlimit,month,year,class_num
 Integer, dimension(2), intent(in) :: sibdim
 Integer, dimension(sibdim(1),sibdim(2)) :: countn
 Integer, dimension(1:2) :: lldim,lldim_x,llstore,pxy
@@ -58,7 +58,8 @@ real, dimension(1:12) :: netlai
 Real aglon,aglat,alci,alcj,serlon,serlat,slonn,slatx,elon,elat,tscale,baselon
 Real ipol,callon,callat,indexlon,indexlat
 Logical, intent(in) :: fastigbp,ozlaipatch
-Logical, dimension(:,:), allocatable :: sermask,sermask2
+Logical, dimension(:,:), allocatable :: sermask
+logical, dimension(:,:,:), allocatable :: sermask0,sermask2
 logical, dimension(sibdim(1),sibdim(2)) :: ltest
 logical, dimension(class_num), intent(in) :: mapwater
 
@@ -100,6 +101,9 @@ Select Case(datatype)
   Case('albnir')
     Write(6,*) 'Process soil albedo (NIR) dataset.'
     scalelimit=4
+  case('change')
+    write(6,*) 'Process land-use change dataset.'
+    scalelimit=30
   Case DEFAULT
     Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
     call finishbanner
@@ -167,6 +171,9 @@ If (fastigbp) then
               Case('albvis','albnir')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
                 Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype,datafilename)
+              case('change')
+                call kmconvert(nscale,nscale_x,lldim,lldim_x,30)
+                call changeread(latlon,nscale_x,lldim_x,coverout,datafilename,year)    
               Case DEFAULT
                 Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
                 call finishbanner
@@ -261,6 +268,8 @@ Else
       Call soilstream(sibdim,dataout,countn,datafilename)
     Case('albvis','albnir')
       Call albedostream(sibdim,dataout(:,:,0),countn,datatype,datafilename)
+    case('change')
+      call changestream(sibdim,dataout,countn,datafilename,year)
     Case DEFAULT
       Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
       call finishbanner
@@ -328,7 +337,10 @@ If (subsec/=0) then
           Case('albvis','albnir')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
             Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype,datafilename)
-         Case DEFAULT
+          case('change')
+            call kmconvert(nscale,nscale_x,lldim,lldim_x,30)
+            call changeread(latlon,nscale_x,lldim_x,coverout,datafilename,year)
+          Case DEFAULT
             Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
             call finishbanner
             Stop -1
@@ -381,42 +393,42 @@ Do k=0,num
 End Do
 
 if (datatype=='land') then
-  Allocate(sermask(1:sibdim(1),1:sibdim(2)),sermask2(1:sibdim(1),1:sibdim(2)))
-!$OMP PARALLEL DO
+  Allocate(sermask0(1:sibdim(1),1:sibdim(2),1:class_num),sermask2(1:sibdim(1),1:sibdim(2),1:class_num))
+!$OMP PARALLEL DO DEFAULT(NONE) SHARED(mapwater,dataout,mthrng,class_num,sibdim,rlld,sermask0,sermask2) PRIVATE(k,lci,lcj,i,pxy,netlai,netcount)
   do k=1,class_num
     if ( .not.mapwater(k) ) then
-      sermask=dataout(:,:,k)>0.
-      sermask2=sermask
-      where ( sermask(:,:) .and. any(dataout(:,:,(k-1)*mthrng+class_num+1:k*mthrng+class_num)==0.,dim=3) )
-        sermask2(:,:) = .false.
-      elsewhere ( sermask(:,:) )
-        sermask(:,:) = .false.
+      sermask0(:,:,k)=dataout(:,:,k)>0.
+      sermask2(:,:,k)=sermask0(:,:,k)
+      where ( sermask0(:,:,k) .and. any(dataout(:,:,(k-1)*mthrng+class_num+1:k*mthrng+class_num)==0.,dim=3) )
+        sermask2(:,:,k) = .false.
+      elsewhere ( sermask0(:,:,k) )
+        sermask0(:,:,k) = .false.
       end where
-      if (any(sermask)) then ! missing LAI data
+      if (any(sermask0(:,:,k))) then ! missing LAI data
         Write(6,*) "Replace missing LAI for class ",k
-        if (any(sermask2)) then
-          call fill_cc_a_mask(dataout(:,:,(k-1)*mthrng+class_num+1:k*mthrng+class_num),sibdim(1),mthrng,sermask2,sermask)
+        if (any(sermask2(:,:,k))) then
+          call fill_cc_a_mask(dataout(:,:,(k-1)*mthrng+class_num+1:k*mthrng+class_num),sibdim(1),mthrng,sermask2(:,:,k),sermask0(:,:,k))
         else
-          sermask2=.false.
+          sermask2(:,:,k)=.false.
           do lcj=1,sibdim(2)
             do lci=1,sibdim(1)
               i=1
-              do while(i<=class_num.or..not.sermask2(lci,lcj))
+              do while(i<=class_num.or..not.sermask2(lci,lcj,k))
                 if ( .not.mapwater(i) ) then
                   if (all(dataout(lci,lcj,(i-1)*mthrng+class_num+1:i*mthrng+class_num)>0.)) then
-                    sermask2(lci,lcj)=.true.
+                    sermask2(lci,lcj,k)=.true.
                   end if
                 end if
                 i=i+1
               end do
             end do
           end do
-          if (any(sermask2)) then
+          if (any(sermask2(:,:,k))) then
             write(6,*) "Extended replace for missing LAI class ",k
             do lcj=1,sibdim(2)
               do lci=1,sibdim(1)
-                if (sermask(lci,lcj)) then
-                  call findnear(pxy,lci,lcj,sermask2,rlld,sibdim)
+                if (sermask0(lci,lcj,k)) then
+                  call findnear(pxy,lci,lcj,sermask2(:,:,k),rlld,sibdim)
                   netlai=0.
                   netcount=0
                   do i=1,class_num
@@ -441,7 +453,7 @@ if (datatype=='land') then
     end if
   end do
 !$OMP END PARALLEL DO
-  Deallocate(sermask,sermask2)
+  Deallocate(sermask0,sermask2)
 end if
 
 Write(6,*) "Task complete"
@@ -915,7 +927,136 @@ end if
 Return
 End
 
+    
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine reads land-use data down to nscale_30=1
+! (i.e., 30km) resolution.
+!
 
+Subroutine changeread(latlon,nscale_30,lldim_30,coverout,changedatafile,year)
+
+use netcdf_m
+
+Implicit None
+
+Integer, intent(in) :: nscale_30, year
+Real, dimension(2), intent(in) :: latlon
+Integer, dimension(2), intent(in) :: lldim_30
+Real, dimension(lldim_30(1),lldim_30(2),0:1), intent(out) :: coverout
+Integer, dimension(1440,1:nscale_30) :: databuffer
+real, dimension(1440) :: datatemp
+Integer, dimension(2,2) :: jin,jout
+Integer ilat,ilon,jlat,recpos,i
+integer ncid, varid, ierr, indx, n, dimid
+integer iposa, iposb, rectime, yyyy, dimlen
+Integer, dimension(2) :: llint_30
+real nsum
+Logical, dimension(nscale_30,nscale_30) :: sermask
+character(len=*), intent(in) :: changedatafile
+character(len=32) units
+
+ierr = nf90_open(changedatafile,nf90_nowrite,ncid)
+if ( ierr==nf90_noerr ) then
+  write(6,*) "Found netcdf version ",trim(changedatafile)
+else  
+  write(6,*) "ERROR: Cannot open ",trim(changedatafile)
+  call finishbanner
+  stop -1
+end if
+
+coverout = 0.
+
+ierr = nf90_inq_varid(ncid,"time",varid)
+ierr = nf90_get_att(ncid,varid,"units",units)
+iposa = index(trim(units),'since')
+iposa = iposa + 5 ! skip 'since'
+iposb = index(trim(units(iposa:)),'-')
+iposb = iposa + iposb - 2 ! remove '-'
+read(units(iposa:iposb),FMT=*,iostat=ierr) yyyy
+if ( ierr/=0 ) then
+  write(6,*) "ERROR: Cannot read time units. Expecting year but found ",units(iposa:iposb)
+  call finishbanner
+  stop -1
+end if
+rectime = year - yyyy + 1
+ierr = nf90_inq_dimid(ncid,'time',dimid)
+ierr = nf90_inquire_dimension(ncid,dimid,len=dimlen)
+if ( rectime>dimlen .or. rectime<1 ) then
+  write(6,*) "ERROR: year not found in input file"
+  write(6,*) "year = ",year
+  write(6,*) "file = ", trim(changedatafile)
+  call finishbanner
+  stop -1
+end if
+
+! To speed-up the code, 43200x(nscale) blocks of the sib file are read
+! at a time.  The data is then averaged in memory.  This system speeds-up the
+! code considerably.  However, there are limitations as to the size of data
+! that can be stored in memory.
+
+Call solvejshift(latlon(1),jin,jout,4)
+
+Do ilat=1,lldim_30(2)
+
+  if ((mod(ilat,50).eq.0).or.(ilat.eq.lldim_30(2))) then
+    Write(6,*) 'Change - ',ilat,'/',lldim_30(2)
+  end if
+
+  do n = 1,7
+    
+    select case(n)
+      case(1)
+        ierr = nf90_inq_varid(ncid,"c3ann",varid)
+        indx = 0
+      case(2)
+        ierr = nf90_inq_varid(ncid,"c4ann",varid)
+        indx = 0
+      case(3)
+        ierr = nf90_inq_varid(ncid,"c3per",varid)
+        indx = 0
+      case(4)
+        ierr = nf90_inq_varid(ncid,"c4per",varid)
+        indx = 0
+      case(5)
+        ierr = nf90_inq_varid(ncid,"c3nfx",varid)
+        indx = 0
+      case(6)
+        ierr = nf90_inq_varid(ncid,"pastr",varid)
+        indx = 1
+      case(7)
+        ierr = nf90_inq_varid(ncid,"range",varid)
+        indx = 1
+    end select    
+
+    ! Read data
+    llint_30(2)=nint((90.-latlon(2))*4.)+(ilat-1)*nscale_30
+    Do jlat=1,nscale_30
+      recpos=llint_30(2)+jlat
+      ierr = nf90_get_var(ncid,varid,datatemp,start=(/1,recpos,rectime/),count=(/1440,1,1/))
+      ! Shift lon to zero
+      databuffer(jin(1,1):jin(1,2),jlat)=datatemp(jout(1,1):jout(1,2))
+      databuffer(jin(2,1):jin(2,2),jlat)=datatemp(jout(2,1):jout(2,2))
+    End Do
+  
+    Do ilon=1,lldim_30(1)
+      llint_30(1)=(ilon-1)*nscale_30
+      sermask = databuffer(llint_30(1)+1:llint_30(1)+nscale_30,1:nscale_30)>=0. .and. &
+                databuffer(llint_30(1)+1:llint_30(1)+nscale_30,1:nscale_30)<=1.
+      nsum=count(sermask)
+      coverout(ilon,ilat,indx)=coverout(ilon,ilat,indx) &
+          +sum(databuffer(llint_30(1)+1:llint_30(1)+nscale_30,1:nscale_30),mask=sermask)/real(nsum)  
+    End Do
+    
+  end do  
+    
+End Do
+
+ierr = nf90_close(ncid)
+
+Return
+End
+        
+    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine reads sibsystems data at nscale=1km resolution
 ! (i.e., no storage, simply read and bin)
@@ -1374,6 +1515,129 @@ end if
 Return
 End
 
+    
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine reads soil at nscale_30=1
+! (i.e., 30km) resolution.
+! (i.e., no storage, simply read and bin)
+!
+
+Subroutine changestream(sibdim,coverout,countn,changefilename,year)
+
+Use ccinterp
+use netcdf_m
+
+Implicit None
+
+integer, intent(in) :: year
+Integer, dimension(2), intent(in) :: sibdim
+Real, dimension(sibdim(1),sibdim(2),0:1), intent(out) :: coverout
+Real aglon,aglat,alci,alcj
+Real callon,callat,cpos
+Integer, dimension(sibdim(1),sibdim(2)), intent(out) :: countn
+real, dimension(1440) :: databuffer
+Integer ilat,ilon,lci,lcj,nface,i,n,indx,iposa,iposb
+integer ncid, varid, ierr, rectime, dimid, yyyy, dimlen
+character(len=*), intent(in) :: changefilename
+character(len=32) units
+
+coverout=0
+countn=0
+
+Write(6,*) "Read change data (stream)"
+
+ierr = nf90_open(changefilename,nf90_nowrite,ncid)
+if ( ierr/=nf90_noerr ) then
+  write(6,*) "ERROR: Cannot open ",trim(changefilename)
+  call finishbanner
+  stop -1
+end if
+
+ierr = nf90_inq_varid(ncid,"time",varid)
+ierr = nf90_get_att(ncid,varid,"units",units)
+iposa = index(trim(units),'since')
+iposa = iposa + 5 ! skip 'since'
+iposb = index(trim(units(iposa:)),'-')
+iposb = iposb - 2 ! remove '-'
+read(units(iposa:iposb),FMT=*,iostat=ierr) yyyy
+if ( ierr/=0 ) then
+  write(6,*) "ERROR: Cannot read time units. Expecting year but found ",units(iposa:iposb)
+  call finishbanner
+  stop -1
+end if
+rectime = year - yyyy + 1
+ierr = nf90_inq_dimid(ncid,'time',dimid)
+ierr = nf90_inquire_dimension(ncid,dimid,len=dimlen)
+if ( rectime>dimlen .or. rectime<1 ) then
+  write(6,*) "ERROR: year not found in input file"
+  write(6,*) "year = ",year
+  write(6,*) "file = ", trim(changefilename)
+  call finishbanner
+  stop -1
+end if
+
+Do ilat=1,720
+
+  if (mod(ilat,50).eq.0) then
+    Write(6,*) 'Change - ',n,'/ 7  ',ilat,'/ 720'
+  end if
+
+  do n = 1,7
+    
+    select case(n)
+      case(1)
+        ierr = nf90_inq_varid(ncid,"c3ann",varid)
+        indx = 0
+      case(2)
+        ierr = nf90_inq_varid(ncid,"c4ann",varid)
+        indx = 0
+      case(3)
+        ierr = nf90_inq_varid(ncid,"c3per",varid)
+        indx = 0
+      case(4)
+        ierr = nf90_inq_varid(ncid,"c4per",varid)
+        indx = 0
+      case(5)
+        ierr = nf90_inq_varid(ncid,"c3nfx",varid)
+        indx = 0
+      case(6)
+        ierr = nf90_inq_varid(ncid,"pastr",varid)
+        indx = 1
+      case(7)
+        ierr = nf90_inq_varid(ncid,"range",varid)
+        indx = 1
+    end select    
+
+    ! Read data
+    ierr = nf90_get_var(ncid,varid,databuffer,start=(/1,ilat,rectime/),count=(/1440,1,1/)) 
+    aglat=callat(90.,ilat,30)
+  
+    Do ilon=1,1440
+    
+      aglon=callon(-180.,ilon,30)
+    
+      Call lltoijmod(aglon,aglat,alci,alcj,nface)
+      lci = nint(alci)
+      lcj = nint(alcj)
+      lcj = lcj + nface*sibdim(1)
+    
+      cpos = databuffer(ilon)
+      if ( cpos>=0. .or. cpos<=1. ) then
+        coverout(lci,lcj,indx) = coverout(lci,lcj,indx) + cpos 
+        countn(lci,lcj) = countn(lci,lcj) + 1
+      end if
+      
+    End Do
+    
+  end do
+  
+End Do
+
+ierr = nf90_close(ncid)    
+
+Return
+End
+    
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine aligns the data with the requested lat/lon

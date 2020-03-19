@@ -1,7 +1,7 @@
 
 ifneq ($(CUSTOM),yes)
 FC = ifort
-XFLAGS = -xHost -assume byterecl -fp-model precise -traceback
+XFLAGS = -qopenmp -xHost -assume byterecl -fp-model precise -traceback
 INC = -I $(NETCDF_ROOT)/include
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 ifneq ($(NCCLIB),yes)

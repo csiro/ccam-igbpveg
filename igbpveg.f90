@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -28,7 +28,7 @@ Implicit None
 include 'version.h'
 
 character(len=1024), dimension(:,:), allocatable :: options
-character(len=1024), dimension(14) :: fname
+character(len=1024), dimension(15) :: fname
 character(len=1024) topofile
 character(len=1024) landtypeout
 character(len=1024) newtopofile
@@ -36,8 +36,8 @@ character(len=1024) outputmode
 character(len=1024) veginput, soilinput, laiinput, albvisinput, albnirinput
 character(len=1024) pftconfig, mapconfig, atebconfig
 character(len=1024) user_veginput, user_laiinput
-character(len=1024) soilconfig
-integer binlimit, nopts, month
+character(len=1024) soilconfig, change_landuse
+integer binlimit, nopts, month, year
 integer outmode
 logical fastigbp,igbplsmask,ozlaipatch,tile,zerozs,ovegfrac
 
@@ -48,8 +48,9 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  soilinput, laiinput, albvisinput,   &
                  albnirinput,pftconfig,mapconfig,    &
                  atebconfig,                         &
-                 user_veginput, user_laiinput,ovegfrac,       &
-                 zerozs,soilconfig
+                 user_veginput, user_laiinput,       &
+                 ovegfrac,zerozs,soilconfig,         &
+                 change_landuse,year
 
 ! Start banner
 write(6,*) "=============================================================================="
@@ -88,6 +89,9 @@ ovegfrac=.false.
 user_laiinput=''
 zerozs=.true.
 soilconfig=''
+change_landuse=''
+month=0
+year=0
 
 ! Read namelist
 write(6,*) 'Input &vegnml namelist'
@@ -109,13 +113,15 @@ fname(11)=user_veginput
 fname(12)=user_laiinput
 fname(13)=atebconfig
 fname(14)=soilconfig
+fname(15)=change_landuse
 
-outmode=0
-if ( outputmode=='cablepft' ) then
-  outmode=1
+outmode=1
+if ( outputmode=='igbp' ) then
+  outmode=0
 end if
 
-call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode,zerozs,ovegfrac)
+call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,year, &
+               binlimit,outmode,zerozs,ovegfrac)
 
 deallocate(options)
 
@@ -162,6 +168,7 @@ Write(6,*) "  to use.  For example:"
 Write(6,*)
 Write(6,*) '  &vegnml'
 Write(6,*) '    month=0'
+write(6,*) '    year=0'
 Write(6,*) '    topofile="topout"'
 Write(6,*) '    newtopofile="newtopout"'
 Write(6,*) '    landtypeout="veg"'
@@ -183,46 +190,50 @@ write(6,*) '    atebconfig="def_urban_params.txt"'
 write(6,*) '    soilconfig="def_soil_params.txt"'
 write(6,*) '    user_veginput="myveg.nc"'
 write(6,*) '    user_laiinput="mylai.nc"'
-write(6,*) '    ovegfrac=".false."'
+write(6,*) '    ovegfrac=.false.'
+write(6,*) '    change_landuse="IPCC_ssp370.nc"'
 Write(6,*) '  &end'
 Write(6,*)
 Write(6,*) '  where:'
-Write(6,*) '    month         = the month to process (1-12, 0=all)'
-Write(6,*) '    topofile      = topography (input) file'
-Write(6,*) '    newtopofile   = Output topography file name'
-Write(6,*) '                    (if igbplsmask=t)'
-Write(6,*) '    landtypeout   = Land-use filename'
-Write(6,*) '    veginput      = Location of IGBP input file'
-Write(6,*) '    soilinput     = Location of USDA input file'
-Write(6,*) '    laiinput      = Location of LAI input file for month>0'
-Write(6,*) '                    or path to LAI files for month=0'
-Write(6,*) '    albvisinput   = Location of VIS Albedo input file'
-Write(6,*) '    albnirinput   = Location of NIR Albedo input file'
-Write(6,*) '    fastigbp      = Turn on fastigbp mode (see notes below)'
-Write(6,*) '    igbplsmask    = Define land/sea mask from IGBP dataset'
+Write(6,*) '    month          = the month to process (1-12, 0=all)'
+write(6,*) '    year           = the year to process for land-use change'
+Write(6,*) '    topofile       = topography (input) file'
+Write(6,*) '    newtopofile    = Output topography file name'
+Write(6,*) '                     (if igbplsmask=t)'
+Write(6,*) '    landtypeout    = Land-use filename'
+Write(6,*) '    veginput       = Location of IGBP input file'
+Write(6,*) '    soilinput      = Location of USDA input file'
+Write(6,*) '    laiinput       = Location of LAI input file for month>0'
+Write(6,*) '                     or path to LAI files for month=0'
+Write(6,*) '    albvisinput    = Location of VIS Albedo input file'
+Write(6,*) '    albnirinput    = Location of NIR Albedo input file'
+Write(6,*) '    fastigbp       = Turn on fastigbp mode (see notes below)'
+Write(6,*) '    igbplsmask     = Define land/sea mask from IGBP dataset'
 !Write(6,*) '    ozlaipath     = Use CSIRO LAI dataset for Australia'
-Write(6,*) '    tile          = Seperate land cover into tiles'
-Write(6,*) '    binlimit      = The minimum ratio between the grid'
-Write(6,*) '                    length scale and the length scale of'
-Write(6,*) '                    the aggregated land-use data (see notes'
-Write(6,*) '                    below).'
-write(6,*) '    zerozs        = Set orography height to zero for oceans'
-write(6,*) '                    (default = true)'
-Write(6,*) '    outputmode    = format of output file.'
-Write(6,*) '                    igbp     Use IGBP classes (default)'
-Write(6,*) '                    cablepft Use CABLE PFTs'
-write(6,*) '    pftconfig     = Location of the PFT definition file'
-write(6,*) '                    Use standard CABLE PFT file with the'
-write(6,*) '                    first index to define the reference'
-write(6,*) '                    CSIRO PFT (1-17)'
-write(6,*) '    mapconfig     = Location of the mapping file to'
-write(6,*) '                    convert indices from veginput to'
-write(6,*) '                    PFTs defined in pftconfig'
-write(6,*) '    atebconfig    = Location of the aTEB definition file'
-write(6,*) '    user_veginput = Location of user modified vegetation'
-write(6,*) '    user_laiinput = Location of user modified LAI'
-write(6,*) '    ovegfrac      = Use veg fraction for each type from user file'
-write(6,*) '    soilconfig    = Location of the Soil definition file'
+Write(6,*) '    tile           = Seperate land cover into tiles'
+Write(6,*) '    binlimit       = The minimum ratio between the grid'
+Write(6,*) '                     length scale and the length scale of'
+Write(6,*) '                     the aggregated land-use data (see notes'
+Write(6,*) '                     below).'
+write(6,*) '    zerozs         = Set orography height to zero for oceans'
+write(6,*) '                     (default = true)'
+Write(6,*) '    outputmode     = format of output file.'
+Write(6,*) '                     igbp     Use IGBP classes'
+Write(6,*) '                     cablepft Use CABLE PFTs (default)'
+write(6,*) '    pftconfig      = Location of the PFT definition file'
+write(6,*) '                     Use standard CABLE PFT file with the'
+write(6,*) '                     first index to define the reference'
+write(6,*) '                     CSIRO PFT (1-17)'
+write(6,*) '    mapconfig      = Location of the mapping file to'
+write(6,*) '                     convert indices from veginput to'
+write(6,*) '                     PFTs defined in pftconfig'
+write(6,*) '    atebconfig     = Location of the aTEB definition file'
+write(6,*) '    user_veginput  = Location of user modified vegetation'
+write(6,*) '    user_laiinput  = Location of user modified LAI'
+write(6,*) '    ovegfrac       = Use veg fraction for each type from user file'
+write(6,*) '    soilconfig     = Location of the Soil definition file'
+write(6,*) '    change_landuse = file for time varying land-use'
+write(6,*) '                     (default = blank)'
 Write(6,*)
 Write(6,*) 'NOTES: fastigbp mode will speed up the code by aggregating'
 Write(6,*) '       land-use data at a coarser resolution before'
@@ -280,16 +291,17 @@ End
 ! This subroutine processes the sib data
 !
 
-Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,binlimit,outmode,zerozs,ovegfrac)
+Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,year, &
+                     binlimit,outmode,zerozs,ovegfrac)
 
 Use ccinterp
 
 Implicit None
 
 Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile,zerozs,ovegfrac
-Integer, intent(in) :: nopts,binlimit,month,outmode
+Integer, intent(in) :: nopts,binlimit,month,year,outmode
 Character(len=*), dimension(nopts,2), intent(in) :: options
-Character(len=*), dimension(14), intent(in) :: fname
+Character(len=*), dimension(15), intent(in) :: fname
 character(len=1024) filename
 Character(len=80), dimension(1:3) :: outputdesc
 Character(len=1024) returnoption,csize
@@ -298,6 +310,7 @@ Character(len=9) formout
 Character(len=2) monthout
 real, dimension(:,:,:), allocatable :: vlai
 Real, dimension(:,:,:), allocatable :: landdata,soildata,rlld,vfrac,tmp
+real, dimension(:,:,:), allocatable :: changedata
 Real, dimension(:,:), allocatable :: gridout,lsdata,urbandata,oceandata,albvisdata,albnirdata
 real, dimension(:,:), allocatable :: testdata
 real, dimension(:,:), allocatable :: rdata
@@ -307,15 +320,17 @@ Real, dimension(1) :: atime
 Real, dimension(1) :: alvl
 Real schmidt,dsx,ds,urbanfrac
 real urbanmaxfrac, urbantotalfrac
+real nsum, newsum, change_crop, change_pasture, icefrac
 integer, dimension(:,:), allocatable :: idata, urbantype
 integer, dimension(:,:,:), allocatable :: vtype
 Integer, dimension(2) :: sibdim
 Integer, dimension(4) :: dimnum,dimid,dimcount
 Integer, dimension(0:4) :: ncidarr
 Integer, dimension(6) :: adate
-Integer, dimension(2:22) :: varid
-Integer sibsize,tunit,i,j,k,ierr,sibmax(1),mthrng
-integer tt
+Integer, dimension(2:33) :: varid
+integer, dimension(1) :: sibmax
+Integer sibsize,tunit,i,j,k,ierr,mthrng
+integer tt, n
 logical, dimension(:), allocatable :: sermsk
 
 integer :: pft_len = 18
@@ -1235,16 +1250,57 @@ allocate(albnirdata(sibdim(1),sibdim(2)))
 allocate(soildata(sibdim(1),sibdim(2),0:8))
 allocate(landdata(sibdim(1),sibdim(2),0:class_num*(1+mthrng)))
 
-! Read igbp data
-call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land',fastigbp,ozlaipatch,binlimit,month, &
+! Read default igbp data
+call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land',fastigbp,ozlaipatch,binlimit,month,year, &
              fname(4),fname(6),class_num,mapjveg,mapwater)
-call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month,fname(5),fname(6), &
-             class_num,mapjveg,mapwater)
-call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month,fname(7),fname(6), &
-             class_num,mapjveg,mapwater)
-call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month,fname(8),fname(6), &
-             class_num,mapjveg,mapwater)
+call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month,year, &
+             fname(5),fname(6),class_num,mapjveg,mapwater)
+call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month,year, &
+             fname(7),fname(6),class_num,mapjveg,mapwater)
+call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month,year, &
+             fname(8),fname(6),class_num,mapjveg,mapwater)
 
+! Read land-use change data
+if ( fname(15)/='' ) then
+  if ( outmode/=1 ) then
+    write(6,*) "ERROR: Change in land-use requires outmode=1"
+    call finishbanner
+    stop -1
+  end if    
+  if ( .not.tile ) then
+    write(6,*) "ERROR: Change in land-use requires tile=.true."
+    call finishbanner
+    stop -1
+  end if
+  write(6,*) "Applying land-use change data from ",trim(fname(15))
+  allocate( changedata(sibdim(1),sibdim(2),0:1) ) 
+  ! read land-use change dataset
+  call getdata(changedata,lonlat,gridout,rlld,sibdim,1,sibsize,'change',fastigbp,ozlaipatch,binlimit,month,year, &
+               fname(15),fname(6),class_num,mapjveg,mapwater)
+  ! reduce natural vegetation and add land-use changes
+  
+  do j = 1,sibdim(2)
+    do i = 1,sibdim(1)
+      nsum = sum(landdata(i,j,1:class_num),mask=.not.mapwater(1:class_num))
+      if ( nsum>0. ) then
+        change_crop = changedata(i,j,0)
+        change_pasture = max( changedata(i,j,1), landdata(i,j,10) )
+        landdata(i,j,12) = 0. ! IGBP crops=12
+        landdata(i,j,14) = 0. ! IGBP crops/natural vegetation mosaic=14
+        landdata(i,j,10) = 0. ! IGBP grassland=10 
+        newsum = sum(landdata(i,j,1:class_num),mask=.not.mapwater(1:class_num)) 
+        where ( .not.mapwater(1:class_num) )
+          landdata(i,j,1:class_num) = landdata(i,j,1:class_num)*max(1.-change_crop-change_pasture,0.001)*nsum/newsum
+        end where  
+        landdata(i,j,12) = max(landdata(i,j,12) + change_crop*nsum,1.e-3)
+        landdata(i,j,10) = max(landdata(i,j,10) + change_pasture*nsum,1.e-3)
+      end if  
+    end do
+  end do  
+  deallocate( changedata )
+end if
+
+! Read user defined data
 if ( fname(11)/='' .or. fname(12)/='' ) then
   call modifylanddata(landdata,lonlat,sibdim,class_num*(1+mthrng),month,fname(11),fname(12),class_num,mapjveg,gridout,ovegfrac)
 end if
@@ -1331,8 +1387,8 @@ albvisdata=tmp(:,:,0)
 albnirdata=tmp(:,:,1)
 
 deallocate( soildata, tmp )
-allocate( vfrac(sibdim(1),sibdim(2),5), vtype(sibdim(1),sibdim(2),5) )
-allocate( vlai(sibdim(1),sibdim(2),5) )
+allocate( vfrac(sibdim(1),sibdim(2),9), vtype(sibdim(1),sibdim(2),9) )
+allocate( vlai(sibdim(1),sibdim(2),9) )
 !allocate( savannafrac(sibdim(1),sibdim(2)) )
 
 write(6,*) "Create output file"
@@ -1347,11 +1403,19 @@ adate(2)=1 ! time units=months
 do tt=1,mthrng
   write(6,*) "Writing month ",tt,"/",mthrng
 
-  if (mthrng==1) then
-    filename=fname(2)
-  else
-    write(filename,"(A,'.',I2.2)") trim(fname(2)),tt
-  end if
+  if ( fname(15)/='' ) then
+    if (mthrng==1) then
+      filename=fname(2)
+    else
+      write(filename,"(A,'.',I4.4,'.',I2.2)") trim(fname(2)),year,tt
+    end if
+  else    
+    if (mthrng==1) then
+      filename=fname(2)
+    else
+      write(filename,"(A,'.',I2.2)") trim(fname(2)),tt
+    end if
+  end if  
 
   call ncinitcc(ncidarr,filename,dimnum(1:3),dimid,adate)
   if ( outmode==1 ) then
@@ -1371,6 +1435,7 @@ do tt=1,mthrng
   outputdesc(2)='Soil albedo (NIR)'
   outputdesc(3)=''
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(4),1.,0.)
+  
   outputdesc(1)='lai1'
   outputdesc(2)='Leaf Area Index (tile1)'
   outputdesc(3)=''
@@ -1382,74 +1447,126 @@ do tt=1,mthrng
   outputdesc(1)='vfrac1'
   outputdesc(2)='Land-use cover fraction (tile1)'
   outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(12),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(7),1.,0.)
 
   outputdesc(1)='lai2'
   outputdesc(2)='Leaf Area Index (tile2)'
   outputdesc(3)=''
-  call ncaddvargen(ncidarr,outputdesc,5,3,varid(17),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(8),1.,0.)
   outputdesc(1)='vegt2'
   outputdesc(2)='Land-use classification (tile2)'
   outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(8),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(9),1.,0.)
   outputdesc(1)='vfrac2'
   outputdesc(2)='Land-use cover fraction (tile2)'
   outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(13),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(10),1.,0.)
 
   outputdesc(1)='lai3'
   outputdesc(2)='Leaf Area Index (tile3)'
   outputdesc(3)=''
-  call ncaddvargen(ncidarr,outputdesc,5,3,varid(18),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(11),1.,0.)
   outputdesc(1)='vegt3'
   outputdesc(2)='Land-use classification (tile3)'
   outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(9),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(12),1.,0.)
   outputdesc(1)='vfrac3'
   outputdesc(2)='Land-use cover fraction (tile3)'
   outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(14),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(13),1.,0.)
 
   outputdesc(1)='lai4'
   outputdesc(2)='Leaf Area Index (tile4)'
   outputdesc(3)=''
-  call ncaddvargen(ncidarr,outputdesc,5,3,varid(19),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(14),1.,0.)
   outputdesc(1)='vegt4'
   outputdesc(2)='Land-use classification (tile4)'
   outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(10),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(15),1.,0.)
   outputdesc(1)='vfrac4'
   outputdesc(2)='Land-use cover fraction (tile4)'
   outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(15),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(16),1.,0.)
 
   outputdesc(1)='lai5'
   outputdesc(2)='Leaf Area Index (tile5)'
   outputdesc(3)=''
-  call ncaddvargen(ncidarr,outputdesc,5,3,varid(20),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(17),1.,0.)
   outputdesc(1)='vegt5'
   outputdesc(2)='Land-use classification (tile5)'
   outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(11),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(18),1.,0.)
   outputdesc(1)='vfrac5'
   outputdesc(2)='Land-use cover fraction (tile5)'
   outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(16),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(19),1.,0.)
 
+  outputdesc(1)='lai6'
+  outputdesc(2)='Leaf Area Index (tile6)'
+  outputdesc(3)=''
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(20),1.,0.)
+  outputdesc(1)='vegt6'
+  outputdesc(2)='Land-use classification (tile6)'
+  outputdesc(3)='none'
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(21),1.,0.)
+  outputdesc(1)='vfrac6'
+  outputdesc(2)='Land-use cover fraction (tile6)'
+  outputdesc(3)='none'
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(22),1.,0.)  
+  
+  outputdesc(1)='lai7'
+  outputdesc(2)='Leaf Area Index (tile7)'
+  outputdesc(3)=''
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(23),1.,0.)
+  outputdesc(1)='vegt7'
+  outputdesc(2)='Land-use classification (tile7)'
+  outputdesc(3)='none'
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(24),1.,0.)
+  outputdesc(1)='vfrac7'
+  outputdesc(2)='Land-use cover fraction (tile7)'
+  outputdesc(3)='none'
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(25),1.,0.) 
+  
+  outputdesc(1)='lai8'
+  outputdesc(2)='Leaf Area Index (tile8)'
+  outputdesc(3)=''
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(26),1.,0.)
+  outputdesc(1)='vegt8'
+  outputdesc(2)='Land-use classification (tile8)'
+  outputdesc(3)='none'
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(27),1.,0.)
+  outputdesc(1)='vfrac8'
+  outputdesc(2)='Land-use cover fraction (tile8)'
+  outputdesc(3)='none'
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(28),1.,0.) 
+  
+  outputdesc(1)='lai9'
+  outputdesc(2)='Leaf Area Index (tile9)'
+  outputdesc(3)=''
+  call ncaddvargen(ncidarr,outputdesc,5,3,varid(29),1.,0.)
+  outputdesc(1)='vegt9'
+  outputdesc(2)='Land-use classification (tile9)'
+  outputdesc(3)='none'
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(30),1.,0.)
+  outputdesc(1)='vfrac9'
+  outputdesc(2)='Land-use cover fraction (tile9)'
+  outputdesc(3)='none'
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(31),1.,0.) 
+  
   outputdesc(1)='urbantype'
   outputdesc(2)='Urban class'
   outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(22),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(32),1.,0.)
   outputdesc(1)='urban'
   outputdesc(2)='Urban fraction'
   outputdesc(3)='none'
-  call ncaddvargen(ncidarr,outputdesc,5,2,varid(7),1.,0.)
+  call ncaddvargen(ncidarr,outputdesc,5,2,varid(33),1.,0.)
 
   ! to be depreciated
   !outputdesc(1)='savanna'
   !outputdesc(2)='Savanna fraction of PFT=2'
   !outputdesc(3)='none'
-  !call ncaddvargen(ncidarr,outputdesc,5,2,varid(21),1.,0.)
+  !call ncaddvargen(ncidarr,outputdesc,5,2,varid(34),1.,0.)
   
   call ncatt(ncidarr,'lon0',lonlat(1))
   call ncatt(ncidarr,'lat0',lonlat(2))
@@ -1792,37 +1909,63 @@ do tt=1,mthrng
   call ncwritedatgen(ncidarr,albnirdata,dimcount,varid(4))
 
   write(6,*) 'Write land-use'
+  vtype = 0
+  vfrac = 0.
+  vlai = 0.
   do j=1,sibdim(2)
     do i=1,sibdim(1)
       if (lsdata(i,j)>=0.5) then
-        vtype(i,j,1:5)=0
+        ! water  
+        vtype(i,j,1:9)=0
         vfrac(i,j,1)=1.
-        vfrac(i,j,2:5)=0.
+        vfrac(i,j,2:9)=0.
         vlai(i,j,:)=0.
       else
-        sermsk=.not.mapwater(:)
-        do k=1,5
+        ! land  
+        if ( .not. tile ) then
+          sermsk=.not.mapwater(:)  
           sibmax=maxloc(landdata(i,j,1:class_num),sermsk)
-          sermsk(sibmax(1))=.false.
-          vtype(i,j,k)=sibmax(1)
-          vfrac(i,j,k)=landdata(i,j,sibmax(1))
-          vlai(i,j,k)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)
-        end do
-        if (.not.tile) then
-          vlai(i,j,1)=sum(vlai(i,j,:)*vfrac(i,j,:))/sum(vfrac(i,j,:))
-          vlai(i,j,2:5)=0.
-          vfrac(i,j,1)=1.
-          vfrac(i,j,2:5)=0.        
-        end if
-        vfrac(i,j,:)=vfrac(i,j,:)/sum(vfrac(i,j,:))
-        vfrac(i,j,1:4)=real(nint(100.*vfrac(i,j,1:4)))/100.
-        vfrac(i,j,5)=1.-sum(vfrac(i,j,1:4))
-        do k=5,2,-1
-          if ((vfrac(i,j,k)<0.).or.(vfrac(i,j,k-1)<vfrac(i,j,k))) then
-            vfrac(i,j,k-1)=vfrac(i,j,k-1)+vfrac(i,j,k)
-            vfrac(i,j,k)=0.
-          end if
-        end do
+          vtype(i,j,1)=sibmax(1)
+          vfrac(i,j,1)=landdata(i,j,sibmax(1))
+          vlai(i,j,1)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)    
+        else    
+          sermsk=.not.mapwater(:)
+          sermsk(10) = .false.
+          sermsk(12) = .false.
+          icefrac = 0.
+          do k = 1,5 ! only for natural vegetation
+            sibmax=maxloc(landdata(i,j,1:class_num),sermsk)
+            sermsk(sibmax(1))=.false.
+            vtype(i,j,k)=sibmax(1)
+            vfrac(i,j,k)=landdata(i,j,sibmax(1))
+            vlai(i,j,k)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)
+            if ( mapice(sibmax(1)) ) then
+              icefrac = icefrac + vfrac(i,j,k)
+            end if
+          end do
+          if ( icefrac<0.99 ) then ! avoid crops where there is large amounts of ice
+            k = 6 ! grassland
+            sibmax(1) = 10
+            vtype(i,j,k)=sibmax(1)
+            vfrac(i,j,k)=max( landdata(i,j,sibmax(1)), 0.001 )
+            vlai(i,j,k)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)
+            k = 7 ! crop
+            sibmax(1) = 12
+            vtype(i,j,k)=sibmax(1)
+            vfrac(i,j,k)=max( landdata(i,j,sibmax(1)), 0.001 )
+            vlai(i,j,k)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)
+          end if  
+          ! k = 8,9 are reserved for outmode=1
+          vfrac(i,j,:)=vfrac(i,j,:)/sum(vfrac(i,j,:))
+          !vfrac(i,j,1:4)=real(nint(100.*vfrac(i,j,1:4)))/100.
+          !vfrac(i,j,5)=1.-sum(vfrac(i,j,1:4))
+          !do k = 5,2,-1
+          !  if ((vfrac(i,j,k)<0.).or.(vfrac(i,j,k-1)<vfrac(i,j,k))) then
+          !    vfrac(i,j,k-1)=vfrac(i,j,k-1)+vfrac(i,j,k)
+          !    vfrac(i,j,k)=0.
+          !  end if
+          !end do
+        end if  
       end if
     end do
   end do
@@ -1833,23 +1976,39 @@ do tt=1,mthrng
   rdata=Real(vtype(:,:,1))
   call ncwritedatgen(ncidarr,rdata,dimcount,varid(6))
   rdata=Real(vtype(:,:,2))
-  call ncwritedatgen(ncidarr,rdata,dimcount,varid(8))
-  rdata=Real(vtype(:,:,3))
   call ncwritedatgen(ncidarr,rdata,dimcount,varid(9))
+  rdata=Real(vtype(:,:,3))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(12))
   rdata=Real(vtype(:,:,4))
-  call ncwritedatgen(ncidarr,rdata,dimcount,varid(10))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(15))
   rdata=Real(vtype(:,:,5))
-  call ncwritedatgen(ncidarr,rdata,dimcount,varid(11))
-  call ncwritedatgen(ncidarr,vfrac(:,:,1),dimcount,varid(12))
-  call ncwritedatgen(ncidarr,vfrac(:,:,2),dimcount,varid(13))
-  call ncwritedatgen(ncidarr,vfrac(:,:,3),dimcount,varid(14))
-  call ncwritedatgen(ncidarr,vfrac(:,:,4),dimcount,varid(15))
-  call ncwritedatgen(ncidarr,vfrac(:,:,5),dimcount,varid(16))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(18))
+  rdata=Real(vtype(:,:,6))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(21))
+  rdata=Real(vtype(:,:,7))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(24))
+  rdata=Real(vtype(:,:,8))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(27))
+  rdata=Real(vtype(:,:,9))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(30))
+  call ncwritedatgen(ncidarr,vfrac(:,:,1),dimcount,varid(7))
+  call ncwritedatgen(ncidarr,vfrac(:,:,2),dimcount,varid(10))
+  call ncwritedatgen(ncidarr,vfrac(:,:,3),dimcount,varid(13))
+  call ncwritedatgen(ncidarr,vfrac(:,:,4),dimcount,varid(16))
+  call ncwritedatgen(ncidarr,vfrac(:,:,5),dimcount,varid(19))
+  call ncwritedatgen(ncidarr,vfrac(:,:,6),dimcount,varid(22))
+  call ncwritedatgen(ncidarr,vfrac(:,:,7),dimcount,varid(25))
+  call ncwritedatgen(ncidarr,vfrac(:,:,8),dimcount,varid(28))
+  call ncwritedatgen(ncidarr,vfrac(:,:,9),dimcount,varid(31))
   call ncwritedatgen(ncidarr,vlai(:,:,1),dimcount,varid(5))
-  call ncwritedatgen(ncidarr,vlai(:,:,2),dimcount,varid(17))
-  call ncwritedatgen(ncidarr,vlai(:,:,3),dimcount,varid(18))
-  call ncwritedatgen(ncidarr,vlai(:,:,4),dimcount,varid(19))
-  call ncwritedatgen(ncidarr,vlai(:,:,5),dimcount,varid(20))
+  call ncwritedatgen(ncidarr,vlai(:,:,2),dimcount,varid(8))
+  call ncwritedatgen(ncidarr,vlai(:,:,3),dimcount,varid(11))
+  call ncwritedatgen(ncidarr,vlai(:,:,4),dimcount,varid(14))
+  call ncwritedatgen(ncidarr,vlai(:,:,5),dimcount,varid(17))
+  call ncwritedatgen(ncidarr,vlai(:,:,6),dimcount,varid(20))
+  call ncwritedatgen(ncidarr,vlai(:,:,7),dimcount,varid(23))
+  call ncwritedatgen(ncidarr,vlai(:,:,8),dimcount,varid(26))
+  call ncwritedatgen(ncidarr,vlai(:,:,9),dimcount,varid(29))
 
   ! Urban
   write(6,*) 'Write urban'
@@ -1860,11 +2019,11 @@ do tt=1,mthrng
   elsewhere
     rdata=0.
   end where
-  call ncwritedatgen(ncidarr,rdata,dimcount,varid(22))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(32))
   ! fraction
   urbanfrac=1.
   rdata=urbandata*urbanfrac
-  call ncwritedatgen(ncidarr,rdata,dimcount,varid(7))
+  call ncwritedatgen(ncidarr,rdata,dimcount,varid(33))
   
   if ( outmode==1 ) then
     call ncput_1dvar_text(ncidarr,'pftname',pft_len,pft_desc)
@@ -2356,12 +2515,12 @@ implicit none
 
 integer, intent(in) :: class_num, pft_len
 Integer, dimension(2), intent(in) :: sibdim
-integer, dimension(sibdim(1),sibdim(2),5), intent(inout) :: vtype
+integer, dimension(sibdim(1),sibdim(2),9), intent(inout) :: vtype
 integer, dimension(class_num,5), intent(in) :: mapindex
 integer, dimension(1) :: pos
 integer i, j, n, ipos, iv
 integer iv_new, k
-real, dimension(sibdim(1),sibdim(2),5), intent(inout) :: vfrac, vlai
+real, dimension(sibdim(1),sibdim(2),9), intent(inout) :: vfrac, vlai
 real, dimension(class_num,5), intent(in) :: mapfrac
 real, dimension(pft_len) :: newlai
 real, dimension(pft_len) :: newgrid
@@ -2372,6 +2531,7 @@ real fmixed, fneedlebroad
 real xp
 real, parameter :: minfrac = 0.01        ! minimum non-zero tile fraction (improves load balancing)
 Real, parameter :: pi = 3.1415926536
+logical, dimension(pft_len) :: sermask
 
 if ( any(mapindex>pft_len) ) then
   write(6,*) "ERROR: Unspecified index in mapconfig is not represented in pftconfig"
@@ -2471,7 +2631,7 @@ do j = 1,sibdim(2)
         fneedlebroad=0.
       endif
       
-      do n = 1,5
+      do n = 1,9
         iv = vtype(i,j,n)
         do k=1,5
           iv_new=mapindex(iv,k)
@@ -2518,19 +2678,22 @@ do j = 1,sibdim(2)
         newlai(:) = newlai(:)/newgrid(:)
       end where
       ipos = count(newgrid(:)>0.)
-      do while ( ipos>5 )
-        pos = minloc(newgrid(:), newgrid(:)>0.)
+      sermask = .true.
+      sermask(6:7) = .false.
+      sermask(9:10) = .false.
+      do while ( ipos>9 )
+        pos = minloc(newgrid(:), newgrid(:)>0. .and. sermask)
         newgrid(pos(1)) = 0.
         nsum = sum(newgrid(:))
         newgrid(:) = newgrid(:)/nsum
         ipos = count(newgrid(:)>0.)
       end do    
-      do while ( any(newgrid(:)<minfrac.and.newgrid(:)>0.) )
-        pos = minloc(newgrid(:), newgrid(:)>0.)
-        newgrid(pos(1)) = 0.
-        nsum = sum(newgrid(:))
-        newgrid(:) = newgrid(:)/nsum
-      end do
+      !do while ( any(newgrid(:)<minfrac.and.newgrid(:)>0..and.sermask) )
+      !  pos = minloc(newgrid(:), newgrid(:)>0.)
+      !  newgrid(pos(1)) = 0.
+      !  nsum = sum(newgrid(:))
+      !  newgrid(:) = newgrid(:)/nsum
+      !end do
 
       n = 0
       vtype(i,j,:) = 0
