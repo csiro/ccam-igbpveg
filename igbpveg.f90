@@ -1324,7 +1324,7 @@ do i = 1,class_num
       urbantotalfrac = urbantotalfrac + mapfrac(i,j)
       if ( mapfrac(i,j)>urbanmaxfrac ) then
         urbanmaxfrac = mapfrac(i,j)
-        where( landdata(:,:,i)>testdata(:,:) )
+        where( landdata(:,:,i)*mapfrac(i,j)>testdata(:,:) )
           urbantype(:,:) = -mapindex(i,j)-100
           testdata(:,:) = landdata(:,:,i)*mapfrac(i,j)
         end where
@@ -2282,6 +2282,7 @@ if (.not.any(sermsk)) then
   return
 end if
 
+!$OMP PARALLEL DO DEFAULT(NONE) SHARED(sibdim,lsdata,sermsk,rlld,class_num,mapwater,datain,dataout,mthrng,ocnmsk) PRIVATE(ilat,ilon,pxy,i,nsum,wsum)
 do ilat=1,sibdim(2)
   do ilon=1,sibdim(1)
     if (lsdata(ilon,ilat)<0.5) then
@@ -2336,6 +2337,7 @@ do ilat=1,sibdim(2)
     end if
   end do
 end do
+!$OMP END PARALLEL DO
 
 return
 end
