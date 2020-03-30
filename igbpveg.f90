@@ -1316,6 +1316,7 @@ urbantype(:,:)=1
 urbandata(:,:)=0.
 testdata(:,:)=0.
 do i = 1,class_num
+    
   urbanmaxfrac = 0.
   urbantotalfrac = 0.
   do j = 1,5
@@ -2172,7 +2173,7 @@ real, dimension(sibdim(1),sibdim(2),0:class_num*(1+mthrng)), intent(inout) :: la
 real, dimension(sibdim(1),sibdim(2),1:class_num*(1+mthrng)) :: newdata
 logical, dimension(1:sibdim(1),1:sibdim(2)) :: allmsk, reqmsk
 logical, dimension(class_num), intent(in) :: mapwater
-integer i,j,ilon,ilat
+integer i,j,ilon,ilat,k
 real nsum,wsum
 
 allmsk=.false.
@@ -2193,23 +2194,23 @@ do ilat=1,sibdim(2)
   end do
 end do
 
-newdata(:,:,1:class_num*(1+mthrng))=landdata(:,:,1:class_num*(1+mthrng))
-!$OMP PARALLEL DO DEFAULT(NONE) SHARED(mapwater,newdata,sibdim,allmsk,reqmsk,mthrng,class_num) PRIVATE(i,j)
-do i=1,class_num
-  if ( .not.mapwater(i) ) then
-    write(6,*) "Fill class ",i
-    call fill_cc_mask(newdata(:,:,i),sibdim(1),allmsk,reqmsk) ! only need land points to be filled
-    do j=(i-1)*mthrng+class_num+1,i*mthrng+class_num
-      write(6,*) "Fill class ",j
-      call fill_cc_mask(newdata(:,:,j),sibdim(1),allmsk,reqmsk) ! only need land points to be filled
-    end do
+!$OMP PARALLEL DO SCHEDULE(static) DEFAULT(NONE) SHARED(mapwater,newdata,sibdim,allmsk,reqmsk,mthrng,class_num,landdata) PRIVATE(i,j,k)
+do j = 1,class_num*(1+mthrng)
+  if ( j<=class_num ) then
+    i = j
+    k = 0
   else
-    newdata(:,:,i)=0.
-    do j=(i-1)*mthrng+class_num+1,i*mthrng+class_num
-      newdata(:,:,j) = 0.
-    end do
+    i = (j-class_num-1)/mthrng + 1
+    k = mod(j-class_num-1,mthrng) + 1
   end if
-end do
+  if ( .not.mapwater(i) ) then
+    write(6,*) "Fill class ",j,i,k
+    newdata(:,:,j) = landdata(:,:,j)
+    call fill_cc_mask(newdata(:,:,j),sibdim(1),allmsk,reqmsk) ! only need land points to be filled
+  else
+    newdata(:,:,j) = 0. 
+  end if
+end do  
 !$OMP END PARALLEL DO
 
 do ilat=1,sibdim(2)
@@ -2282,8 +2283,9 @@ if (.not.any(sermsk)) then
   return
 end if
 
-!$OMP PARALLEL DO DEFAULT(NONE) SHARED(sibdim,lsdata,sermsk,rlld,class_num,mapwater,datain,dataout,mthrng,ocnmsk) PRIVATE(ilat,ilon,pxy,i,nsum,wsum)
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(sibdim,lsdata,sermsk,rlld,class_num,mapwater,datain,dataout,mthrng,ocnmsk) PRIVATE(ilat,ilon,pxy,i,nsum,wsum)
 do ilat=1,sibdim(2)
+  if ( mod(ilat,50)==0.or.ilat==sibdim(2) ) write(6,*) "ilat ",ilat,"/",sibdim(2)
   do ilon=1,sibdim(1)
     if (lsdata(ilon,ilat)<0.5) then
       if (.not.sermsk(ilon,ilat)) then
