@@ -280,9 +280,9 @@ If (fastigbp) then
           ! Bin
           If (All(lldim>0)) then
 
-            Allocate( coverout(lldim(1),lldim(2),0:num) )
+            Allocate(coverout(lldim(1),lldim(2),0:num))
             allocate( lcmap(lldim(1),lldim(2),2) )
-	  
+  
             Select Case(datatype)
               Case('land')
                 Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
@@ -303,8 +303,8 @@ If (fastigbp) then
             End Select
 
             write(6,*) 'Start bin'
-            ltest = grid>=real(minscale)           
-!$OMP PARALLEL DO SCHEDULE(static) DEFAULT(NONE) SHARED(lldim,latlon,nscale,sibdim,lcmap) PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)              
+            ltest = grid>=real(minscale)
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(lldim,latlon,nscale,sibdim,lcmap) PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
             do j=1,lldim(2)
               aglat=callat(latlon(2),j,nscale)
               do i=1,lldim(1)           
@@ -316,41 +316,15 @@ If (fastigbp) then
                 lcmap(i,j,1) = lci
                 lcmap(i,j,2) = lcj
               end do
-            end do
-!$OMP END PARALLEL DO            
-
-            if (datatype=='land') then
-!$OMP PARALLEL DO SCHEDULE(static) DEFAULT(NONE) SHARED(class_num,num,lldim,lcmap,ltest,coverout,dataout,countn) PRIVATE(k,j,i,lci,lcj)
-              do k = class_num+1,num
-                do j=1,lldim(2)
-                  do i=1,lldim(1)           
-                    lci = lcmap(i,j,1)
-                    lcj = lcmap(i,j,2)
-                    if (ltest(lci,lcj)) then
-                      if (sum(abs(coverout(i,j,0:class_num)))<0.001) then
-                      else
-                        if (dataout(lci,lcj,k)<0.) then
-                          dataout(lci,lcj,k)=0. ! reset missing point after finding non-trival data
-                        end if
-                        if (coverout(i,j,k)==0..and.countn(lci,lcj)>0 ) then
-                          dataout(lci,lcj,k)=dataout(lci,lcj,k)*real(countn(lci,lcj)+1) &
-                              /real(countn(lci,lcj))
-                        else if ( dataout(lci,lcj,k)==0. ) then
-                          dataout(lci,lcj,k)=coverout(i,j,k)*real(countn(lci,lcj)+1)
-                        else
-                          dataout(lci,lcj,k)=dataout(lci,lcj,k)+coverout(i,j,k)
-                        end if
-                      end if
-                    end if
-                  end do
-                end do
-              end do  
+            end do  
 !$OMP END PARALLEL DO
+            
+            if (datatype=='land') then
               do j=1,lldim(2)
                 do i=1,lldim(1)           
                   lci = lcmap(i,j,1)
                   lcj = lcmap(i,j,2)
-                  if (ltest(lci,lcj)) then
+                  if ( ltest(lci,lcj) ) then
                     if (sum(abs(coverout(i,j,0:class_num)))<0.001) then
                       if (countn(lci,lcj)==0) then
                         dataout(lci,lcj,0:num)=-1. ! Missing value?
@@ -358,10 +332,18 @@ If (fastigbp) then
                       end if
                     else
                       if (dataout(lci,lcj,0)<0.) then
-                        dataout(lci,lcj,0:class_num)=0. ! reset missing point after finding non-trival data
+                        dataout(lci,lcj,0:num)=0. ! reset missing point after finding non-trival data
                         countn(lci,lcj)=0
                       end if
                       dataout(lci,lcj,0:class_num)=dataout(lci,lcj,0:class_num)+coverout(i,j,0:class_num)
+                      where (coverout(i,j,class_num+1:num)==0..and.countn(lci,lcj)>0)
+                        dataout(lci,lcj,class_num+1:num)=dataout(lci,lcj,class_num+1:num)*real(countn(lci,lcj)+1) &
+                            /real(countn(lci,lcj))
+                      elsewhere (dataout(lci,lcj,class_num+1:num)==0.)
+                        dataout(lci,lcj,class_num+1:num)=coverout(i,j,class_num+1:num)*real(countn(lci,lcj)+1)
+                      elsewhere
+                        dataout(lci,lcj,class_num+1:num)=dataout(lci,lcj,class_num+1:num)+coverout(i,j,class_num+1:num)
+                      end where
                       countn(lci,lcj)=countn(lci,lcj)+1
                     end if
                   end if
@@ -372,7 +354,7 @@ If (fastigbp) then
                 Do i=1,lldim(1)              
                   lci = lcmap(i,j,1)
                   lcj = lcmap(i,j,2)
-                  If (ltest(lci,lcj)) then
+                  If ( ltest(lci,lcj) ) then
                     If (sum(abs(coverout(i,j,:)))<=0.01) then
                       If (countn(lci,lcj)==0) Then
                         dataout(lci,lcj,:)=-1. ! Missing value?
@@ -392,7 +374,8 @@ If (fastigbp) then
             end if
             Write(6,*) 'Bin complete'
 
-            Deallocate( coverout, lcmap )
+            Deallocate(coverout)
+            deallocate( lcmap )
 
           Else
             Write(6,*) 'No points in valid range'
@@ -476,7 +459,7 @@ If (subsec/=0) then
       If (lldim(1)>0.AND.lldim(2)>0) then
 
         Allocate(coverout(lldim(1),lldim(2),0:num))
-	
+
         Select Case(datatype)
           Case('land')
             Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
@@ -1287,15 +1270,14 @@ Do ilat=1,21600
         end do
       end if
     end if
+    
   End Do
 End Do
-
 do lcj=1,sibdim(2)
   do lci=1,sibdim(1)
     ncount(lci,lcj,0:class_num)=sum(ncount(lci,lcj,0:class_num))
   end do
 end do
-
 coverout=coverout/real(max(ncount,1))
 
 if (ozlaipatch) deallocate(laiin)
