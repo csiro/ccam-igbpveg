@@ -54,6 +54,7 @@ Real, dimension(sibdim(1),sibdim(2)), intent(in) :: grid
 Real, dimension(sibdim(1),sibdim(2),2), intent(in) :: tlld
 Real, dimension(sibdim(1),sibdim(2),2) :: rlld
 Real, dimension(sibdim(1),sibdim(2)) :: zsum
+real, dimension(0:num) :: newdata, newcover
 Real, dimension(2), intent(in) :: glonlat
 Real, dimension(:,:,:), allocatable :: coverout
 Real, dimension(1:2) :: latlon
@@ -325,25 +326,28 @@ If (fastigbp) then
                   lci = lcmap(i,j,1)
                   lcj = lcmap(i,j,2)
                   if ( ltest(lci,lcj) ) then
-                    if (sum(abs(coverout(i,j,0:class_num)))<0.001) then
+                    newcover(0:class_num)=coverout(i,j,0:class_num)
+                    newdata(0:class_num)=dataout(lci,lcj,0:class_num)
+                    if (sum(abs(newcover(0:class_num)))<0.001) then
                       if (countn(lci,lcj)==0) then
-                        dataout(lci,lcj,0:num)=-1. ! Missing value?
+                        newdata(0:num)=-1. ! Missing value?
                         countn(lci,lcj)=1
                       end if
                     else
-                      if (dataout(lci,lcj,0)<0.) then
-                        dataout(lci,lcj,0:num)=0. ! reset missing point after finding non-trival data
+                      if (newdata(0)<0.) then
+                        newdata(0:num)=0. ! reset missing point after finding non-trival data
                         countn(lci,lcj)=0
                       end if
-                      dataout(lci,lcj,0:class_num)=dataout(lci,lcj,0:class_num)+coverout(i,j,0:class_num)
-                      where (coverout(i,j,class_num+1:num)==0..and.countn(lci,lcj)>0)
-                        dataout(lci,lcj,class_num+1:num)=dataout(lci,lcj,class_num+1:num)*real(countn(lci,lcj)+1) &
+                      newdata(0:class_num)=newdata(0:class_num)+newcover(0:class_num)
+                      where (newcover(class_num+1:num)==0..and.countn(lci,lcj)>0)
+                        newdata(class_num+1:num)=newdata(class_num+1:num)*real(countn(lci,lcj)+1) &
                             /real(countn(lci,lcj))
-                      elsewhere (dataout(lci,lcj,class_num+1:num)==0.)
-                        dataout(lci,lcj,class_num+1:num)=coverout(i,j,class_num+1:num)*real(countn(lci,lcj)+1)
+                      elsewhere (newdata(class_num+1:num)==0.)
+                        newdata(class_num+1:num)=newcover(class_num+1:num)*real(countn(lci,lcj)+1)
                       elsewhere
-                        dataout(lci,lcj,class_num+1:num)=dataout(lci,lcj,class_num+1:num)+coverout(i,j,class_num+1:num)
+                        newdata(class_num+1:num)=newdata(class_num+1:num)+newcover(class_num+1:num)
                       end where
+                      dataout(lci,lcj,0:class_num)=newdata(0:class_num)
                       countn(lci,lcj)=countn(lci,lcj)+1
                     end if
                   end if
@@ -2072,7 +2076,7 @@ real diaglon,diaglat,dx,dy,dgridin
 real, parameter :: circe=40075.
 integer numclassin,inc
 integer diaglci, diaglcj
-Character*40 cmsg
+Character(len=40) cmsg
 diaglat=21.0
 diaglon=105.7
 diaglci=49
@@ -2393,21 +2397,23 @@ enddo ! ivegfrac=0,class_num
   end if
   
   ! replace dataout with non-trival input data
-  do iveg = 0,class_num
-    if ( ovegfrac ) then
-     where ( countfrac(:,:,iveg)>0 )
-       dataout(:,:,iveg) = datalocal(:,:,iveg)/real(countfrac(:,:,iveg))
-     end where
-     write(6,*)"compute iveg,dataout=",iveg,dataout(diaglci,diaglcj,iveg)
-     write(6,*)"countlocal,datalocal,countfrac"
-     write(6,*)countlocal(diaglci,diaglcj),datalocal(diaglci,diaglcj,iveg),countfrac(diaglci,diaglcj,iveg)
-   else
-     where ( countlocal(:,:)>0 )
-       dataout(:,:,iveg) = datalocal(:,:,iveg)/real(countlocal(:,:))
-     end where
-   endif
-  end do ! iveg
-  
+  if ( ovegfrac ) then
+    do iveg = 0,class_num
+      where ( countfrac(:,:,iveg)>0 )
+        dataout(:,:,iveg) = datalocal(:,:,iveg)/real(countfrac(:,:,iveg))
+      end where
+      write(6,*)"compute iveg,dataout=",iveg,dataout(diaglci,diaglcj,iveg)
+      write(6,*)"countlocal,datalocal,countfrac"
+      write(6,*)countlocal(diaglci,diaglcj),datalocal(diaglci,diaglcj,iveg),countfrac(diaglci,diaglcj,iveg)
+    end do  
+  else
+    do iveg = 0,class_num     
+      where ( countlocal(:,:)>0 )
+        dataout(:,:,iveg) = datalocal(:,:,iveg)/real(countlocal(:,:))
+      end where
+    end do ! iveg
+  end if
+    
   deallocate( coverin, lonin, latin )
   ierr = nf_close(ncid)
   
