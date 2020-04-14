@@ -550,7 +550,7 @@ if (datatype=='land') then
           do lcj=1,sibdim(2)
             do lci=1,sibdim(1)
               i=1
-              do while(i<=class_num.or..not.sermask2(lci,lcj,k))
+              do while(i<=class_num.and..not.sermask2(lci,lcj,k))
                 if ( .not.mapwater(i) ) then
                   if (all(dataout(lci,lcj,(i-1)*mthrng+class_num+1:i*mthrng+class_num)>0.)) then
                     sermask2(lci,lcj,k)=.true.
