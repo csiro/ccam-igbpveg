@@ -330,7 +330,7 @@ If (fastigbp) then
                     newdata(0:class_num)=dataout(lci,lcj,0:class_num)
                     if (sum(abs(newcover(0:class_num)))<0.001) then
                       if (countn(lci,lcj)==0) then
-                        newdata(0:num)=-1. ! Missing value?
+                        dataout(lci,lcj,0:num)=-1. ! Missing value?
                         countn(lci,lcj)=1
                       end if
                     else
