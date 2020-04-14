@@ -326,8 +326,8 @@ If (fastigbp) then
                   lci = lcmap(i,j,1)
                   lcj = lcmap(i,j,2)
                   if ( ltest(lci,lcj) ) then
-                    newcover(0:class_num)=coverout(i,j,0:class_num)
-                    newdata(0:class_num)=dataout(lci,lcj,0:class_num)
+                    newcover(0:num)=coverout(i,j,0:num)
+                    newdata(0:num)=dataout(lci,lcj,0:num)
                     if (sum(abs(newcover(0:class_num)))<0.001) then
                       if (countn(lci,lcj)==0) then
                         dataout(lci,lcj,0:num)=-1. ! Missing value?
@@ -347,7 +347,7 @@ If (fastigbp) then
                       elsewhere
                         newdata(class_num+1:num)=newdata(class_num+1:num)+newcover(class_num+1:num)
                       end where
-                      dataout(lci,lcj,0:class_num)=newdata(0:class_num)
+                      dataout(lci,lcj,0:num)=newdata(0:num)
                       countn(lci,lcj)=countn(lci,lcj)+1
                     end if
                   end if
