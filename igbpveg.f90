@@ -345,6 +345,7 @@ integer soil_dimid
 integer, dimension(:), allocatable :: mapjveg
 integer, dimension(:,:), allocatable :: mapindex
 real notused
+real, parameter :: minfrac = 0.01        ! minimum non-zero tile fraction (improves load balancing)
 real, dimension(:), allocatable :: csiropft
 real, dimension(:), allocatable :: hc, xfang, leaf_w, leaf_l, canst1
 real, dimension(:), allocatable :: shelrb, extkn, vcmax, rpcoef
@@ -1260,6 +1261,22 @@ call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,o
 call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month,year, &
              fname(8),fname(6),class_num,mapjveg,mapwater)
 
+! Remove small fractions before land-cover change
+do j = 1,sibdim(2)
+  do i = 1,sibdim(1)
+    nsum = sum( landdata(i,j,1:class_num), mask=.not.mapwater(1:class_num) )
+    if ( nsum>0. ) then
+      where ( landdata(i,j,1:class_num)<minfrac .and. .not.mapwater(1:class_num) )
+        landdata(i,j,1:class_num) = 0.
+      end where
+      newsum = sum( landdata(i,j,1:class_num) )
+      where ( landdata(i,j,1:class_num)<minfrac .and. .not.mapwater(1:class_num) )
+        landdata(i,j,1:class_num) = landdata(i,j,1:class_num)*nsum/newsum
+      end where
+    end if  
+  end do
+end do
+      
 ! Read land-use change data
 if ( fname(15)/='' ) then
   if ( outmode/=1 ) then
@@ -1278,7 +1295,6 @@ if ( fname(15)/='' ) then
   call getdata(changedata,lonlat,gridout,rlld,sibdim,1,sibsize,'change',fastigbp,ozlaipatch,binlimit,month,year, &
                fname(15),fname(6),class_num,mapjveg,mapwater)
   ! reduce natural vegetation and add land-use changes
-  
   do j = 1,sibdim(2)
     do i = 1,sibdim(1)
       nsum = sum(landdata(i,j,1:class_num),mask=.not.mapwater(1:class_num))
@@ -1316,7 +1332,6 @@ urbantype(:,:)=1
 urbandata(:,:)=0.
 testdata(:,:)=0.
 do i = 1,class_num
-    
   urbanmaxfrac = 0.
   urbantotalfrac = 0.
   do j = 1,5
@@ -1958,14 +1973,6 @@ do tt=1,mthrng
           end if  
           ! k = 8,9 are reserved for outmode=1
           vfrac(i,j,:)=vfrac(i,j,:)/sum(vfrac(i,j,:))
-          !vfrac(i,j,1:4)=real(nint(100.*vfrac(i,j,1:4)))/100.
-          !vfrac(i,j,5)=1.-sum(vfrac(i,j,1:4))
-          !do k = 5,2,-1
-          !  if ((vfrac(i,j,k)<0.).or.(vfrac(i,j,k-1)<vfrac(i,j,k))) then
-          !    vfrac(i,j,k-1)=vfrac(i,j,k-1)+vfrac(i,j,k)
-          !    vfrac(i,j,k)=0.
-          !  end if
-          !end do
         end if  
       end if
     end do
@@ -2533,7 +2540,6 @@ real, dimension(sibdim(1),sibdim(2),2), intent(in) :: rlld
 real fc3, fc4, ftu, fg3, fg4, clat, nsum
 real fmixed, fneedlebroad
 real xp
-real, parameter :: minfrac = 0.01        ! minimum non-zero tile fraction (improves load balancing)
 Real, parameter :: pi = 3.1415926536
 logical, dimension(pft_len) :: sermask
 
@@ -2681,23 +2687,22 @@ do j = 1,sibdim(2)
       where ( newgrid(:)>0. )
         newlai(:) = newlai(:)/newgrid(:)
       end where
-      ipos = count(newgrid(:)>0.)
       sermask = .true.
       sermask(6:7) = .false.
       sermask(9:10) = .false.
+      !where ( newgrid<minfrac .and. sermask )
+      !  newgrid(:) = 0.  
+      !end where
+      !nsum = sum(newgrid)
+      !newgrid(:) = newgrid(:)/nsum
+      ipos = count( newgrid(:)>0. )
       do while ( ipos>9 )
         pos = minloc(newgrid(:), newgrid(:)>0. .and. sermask)
         newgrid(pos(1)) = 0.
         nsum = sum(newgrid(:))
         newgrid(:) = newgrid(:)/nsum
-        ipos = count(newgrid(:)>0.)
-      end do    
-      !do while ( any(newgrid(:)<minfrac.and.newgrid(:)>0..and.sermask) )
-      !  pos = minloc(newgrid(:), newgrid(:)>0.)
-      !  newgrid(pos(1)) = 0.
-      !  nsum = sum(newgrid(:))
-      !  newgrid(:) = newgrid(:)/nsum
-      !end do
+        ipos = count( newgrid(:)>0. )
+      end do
 
       n = 0
       vtype(i,j,:) = 0

@@ -306,93 +306,92 @@ If (fastigbp) then
             write(6,*) 'Start bin'
             ltest = grid>=real(minscale)
 !$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(lldim,latlon,nscale,sibdim,lcmap) PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
-            do j=1,lldim(2)
-              aglat=callat(latlon(2),j,nscale)
-              do i=1,lldim(1)           
-                aglon=callon(latlon(1),i,nscale)
+            do j = 1,lldim(2)
+              aglat = callat(latlon(2),j,nscale)
+              do i = 1,lldim(1)           
+                aglon = callon(latlon(1),i,nscale)
                 call lltoijmod(aglon,aglat,alci,alcj,nface)
                 lci = nint(alci)
                 lcj = nint(alcj)
-                lcj = lcj+nface*sibdim(1)
+                lcj = lcj + nface*sibdim(1)
                 lcmap(i,j,1) = lci
                 lcmap(i,j,2) = lcj
               end do
             end do  
 !$OMP END PARALLEL DO
             
-            if (datatype=='land') then
-              do j=1,lldim(2)
-                do i=1,lldim(1)           
+            if ( datatype=='land' ) then
+              do j = 1,lldim(2)
+                do i = 1,lldim(1)           
                   lci = lcmap(i,j,1)
                   lcj = lcmap(i,j,2)
                   if ( ltest(lci,lcj) ) then
-                    newcover(0:num)=coverout(i,j,0:num)
-                    newdata(0:num)=dataout(lci,lcj,0:num)
-                    if (sum(abs(newcover(0:class_num)))<0.001) then
-                      if (countn(lci,lcj)==0) then
-                        dataout(lci,lcj,0:num)=-1. ! Missing value?
-                        countn(lci,lcj)=1
+                    newcover(0:num) = coverout(i,j,0:num)
+                    newdata(0:num) = dataout(lci,lcj,0:num)
+                    if ( sum(abs(newcover(0:class_num)))<0.001 ) then
+                      if ( countn(lci,lcj)==0 ) then
+                        dataout(lci,lcj,0:num) = -1. ! Missing value?
+                        countn(lci,lcj) = 1
                       end if
                     else
-                      if (newdata(0)<0.) then
-                        newdata(0:num)=0. ! reset missing point after finding non-trival data
-                        countn(lci,lcj)=0
+                      if ( newdata(0)<0. ) then
+                        newdata(0:num) = 0. ! reset missing point after finding non-trival data
+                        countn(lci,lcj) = 0
                       end if
-                      newdata(0:class_num)=newdata(0:class_num)+newcover(0:class_num)
-                      where (newcover(class_num+1:num)==0..and.countn(lci,lcj)>0)
-                        newdata(class_num+1:num)=newdata(class_num+1:num)*real(countn(lci,lcj)+1) &
+                      newdata(0:class_num) = newdata(0:class_num) + newcover(0:class_num)
+                      where ( newcover(class_num+1:num)==0. .and. countn(lci,lcj)>0 )
+                        newdata(class_num+1:num) = newdata(class_num+1:num)*real(countn(lci,lcj)+1) &
                             /real(countn(lci,lcj))
-                      elsewhere (newdata(class_num+1:num)==0.)
-                        newdata(class_num+1:num)=newcover(class_num+1:num)*real(countn(lci,lcj)+1)
+                      elsewhere ( newdata(class_num+1:num)==0. )
+                        newdata(class_num+1:num) = newcover(class_num+1:num)*real(countn(lci,lcj)+1)
                       elsewhere
-                        newdata(class_num+1:num)=newdata(class_num+1:num)+newcover(class_num+1:num)
+                        newdata(class_num+1:num) = newdata(class_num+1:num) + newcover(class_num+1:num)
                       end where
-                      dataout(lci,lcj,0:num)=newdata(0:num)
-                      countn(lci,lcj)=countn(lci,lcj)+1
+                      dataout(lci,lcj,0:num) = newdata(0:num)
+                      countn(lci,lcj) = countn(lci,lcj) + 1
                     end if
                   end if
                 end do
               end do
             else
-              Do j=1,lldim(2)
-                Do i=1,lldim(1)              
+              do j = 1,lldim(2)
+                do i = 1,lldim(1)              
                   lci = lcmap(i,j,1)
                   lcj = lcmap(i,j,2)
-                  If ( ltest(lci,lcj) ) then
-                    If (sum(abs(coverout(i,j,:)))<=0.01) then
-                      If (countn(lci,lcj)==0) Then
-                        dataout(lci,lcj,:)=-1. ! Missing value?
-                        countn(lci,lcj)=1
-                      End if
-                    Else
-                      If (dataout(lci,lcj,0)<0.) Then
-                        dataout(lci,lcj,:)=0. ! reset missing point after finding non-trival data
-                        countn(lci,lcj)=0
-                      End If
-                      dataout(lci,lcj,:)=dataout(lci,lcj,:)+coverout(i,j,:)
-                      countn(lci,lcj)=countn(lci,lcj)+1                      
-                    End if
-                  End If
-                End Do
-              End Do
+                  if ( ltest(lci,lcj) ) then
+                    if ( sum(abs(coverout(i,j,:)))<=0.01 ) then
+                      if ( countn(lci,lcj)==0 ) then
+                        dataout(lci,lcj,:) = -1. ! Missing value?
+                        countn(lci,lcj) = 1
+                      end if
+                    else
+                      if ( dataout(lci,lcj,0)<0. ) then
+                        dataout(lci,lcj,:) = 0. ! reset missing point after finding non-trival data
+                        countn(lci,lcj) = 0
+                      end If
+                      dataout(lci,lcj,:) = dataout(lci,lcj,:) + coverout(i,j,:)
+                      countn(lci,lcj) = countn(lci,lcj) + 1                      
+                    end if
+                  end If
+                end Do
+              end Do
             end if
-            Write(6,*) 'Bin complete'
+            write(6,*) 'Bin complete'
 
-            Deallocate(coverout)
-            deallocate( lcmap )
+            deallocate( coverout, lcmap )
 
-          Else
+          else
             Write(6,*) 'No points in valid range'
-          End If
+          end If
       
-        End Do
-      End Do
+        end Do
+      end Do
 
-    Else
-      Write(6,*) 'Skip'
-    End If
+    else
+      write(6,*) 'Skip'
+    end If
   
-  End Do
+  end Do
 
 Else
 
@@ -483,6 +482,7 @@ If (subsec/=0) then
             Stop -1
         End Select
 
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(sibdim,countn,rlld,latlon,nscale,lldim,coverout,dataout) PRIVATE(lcj,lci,aglon,aglat,serlon,serlat,i,j)          
         Do lcj=1,sibdim(2)
           Do lci=1,sibdim(1)        
             If (countn(lci,lcj)==0) then
@@ -505,6 +505,7 @@ If (subsec/=0) then
             End If
           End Do
         End Do
+!$OMP END PARALLEL DO        
         
         Deallocate(coverout)
 
