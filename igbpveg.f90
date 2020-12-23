@@ -2688,8 +2688,15 @@ do j = 1,sibdim(2)
         newlai(:) = newlai(:)/newgrid(:)
       end where
       sermask = .true.
+      ! C3 and C4 crops
       sermask(6:7) = .false.
-      sermask(9:10) = .false.
+      if ( fg3>0. .or. fg4>0. ) then
+        ! C3 and C4 grass (pasture)  
+        sermask(9:10) = .false.
+      else
+        ! tundra (pasture)
+        sermask(8) = .false.
+      end if  
       !where ( newgrid<minfrac .and. sermask )
       !  newgrid(:) = 0.  
       !end where
