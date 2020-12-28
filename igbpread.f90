@@ -1000,7 +1000,7 @@ Implicit None
 Integer, intent(in) :: nscale_30, year
 Real, dimension(2), intent(in) :: latlon
 Integer, dimension(2), intent(in) :: lldim_30
-Real, dimension(lldim_30(1),lldim_30(2),0:1), intent(out) :: coverout
+Real, dimension(lldim_30(1),lldim_30(2),0:2), intent(out) :: coverout
 Integer, dimension(1440,1:nscale_30) :: databuffer
 real, dimension(1440) :: datatemp
 Integer, dimension(2,2) :: jin,jout
@@ -1060,22 +1060,22 @@ Do ilat=1,lldim_30(2)
         indx = 0
       case(2)
         ierr = nf90_inq_varid(ncid,"c4ann",varid)
-        indx = 0
+        indx = 1
       case(3)
         ierr = nf90_inq_varid(ncid,"c3per",varid)
         indx = 0
       case(4)
         ierr = nf90_inq_varid(ncid,"c4per",varid)
-        indx = 0
+        indx = 1
       case(5)
         ierr = nf90_inq_varid(ncid,"c3nfx",varid)
         indx = 0
       case(6)
         ierr = nf90_inq_varid(ncid,"pastr",varid)
-        indx = 1
+        indx = 2
       case(7)
         ierr = nf90_inq_varid(ncid,"range",varid)
-        indx = 1
+        indx = 2
     end select    
 
     ! Read data
@@ -1468,7 +1468,7 @@ Implicit None
 
 integer, intent(in) :: year
 Integer, dimension(2), intent(in) :: sibdim
-Real, dimension(sibdim(1),sibdim(2),0:1), intent(out) :: coverout
+Real, dimension(sibdim(1),sibdim(2),0:2), intent(out) :: coverout
 Real aglon,aglat,alci,alcj
 Real callon,callat,cpos
 Integer, dimension(sibdim(1),sibdim(2)), intent(out) :: countn
@@ -1521,22 +1521,22 @@ Do ilat=1,720
         indx = 0
       case(2)
         ierr = nf90_inq_varid(ncid,"c4ann",varid)
-        indx = 0
+        indx = 1
       case(3)
         ierr = nf90_inq_varid(ncid,"c3per",varid)
         indx = 0
       case(4)
         ierr = nf90_inq_varid(ncid,"c4per",varid)
-        indx = 0
+        indx = 1
       case(5)
         ierr = nf90_inq_varid(ncid,"c3nfx",varid)
         indx = 0
       case(6)
         ierr = nf90_inq_varid(ncid,"pastr",varid)
-        indx = 1
+        indx = 2
       case(7)
         ierr = nf90_inq_varid(ncid,"range",varid)
-        indx = 1
+        indx = 2
     end select    
 
     ! Read data
@@ -2448,6 +2448,8 @@ if ( laifilename/='' ) then
   end if   
   if ( found_missing ) then
     write(6,*) "Found missing value ",missing_real
+  else
+    write(6,*) "Using default missing value ",missing_real  
   end if 
   ierr = nf_inq_vardimid(ncidlai,varid,dimid_lai(1:3))
   ierr = nf_inq_dim(ncidlai,dimid_lai(1),dimname(1),dimlen_lai(1))
