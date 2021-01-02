@@ -1883,8 +1883,10 @@ do tt=1,mthrng
           vlai(i,j,1)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)    
         else    
           sermsk=.not.mapwater(:)
-          sermsk(10) = .false.
-          sermsk(12) = .false.
+          if ( fname(15)/='' ) then
+            sermsk(10) = .false.
+            sermsk(12) = .false.
+          end if  
           icefrac = 0.
           do k = 1,natural_maxtile ! only for natural vegetation
             sibmax=maxloc(landdata(i,j,1:class_num),sermsk)
@@ -1896,19 +1898,21 @@ do tt=1,mthrng
               icefrac = icefrac + vfrac(i,j,k)
             end if
           end do
-          if ( icefrac<0.99 ) then ! avoid crops where there is large amounts of ice
-            k = natural_maxtile+1 ! grassland
-            sibmax(1) = 10
-            vtype(i,j,k)=sibmax(1)
-            vfrac(i,j,k)=max( landdata(i,j,sibmax(1)), 0.001 )
-            vlai(i,j,k)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)
-            k = natural_maxtile+2 ! crop
-            sibmax(1) = 12
-            vtype(i,j,k)=sibmax(1)
-            vfrac(i,j,k)=max( landdata(i,j,sibmax(1)), 0.001 )
-            vlai(i,j,k)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)
-          end if  
-          ! k = natural_maxtile+3,natural_maxtile+4 are reserved for outmode=1
+          if ( fname(15)/='' ) then
+            if ( icefrac<0.99 ) then ! avoid crops where there is large amounts of ice
+              k = natural_maxtile+1 ! grassland
+              sibmax(1) = 10
+              vtype(i,j,k)=sibmax(1)
+              vfrac(i,j,k)=max( landdata(i,j,sibmax(1)), 0.001 )
+              vlai(i,j,k)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)
+              k = natural_maxtile+2 ! crop
+              sibmax(1) = 12
+              vtype(i,j,k)=sibmax(1)
+              vfrac(i,j,k)=max( landdata(i,j,sibmax(1)), 0.001 )
+              vlai(i,j,k)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)
+            end if  
+            ! k = natural_maxtile+3,natural_maxtile+4 are reserved for outmode=1
+          end if              
           vfrac(i,j,:)=vfrac(i,j,:)/sum(vfrac(i,j,:))
         end if  
       end if
@@ -1916,7 +1920,7 @@ do tt=1,mthrng
   end do
   if ( outmode==1 ) then
     call convertigbp(vtype,vfrac,vlai,sibdim,lsdata,rlld,class_num,mapindex,mapfrac,pft_len, &
-        save_crop_c3,save_crop_c4,natural_maxtile)
+        save_crop_c3,save_crop_c4,natural_maxtile,fname(15))
   end if
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
   do j = 1,natural_maxtile+4
@@ -2430,7 +2434,7 @@ Return
 End
 
 subroutine convertigbp(vtype,vfrac,vlai,sibdim,lsdata,rlld,class_num,mapindex,mapfrac,pft_len, &
-    save_crop_c3,save_crop_c4,natural_maxtile)
+    save_crop_c3,save_crop_c4,natural_maxtile,change_landuse)
 
 implicit none
 
@@ -2453,6 +2457,7 @@ real fmixed, fneedlebroad
 real xp
 Real, parameter :: pi = 3.1415926536
 logical, dimension(pft_len) :: sermask
+character(len=*), intent(in) :: change_landuse
 
 if ( any(mapindex>pft_len) ) then
   write(6,*) "ERROR: Unspecified index in mapconfig is not represented in pftconfig"
@@ -2480,8 +2485,8 @@ write(6,*) "Mapping IGBP classes to CABLE PFTs"
 do j = 1,sibdim(2)
   do i = 1,sibdim(1)
     if ( lsdata(i,j)<0.5 ) then
-      newgrid     = 0.
-      newlai      = 0.
+      newgrid = 0.
+      newlai  = 0.
           
       clat = rlld(i,j,2)
       ! grass
@@ -2604,23 +2609,34 @@ do j = 1,sibdim(2)
         newlai(:) = newlai(:)/newgrid(:)
       end where
       sermask = .true.
-      ! C3 and C4 crops
-      sermask(6:7) = .false.
-      if ( fg3>0. .or. fg4>0. ) then
-        ! C3 and C4 grass (pasture)  
-        sermask(9:10) = .false.
-      else
-        ! tundra (pasture)
-        sermask(8) = .false.
-      end if  
-      ipos = count( newgrid(:)>0. )
-      do while ( ipos>natural_maxtile+4 )
-        pos = minloc(newgrid(:), newgrid(:)>0. .and. sermask)
-        newgrid(pos(1)) = 0.
-        nsum = sum(newgrid(:))
-        newgrid(:) = newgrid(:)/nsum
+      if ( change_landuse/='' ) then
+        ! C3 and C4 crops
+        sermask(6:7) = .false.
+        if ( fg3>0. .or. fg4>0. ) then
+          ! C3 and C4 grass (pasture)  
+          sermask(9:10) = .false.
+        else
+          ! tundra (pasture)
+          sermask(8) = .false.
+        end if  
         ipos = count( newgrid(:)>0. )
-      end do
+        do while ( ipos>natural_maxtile+4 )
+          pos = minloc(newgrid(:), newgrid(:)>0. .and. sermask)
+          newgrid(pos(1)) = 0.
+          nsum = sum(newgrid(:))
+          newgrid(:) = newgrid(:)/nsum
+          ipos = count( newgrid(:)>0. )
+        end do
+      else
+        ipos = count( newgrid(:)>0. )
+        do while ( ipos>natural_maxtile )
+          pos = minloc(newgrid(:), newgrid(:)>0. .and. sermask)
+          newgrid(pos(1)) = 0.
+          nsum = sum(newgrid(:))
+          newgrid(:) = newgrid(:)/nsum
+          ipos = count( newgrid(:)>0. )
+        end do 
+      end if
 
       n = 0
       vtype(i,j,:) = 0
