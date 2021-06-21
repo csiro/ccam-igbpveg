@@ -96,7 +96,13 @@ natural_maxtile = 5
 
 ! Read namelist
 write(6,*) 'Input &vegnml namelist'
+#ifdef unitnml
+open( unit=99, file='igbpveg.nml', status='old' )
+read( 99, NML=vegnml )
+close( 99 )
+#else
 read(5,NML=vegnml)
+#endif
 write(6,*) 'Namelist accepted'
 
 ! Generate veg data
