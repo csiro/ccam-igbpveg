@@ -1338,7 +1338,8 @@ if ( fname(15)/='' ) then
         landdata(i,j,10) = 0. ! IGBP grassland=10 
         newsum = sum(landdata(i,j,1:class_num),mask=.not.mapwater(1:class_num)) 
         where ( .not.mapwater(1:class_num) )
-          landdata(i,j,1:class_num) = landdata(i,j,1:class_num)*max(1.-change_crop_c3-change_crop_c4-change_pasture,0.001)*nsum/newsum
+          landdata(i,j,1:class_num) = landdata(i,j,1:class_num)*max(1.-change_crop_c3-change_crop_c4-change_pasture,0.001) &
+                                      *nsum/newsum
         end where  
         landdata(i,j,12) = max(landdata(i,j,12) + (change_crop_c3+change_crop_c4)*nsum,1.e-3)
         landdata(i,j,10) = max(landdata(i,j,10) + change_pasture*nsum,1.e-3)

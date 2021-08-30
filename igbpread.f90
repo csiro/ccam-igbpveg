@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -545,7 +545,8 @@ if (datatype=='land') then
       if (any(sermask0(:,:,k))) then ! missing LAI data
         Write(6,*) "Replace missing LAI for class ",k
         if (any(sermask2(:,:,k))) then
-          call fill_cc_a_mask(dataout(:,:,(k-1)*mthrng+class_num+1:k*mthrng+class_num),sibdim(1),mthrng,sermask2(:,:,k),sermask0(:,:,k))
+          call fill_cc_a_mask(dataout(:,:,(k-1)*mthrng+class_num+1:k*mthrng+class_num),sibdim(1),mthrng, &
+                              sermask2(:,:,k),sermask0(:,:,k))
         else
           sermask2(:,:,k)=.false.
           do lcj=1,sibdim(2)
@@ -2051,6 +2052,7 @@ integer, dimension(3) :: dimid_lai, dimlen_lai
 integer, dimension(3) :: start, ncount
 integer, dimension(sibdim(1),sibdim(2)) :: countlocal
 integer, dimension(class_num), intent(in) :: mapjveg
+integer, dimension(:,:,:), allocatable :: lcmap
 integer ncid, ncidlai, varid, ierr
 integer lci, lcj, nface, iveg, imonth
 integer i, j, vegtmp, k, varndims
@@ -2073,15 +2075,14 @@ logical found_missing
 integer, dimension(sibdim(1),sibdim(2),0:num) :: countfrac
 integer ilcn, jlcn, ilcx, jlcx, ivegfrac,ivegstart,ivegend
 real lcinn, lcjnn, lcixx, lcjxx
-real diaglon,diaglat,dx,dy,dgridin
+real dx,dy,dgridin
 real, parameter :: circe=40075.
 integer numclassin,inc
 integer diaglci, diaglcj
 Character(len=40) cmsg
-diaglat=21.0
-diaglon=105.7
-diaglci=49
-diaglcj=159
+
+diaglci=-1
+diaglcj=-1
 
 !---------- using frac ------------
 
@@ -2113,17 +2114,18 @@ if ( datafilename/='' ) then
       found_missing = .true.  
     end if    
   end if   
-  if ( found_missing ) then
-    write(6,*) "Found missing value ",missing_int 
-  end if    
   ierr = nf_inq_vardimid(ncid,varid,dimid(1:2))
   ierr = nf_inq_dim(ncid,dimid(1),dimname(1),dimlen(1))
   ierr = nf_inq_dim(ncid,dimid(2),dimname(2),dimlen(2))
   ierr = nf_inq_varndims(ncid,varid,varndims)
   write(6,*) "Reading land_cover data from ",trim(datafilename)
   write(6,*) "Found size ",dimlen(1:2)
+  if ( found_missing ) then
+    write(6,*) "Found missing value ",missing_int 
+  end if    
 
   allocate( coverin(dimlen(1),dimlen(2)), lonin(dimlen(1)), latin(dimlen(2)) )
+  allocate( lcmap(dimlen(1),dimlen(2),2) )
 
   select case(varndims)
     case(2)
@@ -2174,6 +2176,7 @@ if ( datafilename/='' ) then
 !---------- using frac ------------
 ivegstart=-1
 ivegend=-1
+numclassin=0
 if ( ovegfrac ) then
   ivegstart=0
   ivegend=class_num
@@ -2237,7 +2240,7 @@ do ivegfrac = ivegstart,ivegend
     cmsg='unclassified_filled'
     numclassin=numclassin+1
  end select
- write(6,*)"#########################################cmsg=",cmsg
+ write(6,*)"#########################################cmsg=",trim(cmsg)
  write(6,*)"ivegfrac,numclassin=",ivegfrac,numclassin
 
   ierr = nf_inq_varid(ncid,cmsg,varid)
@@ -2270,6 +2273,8 @@ do ivegfrac = ivegstart,ivegend
 !---------- using frac ------------
 ! loop over all datappoints in user landcover dataset
 ! here assumes regular lon/lat grid
+  if ( ovegfrac ) then
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
   do j = 1,dimlen(2)
     aglat = latin(j)
     do i = 1,dimlen(1)
@@ -2278,8 +2283,17 @@ do ivegfrac = ivegstart,ivegend
       lci = nint(alci)
       lcj = nint(alcj)
       lcj = lcj + nface*sibdim(1)
+      lcmap(i,j,1) = lci
+      lcmap(i,j,2) = lcj
+    end do
+  end do
+!$OMP END PARALLEL DO  
+  
+  do j = 1,dimlen(2)
+    do i = 1,dimlen(1)
+      lci = lcmap(i,j,1)
+      lcj = lcmap(i,j,2)
 !---------- using frac ------------
-     if ( ovegfrac ) then
       !tmp index holders
       jlcn=max(j-1,1)
       jlcx=min(j+1,dimlen(2))
@@ -2299,22 +2313,12 @@ do ivegfrac = ivegstart,ivegend
       ilcx=min(sibdim(1),lci+inc)
       jlcn=max(1,lcj-nface*sibdim(1)-inc)+nface*sibdim(1)
       jlcx=min(sibdim(1),lcj-nface*sibdim(1)+inc)+nface*sibdim(1)
-     else ! ( ovegfrac ) then
-      ilcn=lci
-      ilcx=lci
-      jlcn=lcj
-      jlcx=lcj
-     endif ! ( ovegfrac ) then
 
 !==============================================
       do lcj = min(jlcn , jlcx),max(jlcn , jlcx)
       do lci = min(ilcn , ilcx),max(ilcn , ilcx)
 !==============================================
-     if ( ovegfrac ) then
       vegtmp = ivegfrac ! if using veg fractions - index of vegtype, specified in loop
-     else
-      vegtmp = coverin(i,j)  ! if using landtype - index of vegtype, from read 
-     endif ! ( ovegfrac ) then
 !---------- using frac ------------
       if ( lci .eq. diaglci .and. lcj .eq. diaglcj ) then
        write(6,*)"inc=",inc,dgridin,dx,dy
@@ -2344,7 +2348,6 @@ do ivegfrac = ivegstart,ivegend
         end if
       end if
 !---------- using frac ------------
-      if ( ovegfrac ) then
        if ( iveg>=0 .and. iveg<=class_num ) then
         if ( coverin(i,j) .le. 100 ) then ! to avoid 255 when not defined, here coverin is % for this vegtype
           countlocal(lci,lcj) = countlocal(lci,lcj) + 1 ! total number of hits for this gridbox
@@ -2357,10 +2360,6 @@ do ivegfrac = ivegstart,ivegend
          write(6,*)lci,lcj,iveg,countlocal(lci,lcj),datalocal(lci,lcj,iveg),countfrac(lci,lcj,iveg)
          write(6,*)"coverin,i,j=",coverin(i,j),i,j,aglon,aglat
        endif
-     else
-        datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
-        countlocal(lci,lcj) = countlocal(lci,lcj) + 1
-     endif ! ( ovegfrac ) then
 
       end do ! ilc
       end do ! jlc
@@ -2371,6 +2370,64 @@ do ivegfrac = ivegstart,ivegend
       write(6,*) "User land_cover ",j,"/",dimlen(2)
     end if
   end do ! j
+
+  else ! ovegfrac ..else..
+  
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
+  do j = 1,dimlen(2)
+    aglat = latin(j)
+    do i = 1,dimlen(1)
+      aglon = lonin(i)  
+      call lltoijmod(aglon,aglat,alci,alcj,nface)
+      lci = nint(alci)
+      lcj = nint(alcj)
+      lcj = lcj + nface*sibdim(1)
+      lcmap(i,j,1) = lci
+      lcmap(i,j,2) = lcj
+    end do
+  end do
+!$OMP END PARALLEL DO
+      
+  do j = 1,dimlen(2)
+    do i = 1,dimlen(1)
+      lci = lcmap(i,j,1)
+      lcj = lcmap(i,j,2)
+!==============================================
+      vegtmp = coverin(i,j)  ! if using landtype - index of vegtype, from read 
+      if ( vegtmp==0 ) then
+        iveg=0
+      else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
+        iveg=max(min(vegtmp,class_num),1)
+      else if ( found_missing .and. vegtmp==missing_int ) then
+        ! missing
+        iveg = -1 
+      else
+        iveg = -1
+        do k = 1,class_num
+          if ( mapjveg(k)==coverin(i,j) ) then
+            iveg = k
+            exit
+          end if
+        end do
+        if ( iveg==-1 ) then
+          write(6,*) "ERROR: land_cover data is not defined in mapping data"
+          write(6,*) "Invalid land_cover index ",iveg,coverin(i,j)," at lat,lon=",aglat,aglon
+          write(6,*) "Valid indices are ",mapjveg(1:class_num)
+          call finishbanner
+          stop -1
+        end if
+      end if
+      datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
+      countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+
+    end do ! i
+    if ( mod(j,dimlen(2)/10)==0 .or. j==dimlen(2) ) then
+      write(6,*) "User land_cover ",j,"/",dimlen(2)
+    end if
+  end do ! j  
+  
+  end if
+  
 enddo ! ivegfrac=0,class_num
   
   ! Average LAI before redistributing vegetation classes
@@ -2403,9 +2460,13 @@ enddo ! ivegfrac=0,class_num
       where ( countfrac(:,:,iveg)>0 )
         dataout(:,:,iveg) = datalocal(:,:,iveg)/real(countfrac(:,:,iveg))
       end where
-      write(6,*)"compute iveg,dataout=",iveg,dataout(diaglci,diaglcj,iveg)
-      write(6,*)"countlocal,datalocal,countfrac"
-      write(6,*)countlocal(diaglci,diaglcj),datalocal(diaglci,diaglcj,iveg),countfrac(diaglci,diaglcj,iveg)
+      if ( diaglci>=1 .and. diaglci<=sibdim(1) ) then
+        if ( diaglcj>=1 .and. diaglcj<=sibdim(2) ) then  
+          write(6,*)"compute iveg,dataout=",iveg,dataout(diaglci,diaglcj,iveg)
+          write(6,*)"countlocal,datalocal,countfrac"
+          write(6,*)countlocal(diaglci,diaglcj),datalocal(diaglci,diaglcj,iveg),countfrac(diaglci,diaglcj,iveg)
+        end if
+      end if  
     end do  
   else
     do iveg = 0,class_num     
@@ -2416,6 +2477,7 @@ enddo ! ivegfrac=0,class_num
   end if
     
   deallocate( coverin, lonin, latin )
+  deallocate( lcmap )
   ierr = nf_close(ncid)
   
 end if
@@ -2477,6 +2539,7 @@ if ( laifilename/='' ) then
   end if
   allocate( laiin(dimlen_lai(1),dimlen_lai(2),dimlen_lai(3)) )
   allocate( lonin_lai(dimlen_lai(1)), latin_lai(dimlen_lai(2)) )
+  allocate( lcmap(dimlen_lai(1),dimlen_lai(2),2) )
   start(1:2) = 1
   ncount(1:2) = dimlen_lai(1:2)
   ierr = nf_get_vara_real(ncidlai,varid,start(1:3),ncount(1:3),laiin)
@@ -2499,6 +2562,7 @@ if ( laifilename/='' ) then
   write(6,*) "Processing LAI data"
   lailocal(:,:,:) = 0.
   countlocal(:,:) = 0
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen_lai,latin_lai,lonin_lai,sibdim,lcmap) PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
   do j = 1,dimlen_lai(2)
     aglat = latin_lai(j)
     do i = 1,dimlen_lai(1)
@@ -2507,6 +2571,16 @@ if ( laifilename/='' ) then
       lci = nint(alci)
       lcj = nint(alcj)
       lcj = lcj+nface*sibdim(1)
+      lcmap(i,j,1) = lci
+      lcmap(i,j,2) = lcj
+    end do
+  end do 
+!$OMP END PARALLEL DO
+      
+  do j = 1,dimlen_lai(2)
+    do i = 1,dimlen_lai(1)
+      lci = lcmap(i,j,1)
+      lcj = lcmap(i,j,2)
       if ( .not.found_missing .or. all( laiin(i,j,1:dimlen_lai(3))/=missing_real ) ) then
         lailocal(lci,lcj,1:dimlen_lai(3)) = lailocal(lci,lcj,1:dimlen_lai(3)) + laiin(i,j,1:dimlen_lai(3))
         countlocal(lci,lcj) = countlocal(lci,lcj) + 1
@@ -2540,6 +2614,7 @@ if ( laifilename/='' ) then
     end do  
   end if
   deallocate( laiin, lonin_lai, latin_lai )
+  deallocate( lcmap )
   ierr = nf_close(ncidlai)
   
 end if
