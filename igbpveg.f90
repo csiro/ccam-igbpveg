@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1298,10 +1298,10 @@ do j = 1,sibdim(2)
       where ( landdata(i,j,1:class_num)<minfrac .and. .not.mapwater(1:class_num) )
         landdata(i,j,1:class_num) = 0.
       end where
-      newsum = sum( landdata(i,j,1:class_num) )
-      where ( landdata(i,j,1:class_num)<minfrac .and. .not.mapwater(1:class_num) )
-        landdata(i,j,1:class_num) = landdata(i,j,1:class_num)*nsum/max(newsum,1.e-10)
-      end where
+      newsum = sum( landdata(i,j,1:class_num), mask=.not.mapwater(1:class_num) )
+      where ( .not.mapwater(1:class_num) )
+        landdata(i,j,1:class_num) = landdata(i,j,1:class_num)/max(newsum,1.e-10)
+      end where  
     end if  
   end do
 end do
@@ -1330,9 +1330,10 @@ if ( fname(15)/='' ) then
       if ( nsum>0. ) then
         change_crop_c3 = changedata(i,j,0)
         change_crop_c4 = changedata(i,j,1)
-        change_pasture = max( changedata(i,j,2), landdata(i,j,10) )
+        change_pasture = changedata(i,j,2)
         save_crop_c3(i,j) = change_crop_c3
         save_crop_c4(i,j) = change_crop_c4
+        change_pasture = max( change_pasture, landdata(i,j,10)/nsum )
         landdata(i,j,12) = 0. ! IGBP crops=12
         landdata(i,j,14) = 0. ! IGBP crops/natural vegetation mosaic=14
         landdata(i,j,10) = 0. ! IGBP grassland=10 
@@ -1436,8 +1437,8 @@ albvisdata=tmp(:,:,0)
 albnirdata=tmp(:,:,1)
 
 deallocate( soildata, tmp )
-allocate( vfrac(sibdim(1),sibdim(2),natural_maxtile+5), vtype(sibdim(1),sibdim(2),natural_maxtile+5) )
-allocate( vlai(sibdim(1),sibdim(2),natural_maxtile+5) )
+allocate( vfrac(sibdim(1),sibdim(2),natural_maxtile+4), vtype(sibdim(1),sibdim(2),natural_maxtile+5) )
+allocate( vlai(sibdim(1),sibdim(2),natural_maxtile+4) )
 !allocate( savannafrac(sibdim(1),sibdim(2)) )
 
 write(6,*) "Create output file"
@@ -2451,7 +2452,7 @@ integer, dimension(sibdim(1),sibdim(2),natural_maxtile+4), intent(inout) :: vtyp
 integer, dimension(class_num,natural_maxtile), intent(in) :: mapindex
 integer, dimension(1) :: pos
 integer i, j, n, ipos, iv
-integer iv_new, k
+integer iv_new, k, tadd
 real, dimension(sibdim(1),sibdim(2),natural_maxtile+4), intent(inout) :: vfrac, vlai
 real, dimension(class_num,natural_maxtile), intent(in) :: mapfrac
 real, dimension(pft_len) :: newlai
@@ -2616,18 +2617,33 @@ do j = 1,sibdim(2)
         newlai(:) = newlai(:)/newgrid(:)
       end where
       sermask = .true.
+      tadd = 0
       if ( change_landuse/='' ) then
         ! C3 and C4 crops
         sermask(6:7) = .false.
-        if ( fg3>0. .or. fg4>0. ) then
-          ! C3 and C4 grass (pasture)  
-          sermask(9:10) = .false.
-        else
+        tadd = tadd + 2
+        if ( fg3>0. ) then
+          ! C3 grass (pasture)
+          sermask(9) = .false.
+          tadd = tadd + 1
+        end if
+        if ( fg4>0. ) then
+          ! C4 grass (pasture)  
+          sermask(10) = .false.
+          tadd = tadd + 1
+        end if
+        if ( fg3==0. .and. fg4==0. ) then
           ! tundra (pasture)
           sermask(8) = .false.
+          tadd = tadd + 1
         end if  
+        if ( tadd>4 ) then
+          write(6,*) "ERROR: tadd is greater than maximum 4 land-use change tiles"
+          call finishbanner
+          stop -1
+        end if
         ipos = count( newgrid(:)>0. )
-        do while ( ipos>natural_maxtile+4 )
+        do while ( ipos>natural_maxtile+tadd )
           pos = minloc(newgrid(:), newgrid(:)>0. .and. sermask)
           newgrid(pos(1)) = 0.
           nsum = sum(newgrid(:))
