@@ -1427,8 +1427,10 @@ where (lsdata>=0.5)
   albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
   albnirdata(:,:)=0.08 ! 0.20 in Masson (2003)
 elsewhere (idata==9)
-  albvisdata(:,:)=0.80
-  albnirdata(:,:)=0.40
+  albvisdata(:,:)=0.90 ! Based on CABLE 2.5
+  albnirdata(:,:)=0.60 ! Based on CABLE 2.5
+  !albvisdata(:,:)=0.80
+  !albnirdata(:,:)=0.40
 end where
 tmp(:,:,0)=albvisdata
 tmp(:,:,1)=albnirdata
@@ -1532,7 +1534,7 @@ do tt=1,mthrng
   call ncatt(ncidarr,'lon0',lonlat(1))
   call ncatt(ncidarr,'lat0',lonlat(2))
   call ncatt(ncidarr,'schmidt',schmidt)
-  call ncatt(ncidarr,'cableversion',3939.) ! CABLE version for data
+  call ncatt(ncidarr,'cableversion',6608.) ! CABLE version for data
   if ( outmode==1 ) then
     call ncatt(ncidarr,'cableformat',1.)
     call ncatt(ncidarr,'atebformat',3.)
