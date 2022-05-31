@@ -1539,7 +1539,7 @@ do tt=1,mthrng
   call ncatt(ncidarr,'lat0',lonlat(2))
   call ncatt(ncidarr,'schmidt',schmidt)
   if ( alb3939 ) then
-    call ncatt(ncidarr,'cableversion',39393.) ! CABLE version for data
+    call ncatt(ncidarr,'cableversion',3939.) ! CABLE version for data
   else  
     call ncatt(ncidarr,'cableversion',6608.) ! CABLE version for data
   end if  
