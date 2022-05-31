@@ -40,6 +40,7 @@ character(len=1024) soilconfig, change_landuse
 integer binlimit, nopts, month, year
 integer outmode, natural_maxtile
 logical fastigbp,igbplsmask,ozlaipatch,tile,zerozs,ovegfrac
+logical alb3939
 
 namelist/vegnml/ topofile,fastigbp,                  &
                  landtypeout,igbplsmask,newtopofile, &
@@ -47,7 +48,7 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  tile,outputmode, veginput,          &
                  soilinput, laiinput, albvisinput,   &
                  albnirinput,pftconfig,mapconfig,    &
-                 atebconfig,                         &
+                 atebconfig,alb3939,                 &
                  user_veginput, user_laiinput,       &
                  ovegfrac,zerozs,soilconfig,         &
                  change_landuse,year,natural_maxtile
@@ -93,6 +94,7 @@ change_landuse=''
 month=0
 year=0
 natural_maxtile = 5
+alb3939 = .false.
 
 ! Read namelist
 write(6,*) 'Input &vegnml namelist'
@@ -128,7 +130,7 @@ if ( outputmode=='igbp' ) then
 end if
 
 call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,year, &
-               binlimit,outmode,zerozs,ovegfrac,natural_maxtile)
+               binlimit,outmode,zerozs,ovegfrac,natural_maxtile,alb3939)
 
 deallocate(options)
 
@@ -302,7 +304,7 @@ End
 !
 
 Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,year, &
-                     binlimit,outmode,zerozs,ovegfrac,natural_maxtile)
+                     binlimit,outmode,zerozs,ovegfrac,natural_maxtile,alb3939)
 
 Use ccinterp
 
@@ -343,6 +345,7 @@ integer, dimension(1) :: sibmax
 Integer sibsize,tunit,i,j,k,ierr,mthrng
 integer tt, n
 logical, dimension(:), allocatable :: sermsk
+logical, intent(in) :: alb3939
 
 integer :: pft_len = 18
 integer :: class_num = 17
@@ -1426,11 +1429,12 @@ write(6,*) "Clean albedo data"
 where (lsdata>=0.5)
   albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
   albnirdata(:,:)=0.08 ! 0.20 in Masson (2003)
-elsewhere (idata==9)
+elsewhere (idata==9 .and. alb3939)
+  albvisdata(:,:)=0.80
+  albnirdata(:,:)=0.40
+elsewhere (idata==9 )    
   albvisdata(:,:)=0.90 ! Based on CABLE 2.5
   albnirdata(:,:)=0.60 ! Based on CABLE 2.5
-  !albvisdata(:,:)=0.80
-  !albnirdata(:,:)=0.40
 end where
 tmp(:,:,0)=albvisdata
 tmp(:,:,1)=albnirdata
@@ -1534,7 +1538,11 @@ do tt=1,mthrng
   call ncatt(ncidarr,'lon0',lonlat(1))
   call ncatt(ncidarr,'lat0',lonlat(2))
   call ncatt(ncidarr,'schmidt',schmidt)
-  call ncatt(ncidarr,'cableversion',6608.) ! CABLE version for data
+  if ( alb3939 ) then
+    call ncatt(ncidarr,'cableversion',39393.) ! CABLE version for data
+  else  
+    call ncatt(ncidarr,'cableversion',6608.) ! CABLE version for data
+  end if  
   if ( outmode==1 ) then
     call ncatt(ncidarr,'cableformat',1.)
     call ncatt(ncidarr,'atebformat',3.)
