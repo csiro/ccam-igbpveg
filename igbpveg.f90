@@ -327,6 +327,7 @@ Real, dimension(:,:), allocatable :: gridout,lsdata,urbandata,oceandata,albvisda
 real, dimension(:,:), allocatable :: testdata
 real, dimension(:,:), allocatable :: rdata
 real, dimension(:,:), allocatable :: save_crop_c3, save_crop_c4
+real, dimension(:,:), allocatable :: lsdata_dem
 Real, dimension(3,2) :: alonlat
 Real, dimension(2) :: lonlat
 Real, dimension(1) :: atime
@@ -334,6 +335,7 @@ Real, dimension(1) :: alvl
 Real schmidt,dsx,ds,urbanfrac
 real urbanmaxfrac, urbantotalfrac
 real nsum, newsum, change_crop_c3, change_crop_c4, change_pasture, icefrac
+real rlat_adj, rlon_adj
 integer, dimension(:,:), allocatable :: idata, urbantype
 integer, dimension(:,:,:), allocatable :: vtype
 Integer, dimension(2) :: sibdim
@@ -834,11 +836,6 @@ if ( fname(13)/='' .and. outmode==1 ) then
     call finishbanner
     stop -1
   end if
-  !if ( ateb_len/=8 ) then
-  !  write(6,*) "ERROR: aTEB requires 8 classes"
-  !  call finishbanner
-  !  stop -1
-  !end if
   
   allocate( ateb_desc(ateb_len) )
   allocate( bldheight(ateb_len), hwratio(ateb_len), sigvegc(ateb_len), sigmabld(ateb_len) )
@@ -1362,6 +1359,7 @@ deallocate(gridout)
 allocate(urbandata(sibdim(1),sibdim(2)),lsdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
 allocate(urbantype(sibdim(1),sibdim(2)))
 allocate(testdata(sibdim(1),sibdim(2)))
+allocate(lsdata_dem(sibdim(1),sibdim(2)))
 
 write(6,*) "Preparing data..."
 ! extract urban cover and remove from landdata
@@ -1391,6 +1389,10 @@ end do
 
 call igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapwater)
 
+! Read CCAM land/sea mask
+write(6,*) "Read topograph land/sea masek"
+call gettopols(tunit,fname(1),lsdata_dem,sibdim)
+
 if ( igbplsmask ) then
   write(6,*) "Using IGBP land/sea mask"
   testdata(:,:) = landdata(:,:,0)
@@ -1404,11 +1406,25 @@ if ( igbplsmask ) then
   elsewhere
     oceandata=0.
   end where
-  lsdata=real(nint(testdata(:,:)))
+  ! Patch for Samoa
+  do j = 1,sibdim(2)
+    do i = 1,sibdim(1)
+      lsdata(i,j) = real(nint(testdata(i,j))) 
+      rlon_adj = rlld(i,j,1)
+      rlat_adj = rlld(i,j,2)
+      if ( rlon_adj > 180. ) rlon_adj = rlon_adj - 360.
+      if ( rlon_adj < -180. ) rlon_adj = rlon_adj + 360.
+      if ( rlon_adj>=-173. .and. rlon_adj<=-171.2 ) then
+        if ( rlat_adj>=-14.2 .and. rlat_adj<=-13.2 ) then
+          lsdata(i,j) = lsdata_dem(i,j)  
+        end if    
+      end if    
+    end do    
+  end do
   call cleantopo(tunit,fname(1),fname(3),lsdata,oceandata,sibdim,zerozs)
 else
-  write(6,*) "Using topography land/sea mask"
-  call gettopols(tunit,fname(1),lsdata,sibdim)
+  write(6,*) "Using topography land/sea mask"  
+  lsdata(:,:) = lsdata_dem(:,:)
 end if
 
 deallocate(oceandata)
@@ -1539,8 +1555,8 @@ do tt=1,mthrng
   call ncatt(ncidarr,'lat0',lonlat(2))
   call ncatt(ncidarr,'schmidt',schmidt)
   if ( alb3939 ) then
-    call ncatt(ncidarr,'cableversion',3939.) ! CABLE version for data
-  else  
+    call ncatt(ncidarr,'cableversion',3939.) ! CABLE version for data  
+  else
     call ncatt(ncidarr,'cableversion',6608.) ! CABLE version for data
   end if  
   if ( outmode==1 ) then
@@ -2065,10 +2081,9 @@ deallocate( a1gs, d0gs, alpha, convex, cfrd )
 deallocate( gswmin, conkc0, conko0, ekc, eko, g0, g1 )
 deallocate( zr, clitt )
 
-deallocate(landdata,urbandata,lsdata)
+deallocate(landdata,urbandata,lsdata,lsdata_dem)
 deallocate(vfrac,vtype,idata,vlai)
 deallocate(testdata)
-!deallocate(savannafrac)
 deallocate(rlld)
 deallocate(rdata)
 
