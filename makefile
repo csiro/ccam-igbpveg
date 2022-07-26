@@ -73,9 +73,9 @@ stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 version.h: FORCE
 	rm -f brokenver tmpver
-	echo "      character(len=*), parameter :: version ='IGBPVEG r'" > brokenver
-	echo "      character(len=*), parameter :: version ='IGBPVEG r`svnversion .`'" > tmpver
-	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
+	echo "      character(len=*), parameter :: version ='IGBPVEG '" > brokenver
+	echo "      character(len=*), parameter :: version ='IGBPVEG `git log | head -3 | tail -1`'" > tmpver
+	cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
 FORCE:
 
 .f90.o:

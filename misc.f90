@@ -202,6 +202,10 @@ Select Case(inunit)
     actunit='m2/s3'
     ! No change
 
+  Case('Pa/s', 'Pa s-1')
+    actunit='Pa/s'
+    ! No change
+    
   Case DEFAULT
     Write(6,*) "ERROR: Unknown unit ",trim(inunit)," for conversion."
     Write(6,*) "       Please contact MJT and get him to fix this."

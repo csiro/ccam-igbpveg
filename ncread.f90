@@ -1135,7 +1135,7 @@ End if
 
 If (inunit.NE.varname(2)) Then
   Write(6,*) "Converting ",trim(inunit)," to ",trim(varname(2))
-  If (inunit.EQ.'Pa/s') Then
+  If (inunit.EQ.'Pa/s' .or. inunit.EQ.'Pa s-1') Then
     Call ncvelconvert(ncid,arrdata,arrsize,inunit,'m/s')
   Else
     ! Convert units
