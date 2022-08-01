@@ -40,7 +40,7 @@ character(len=1024) soilconfig, change_landuse
 integer binlimit, nopts, month, year
 integer outmode, natural_maxtile
 logical fastigbp,igbplsmask,ozlaipatch,tile,zerozs,ovegfrac
-logical alb3939
+logical alb3939, samoapatch
 
 namelist/vegnml/ topofile,fastigbp,                  &
                  landtypeout,igbplsmask,newtopofile, &
@@ -48,7 +48,7 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  tile,outputmode, veginput,          &
                  soilinput, laiinput, albvisinput,   &
                  albnirinput,pftconfig,mapconfig,    &
-                 atebconfig,alb3939,                 &
+                 atebconfig,alb3939,samoapatch,      &
                  user_veginput, user_laiinput,       &
                  ovegfrac,zerozs,soilconfig,         &
                  change_landuse,year,natural_maxtile
@@ -59,7 +59,7 @@ write(6,*) "CCAM: Starting igbpveg"
 write(6,*) "=============================================================================="
 
 write(6,*) 'IGBPVEG - IGBP 1km to CC grid'
-write(6,*) version
+write(6,*) trim(version)
 
 #ifndef stacklimit
 ! For linux only - removes stacklimit on all processors
@@ -95,6 +95,7 @@ month=0
 year=0
 natural_maxtile = 5
 alb3939 = .false.
+samoapatch = .true.
 
 ! Read namelist
 write(6,*) 'Input &vegnml namelist'
@@ -130,7 +131,7 @@ if ( outputmode=='igbp' ) then
 end if
 
 call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,year, &
-               binlimit,outmode,zerozs,ovegfrac,natural_maxtile,alb3939)
+               binlimit,outmode,zerozs,ovegfrac,natural_maxtile,alb3939,samoapatch)
 
 deallocate(options)
 
@@ -202,6 +203,8 @@ write(6,*) '    user_laiinput="mylai.nc"'
 write(6,*) '    ovegfrac=.false.'
 write(6,*) '    change_landuse="IPCC_ssp370.nc"'
 write(6,*) '    natural_maxtile=5'
+write(6,*) '    alb3939=.false.'
+write(6,*) '    samoapatch=.true.'
 Write(6,*) '  &end'
 Write(6,*)
 Write(6,*) '  where:'
@@ -246,6 +249,9 @@ write(6,*) '    ovegfrac        = Use veg fraction for each type from user file'
 write(6,*) '    soilconfig      = Location of the Soil definition file'
 write(6,*) '    change_landuse  = file for time varying land-use'
 write(6,*) '                      (default = blank)'
+write(6,*) '    alb3939         = when true, disables albedo changes for sea-ice'
+write(6,*) '                      for backwards compatibility'
+write(6,*) '    samoapatch      = fix for missing Samoa'
 Write(6,*)
 Write(6,*) 'NOTES: fastigbp mode will speed up the code by aggregating'
 Write(6,*) '       land-use data at a coarser resolution before'
@@ -304,7 +310,7 @@ End
 !
 
 Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,year, &
-                     binlimit,outmode,zerozs,ovegfrac,natural_maxtile,alb3939)
+                     binlimit,outmode,zerozs,ovegfrac,natural_maxtile,alb3939,samoapatch)
 
 Use ccinterp
 
@@ -347,7 +353,7 @@ integer, dimension(1) :: sibmax
 Integer sibsize,tunit,i,j,k,ierr,mthrng
 integer tt, n
 logical, dimension(:), allocatable :: sermsk
-logical, intent(in) :: alb3939
+logical, intent(in) :: alb3939, samoapatch
 
 integer :: pft_len = 18
 integer :: class_num = 17
@@ -1390,7 +1396,7 @@ end do
 call igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapwater)
 
 ! Read CCAM land/sea mask
-write(6,*) "Read topograph land/sea masek"
+write(6,*) "Read topography land/sea masek"
 call gettopols(tunit,fname(1),lsdata_dem,sibdim)
 
 if ( igbplsmask ) then
@@ -1406,21 +1412,27 @@ if ( igbplsmask ) then
   elsewhere
     oceandata=0.
   end where
-  ! Patch for Samoa
   do j = 1,sibdim(2)
     do i = 1,sibdim(1)
       lsdata(i,j) = real(nint(testdata(i,j))) 
-      rlon_adj = rlld(i,j,1)
-      rlat_adj = rlld(i,j,2)
-      if ( rlon_adj > 180. ) rlon_adj = rlon_adj - 360.
-      if ( rlon_adj < -180. ) rlon_adj = rlon_adj + 360.
-      if ( rlon_adj>=-173. .and. rlon_adj<=-171.2 ) then
-        if ( rlat_adj>=-14.2 .and. rlat_adj<=-13.2 ) then
-          lsdata(i,j) = lsdata_dem(i,j)  
-        end if    
-      end if    
     end do    
   end do
+  if ( samoapatch ) then
+    ! Patch for Samoa
+    do j = 1,sibdim(2)
+      do i = 1,sibdim(1)
+        rlon_adj = rlld(i,j,1)
+        rlat_adj = rlld(i,j,2)
+        if ( rlon_adj > 180. ) rlon_adj = rlon_adj - 360.
+        if ( rlon_adj < -180. ) rlon_adj = rlon_adj + 360.
+        if ( rlon_adj>=-173. .and. rlon_adj<=-171.2 ) then
+          if ( rlat_adj>=-14.2 .and. rlat_adj<=-13.2 ) then
+            lsdata(i,j) = lsdata_dem(i,j)  
+          end if    
+        end if    
+      end do    
+    end do
+  end if  
   call cleantopo(tunit,fname(1),fname(3),lsdata,oceandata,sibdim,zerozs)
 else
   write(6,*) "Using topography land/sea mask"  
