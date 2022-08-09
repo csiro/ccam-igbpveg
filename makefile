@@ -31,7 +31,7 @@ endif
 
 ifeq ($(SETONIX),yes)
 FC = ftn
-XFLAGS = -O2 -mtune=native -march=native -fallow-argument-mismatch -Dncclib
+XFLAGS = -O2 -mtune=native -march=native -fallow-argument-mismatch -Dncclib -fopenmp
 INC =
 LIBS =
 PPFLAG90 = -x f95-cpp-input

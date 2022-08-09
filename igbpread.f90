@@ -305,7 +305,8 @@ If (fastigbp) then
 
             write(6,*) 'Start bin'
             ltest = grid>=real(minscale)
-!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(lldim,latlon,nscale,sibdim,lcmap) PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(lldim,latlon,nscale,sibdim,lcmap) &
+!$OMP   PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
             do j = 1,lldim(2)
               aglat = callat(latlon(2),j,nscale)
               do i = 1,lldim(1)           
@@ -482,7 +483,8 @@ If (subsec/=0) then
             Stop -1
         End Select
 
-!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(sibdim,countn,rlld,latlon,nscale,lldim,coverout,dataout) PRIVATE(lcj,lci,aglon,aglat,serlon,serlat,i,j)          
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(sibdim,countn,rlld,latlon,nscale,lldim,coverout,dataout) &
+!$OMP   PRIVATE(lcj,lci,aglon,aglat,serlon,serlat,i,j)          
         Do lcj=1,sibdim(2)
           Do lci=1,sibdim(1)        
             If (countn(lci,lcj)==0) then
@@ -532,7 +534,8 @@ End Do
 
 if (datatype=='land') then
   Allocate(sermask0(1:sibdim(1),1:sibdim(2),1:class_num),sermask2(1:sibdim(1),1:sibdim(2),1:class_num))
-!$OMP PARALLEL DO DEFAULT(NONE) SHARED(mapwater,dataout,mthrng,class_num,sibdim,rlld,sermask0,sermask2) PRIVATE(k,lci,lcj,i,pxy,netlai,netcount)
+!$OMP PARALLEL DO DEFAULT(NONE) SHARED(mapwater,dataout,mthrng,class_num,sibdim,rlld,sermask0,sermask2) &
+!$OMP   PRIVATE(k,lci,lcj,i,pxy,netlai,netcount)
   do k=1,class_num
     if ( .not.mapwater(k) ) then
       sermask0(:,:,k)=dataout(:,:,k)>0.
@@ -2274,7 +2277,8 @@ do ivegfrac = ivegstart,ivegend
 ! loop over all datappoints in user landcover dataset
 ! here assumes regular lon/lat grid
   if ( ovegfrac ) then
-!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) &
+!$OMP   PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
   do j = 1,dimlen(2)
     aglat = latin(j)
     do i = 1,dimlen(1)
@@ -2373,7 +2377,8 @@ do ivegfrac = ivegstart,ivegend
 
   else ! ovegfrac ..else..
   
-!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) &
+!$OMP   PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
   do j = 1,dimlen(2)
     aglat = latin(j)
     do i = 1,dimlen(1)
@@ -2562,7 +2567,8 @@ if ( laifilename/='' ) then
   write(6,*) "Processing LAI data"
   lailocal(:,:,:) = 0.
   countlocal(:,:) = 0
-!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen_lai,latin_lai,lonin_lai,sibdim,lcmap) PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen_lai,latin_lai,lonin_lai,sibdim,lcmap) &
+!$OMP  PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
   do j = 1,dimlen_lai(2)
     aglat = latin_lai(j)
     do i = 1,dimlen_lai(1)

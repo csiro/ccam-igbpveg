@@ -2159,7 +2159,8 @@ do ilat=1,sibdim(2)
   end do
 end do
 
-!$OMP PARALLEL DO SCHEDULE(static) DEFAULT(NONE) SHARED(mapwater,newdata,sibdim,allmsk,reqmsk,mthrng,class_num,landdata) PRIVATE(i,j,k)
+!$OMP PARALLEL DO SCHEDULE(static) DEFAULT(NONE) SHARED(mapwater,newdata,sibdim,allmsk,reqmsk,mthrng,class_num,landdata) &
+!$OMP   PRIVATE(i,j,k)
 do j = 1,class_num*(1+mthrng)
   if ( j<=class_num ) then
     i = j
@@ -2248,7 +2249,8 @@ if (.not.any(sermsk)) then
   return
 end if
 
-!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(sibdim,lsdata,sermsk,rlld,class_num,mapwater,datain,dataout,mthrng,ocnmsk) PRIVATE(ilat,ilon,pxy,i,nsum,wsum)
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(sibdim,lsdata,sermsk,rlld,class_num,mapwater,datain,dataout,mthrng,ocnmsk) &
+!$OMP   PRIVATE(ilat,ilon,pxy,i,nsum,wsum)
 do ilat=1,sibdim(2)
   if ( mod(ilat,50)==0.or.ilat==sibdim(2) ) write(6,*) "ilat ",ilat,"/",sibdim(2)
   do ilon=1,sibdim(1)
