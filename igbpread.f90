@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -80,7 +80,7 @@ dataout=0.
 countn=0
 
 ! Determine scale limits
-nscale=999
+nscale=9999
 
 baselon=real(int(glonlat(1)-180.))
 rlld=tlld
@@ -98,7 +98,7 @@ End do
 Select Case(datatype)
   Case('land')
     Write(6,*) 'Process USGS land-use and mod15_BU LAI datasets.'
-    scalelimit=1
+    scalelimit=10
     ierr = nf90_open(trim(datafilename)//'.nc',nf90_nowrite,ncid(0))
     if ( ierr==nf90_noerr ) then
       ncfile(0) = .true.
@@ -154,9 +154,67 @@ Select Case(datatype)
         end if
       end if  
     end if
+  Case('land2')
+    Write(6,*) 'Process MODIS land-use and mod15_BU LAI datasets.'
+    scalelimit=10
+    ierr = nf90_open(trim(datafilename)//'.nc',nf90_nowrite,ncid(0))
+    if ( ierr==nf90_noerr ) then
+      ncfile(0) = .true.
+      write(6,*) "Found netcdf version ",trim(datafilename)
+      ierr = nf90_inq_varid(ncid(0),"landcover",varid(0))
+    else
+      ierr = nf90_open(trim(datafilename),nf90_nowrite,ncid(0))
+      if ( ierr==nf90_noerr ) then
+        ncfile(0) = .true.
+        write(6,*) "Found netcdf version ",trim(datafilename)
+        ierr = nf90_inq_varid(ncid(0),"landcover",varid(0))
+      else    
+        ncfile(0) = .false.
+        write(6,*) "ERROR: Input land-use file not found ",trim(datafilename)
+        call finishbanner
+      end if
+    end if
+    if (month==0) then
+      do imth=1,mthrng
+        write(fname,'("slai",I2.2,".img")') imth
+        ierr = nf90_open(trim(trim(laifilename)//'/'//fname)//'.nc',nf90_nowrite,ncid(imth))
+        if ( ierr==nf90_noerr ) then
+          ncfile(imth) = .true.
+          write(6,*) "Found netcdf version ",trim(trim(laifilename)//'/'//fname)
+          ierr = nf90_inq_varid(ncid(imth),"LAI",varid(imth))
+        else
+          ierr = nf90_open(trim(trim(laifilename)//'/'//fname),nf90_nowrite,ncid(imth))
+          if ( ierr==nf90_noerr ) then
+            ncfile(imth) = .true.
+            write(6,*) "Found netcdf version ",trim(trim(laifilename)//'/'//fname)
+            ierr = nf90_inq_varid(ncid(imth),"LAI",varid(imth)) 
+          else
+            ncfile(imth) = .false.  
+            open(10+imth,FILE=trim(laifilename)//'/'//fname,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')
+          end if
+        end if 
+      end do
+    else
+      ierr = nf90_open(trim(laifilename)//'.nc',nf90_nowrite,ncid(1))
+      if ( ierr==nf90_noerr ) then
+        ncfile(1) = .true.
+        write(6,*) "Found netcdf version ",trim(laifilename)
+        ierr = nf90_inq_varid(ncid(1),"LAI",varid(1))
+      else
+        ierr = nf90_open(trim(laifilename),nf90_nowrite,ncid(1))
+        if ( ierr==nf90_noerr ) then
+          ncfile(1) = .true.
+          write(6,*) "Found netcdf version ",trim(laifilename)
+          ierr = nf90_inq_varid(ncid(1),"LAI",varid(1)) 
+        else
+          ncfile(1) = .false.  
+          open(11,FILE=laifilename,ACCESS='DIRECT',FORM='UNFORMATTED',RECL=10800,STATUS='OLD')  
+        end if
+      end if  
+    end if
   Case('soil')
     Write(6,*) 'Process HWSD soil dataset.'
-    scalelimit=4
+    scalelimit=40
     ierr = nf90_open(trim(datafilename)//'.nc',nf90_nowrite,ncid(0))
     if ( ierr==nf90_noerr ) then
       ncfile(0) = .true.
@@ -176,7 +234,7 @@ Select Case(datatype)
     end if
   Case('albvis')
     Write(6,*) 'Process soil albedo (VIS) dataset.'
-    scalelimit=4
+    scalelimit=40
     ierr = nf90_open(trim(datafilename)//'.nc',nf90_nowrite,ncid(0))
     if ( ierr==nf90_noerr ) then
       ncfile(0) = .true.
@@ -196,7 +254,7 @@ Select Case(datatype)
     end if 
   Case('albnir')
     Write(6,*) 'Process soil albedo (NIR) dataset.'
-    scalelimit=4
+    scalelimit=40
     ierr = nf90_open(trim(datafilename)//'.nc',nf90_nowrite,ncid(0))
     if ( ierr==nf90_noerr ) then
       ncfile(0) = .true.
@@ -216,7 +274,7 @@ Select Case(datatype)
     end if 
   case('change')
     write(6,*) 'Process land-use change dataset.'
-    scalelimit=30
+    scalelimit=300
     ierr = nf90_open(datafilename,nf90_nowrite,ncid(0))
     if ( ierr==nf90_noerr ) then
       write(6,*) "Found netcdf version ",trim(datafilename)
@@ -286,16 +344,21 @@ If (fastigbp) then
   
             Select Case(datatype)
               Case('land')
-                Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
+                Call kmconvert(nscale,nscale_x,lldim,lldim_x,10)
+                Call igbpread(latlon,nscale_x,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
                               ncid,varid,ncfile)
+              Case('land2')
+                Call kmconvert(nscale,nscale_x,lldim,lldim_x,5)
+                Call modisread(latlon,nscale_x,lldim,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
+                               ncid,varid,ncfile)
               Case('soil')
-                Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
+                Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
                 Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename,ncid(0),varid(0),ncfile(0))
               Case('albvis','albnir')
-                Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
+                Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
                 Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype,datafilename,ncid(0),varid(0),ncfile(0))
               case('change')
-                call kmconvert(nscale,nscale_x,lldim,lldim_x,30)
+                call kmconvert(nscale,nscale_x,lldim,lldim_x,300)
                 call changeread(latlon,nscale_x,lldim_x,coverout,datafilename,year,ncid(0))    
               Case DEFAULT
                 Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
@@ -321,7 +384,7 @@ If (fastigbp) then
             end do  
 !$OMP END PARALLEL DO
             
-            if ( datatype=='land' ) then
+            if ( datatype=='land' .or. datatype=='land2' ) then
               do j = 1,lldim(2)
                 do i = 1,lldim(1)           
                   lci = lcmap(i,j,1)
@@ -400,6 +463,9 @@ Else
     Case('land')
       Call igbpstream(sibdim,dataout,countn,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
                       ncid,varid,ncfile)
+    Case('land2')
+      Call modisstream(sibdim,dataout,countn,num,month,datafilename,laifilename,class_num,mapjveg, &
+                       ncid,varid,ncfile)
     Case('soil')
       Call soilstream(sibdim,dataout,countn,datafilename,ncid(0),varid(0),ncfile(0))
     Case('albvis','albnir')
@@ -420,7 +486,7 @@ Allocate(sermask(1:2,1:2))
 nscale=scalelimit
 
 latlon=(/ baselon, 90. /)
-llstore=(/ 43200/nscale , 21600/nscale /)
+llstore=(/ 432000/nscale , 216000/nscale /)
 ltest=countn==0
 Call searchdim(4,sll,nscale,0.,latlon,llstore,grid,ltest,rlld,sibdim)
 Call scaleconvert(nscale,subsec,llstore,sll,sibsize)
@@ -466,16 +532,21 @@ If (subsec/=0) then
 
         Select Case(datatype)
           Case('land')
-            Call igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
+            Call kmconvert(nscale,nscale_x,lldim,lldim_x,10)
+            Call igbpread(latlon,nscale_x,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
                           ncid,varid,ncfile)
+          Case('land2')
+            Call kmconvert(nscale,nscale_x,lldim,lldim_x,5)
+            Call modisread(latlon,nscale_x,lldim,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
+                           ncid,varid,ncfile)
           Case('soil')
-            Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
+            Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
             Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename,ncid(0),varid(0),ncfile(0))
           Case('albvis','albnir')
-            Call kmconvert(nscale,nscale_x,lldim,lldim_x,4)
+            Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
             Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype,datafilename,ncid(0),varid(0),ncfile(0))
           case('change')
-            call kmconvert(nscale,nscale_x,lldim,lldim_x,30)
+            call kmconvert(nscale,nscale_x,lldim,lldim_x,300)
             call changeread(latlon,nscale_x,lldim_x,coverout,datafilename,year,ncid(0))
           Case DEFAULT
             Write(6,*) 'ERROR: Cannot find data ',trim(datatype)
@@ -532,7 +603,7 @@ Do k=0,num
   dataout(:,:,k)=dataout(:,:,k)/Real(countn)
 End Do
 
-if (datatype=='land') then
+if (datatype=='land' .or. datatype=='land2') then
   Allocate(sermask0(1:sibdim(1),1:sibdim(2),1:class_num),sermask2(1:sibdim(1),1:sibdim(2),1:class_num))
 !$OMP PARALLEL DO DEFAULT(NONE) SHARED(mapwater,dataout,mthrng,class_num,sibdim,rlld,sermask0,sermask2) &
 !$OMP   PRIVATE(k,lci,lcj,i,pxy,netlai,netcount)
@@ -600,7 +671,7 @@ end if
 
 ! close files
 Select Case(datatype)
-  Case('land')
+  Case('land','land2')
     if ( ncfile(0) ) then
       ierr = nf90_close(ncid(0))
     else  
@@ -832,6 +903,145 @@ if (ozlaipatch) deallocate(laiin)
 Return
 End
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine reads modis data down to nscale=1km resolution    
+    
+Subroutine modisread(latlon,nscale,lldim,coverout,num,month,vegfilename,laifilename,class_num,mapjveg, &
+                     ncid,varid,ncfile)
+
+use netcdf_m
+
+Implicit None
+
+Integer, intent(in) :: nscale,num,month,class_num
+Real, dimension(1:2), intent(in) :: latlon
+Integer, dimension(1:2), intent(in) :: lldim
+Real, dimension(lldim(1),lldim(2),0:num), intent(inout) :: coverout
+Integer*1, dimension(86400) :: datatemp
+integer, dimension(86400,nscale) :: databuffer
+Integer, dimension(86400) :: ltemp2
+integer, dimension(:,:,:), allocatable :: lbuff
+integer, dimension(86400) :: i4datatemp
+integer, dimension(0:num) :: ncount
+Integer, dimension(2,2) :: jin,jout
+integer, dimension(class_num), intent(in) :: mapjveg
+Integer ilat,ilon,jlat,recpos,mthrng,imth,lrp,ctmp,ltmp,nlrp,k
+integer i,j,ntmp,ix,iy,tiy,tix,vegtmp
+Integer, dimension(2) :: llint
+integer ierr
+integer, dimension(0:12), intent(in) :: ncid, varid
+logical, dimension(0:12), intent(in) :: ncfile
+real, dimension(:,:,:), allocatable :: laiin
+real bx,by,bdelta,tbx,tby,tbdelta
+character(len=2) cmth
+Character(len=10) fname
+character(len=*), intent(in) :: vegfilename, laifilename
+
+if ( month==0 ) then
+  mthrng=12
+else
+  mthrng=1
+end if
+
+allocate(lbuff(86400,nscale,mthrng))
+
+! To speed-up the code, 86400x(nscale) blocks of the modis file are read
+! at a time.  The data is then averaged in memory.  This system speeds-up the
+! code considerably.  However, there are limitations as to the size of data
+! that can be stored in memory.
+
+Call solvejshift(latlon(1),jin,jout,240)
+
+lrp=-1
+coverout=0.
+
+Do ilat=1,lldim(2)
+
+  if ((mod(ilat,50).eq.0).or.(ilat.eq.lldim(2))) then
+    Write(6,*) 'MODIS + LAI - ',ilat,'/',lldim(2)
+  end if
+  
+  ! Read data
+  llint(2)=nint((90.-latlon(2))*240.)+(ilat-1)*nscale
+  Do jlat=1,nscale
+    recpos=llint(2)+jlat
+    ierr = nf90_get_var(ncid(0),varid(0),i4datatemp,start=(/1,recpos/),count=(/86400,1/))  
+    ! Shift lon to zero
+    databuffer(jin(1,1):jin(1,2),jlat)=i4datatemp(jout(1,1):jout(1,2))
+    databuffer(jin(2,1):jin(2,2),jlat)=i4datatemp(jout(2,1):jout(2,2))
+  End Do
+  
+  do imth=1,mthrng
+    lrp=-1
+    Do jlat=1,nscale
+      recpos=llint(2)+jlat
+      ! read corrosponding lai data and fill to 1km grid
+      nlrp=int(real(recpos+7)/8.)
+      if (lrp/=nlrp) then
+        lrp=nlrp
+        if ( ncfile(imth) ) then
+          ierr = nf90_get_var(ncid(imth),varid(imth),i4datatemp(1:10800), &
+                   start=(/1,lrp/),count=(/10800,1/))  
+        else  
+          read(10+imth,REC=lrp) datatemp(1:10800)
+          i4datatemp(1:10800) = datatemp(1:10800)
+        end if  
+        do k=1,10800
+          ltemp2(8*k-7:8*k)=i4datatemp(k)
+        end do
+      end if
+      lbuff(jin(1,1):jin(1,2),jlat,imth)=ltemp2(jout(1,1):jout(1,2))
+      lbuff(jin(2,1):jin(2,2),jlat,imth)=ltemp2(jout(2,1):jout(2,2))
+    End Do
+  end do
+ 
+  Do ilon=1,lldim(1)
+    llint(1)=(ilon-1)*nscale
+
+    ncount=0
+    do j=1,nscale
+      do i=llint(1)+1,llint(1)+nscale
+        vegtmp=mod(databuffer(i,j)+256,256)
+        if ( vegtmp==0 ) then
+          ctmp=0
+        else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
+          ctmp=max(min(vegtmp,class_num),1)
+        else
+          ctmp = -1
+          do k = 1,class_num
+            if ( vegtmp==mapjveg(k) ) then
+              ctmp = k
+              exit
+            end if
+          end do
+        end if
+        if (ctmp>=0.and.ctmp<=class_num) then
+          coverout(ilon,ilat,ctmp)=coverout(ilon,ilat,ctmp)+1.
+          ncount(ctmp)=ncount(ctmp)+1
+          if ( ctmp>0 ) then
+            do imth=1,mthrng
+              ltmp=mod(lbuff(i,j,imth)+256,256)
+              if (ltmp>0.and.ltmp<100) then
+                coverout(ilon,ilat,class_num+(ctmp-1)*mthrng+imth)=coverout(ilon,ilat,class_num+(ctmp-1)*mthrng+imth)+real(ltmp)/10.
+                ncount(class_num+(ctmp-1)*mthrng+imth)=ncount(class_num+(ctmp-1)*mthrng+imth)+1
+              end if
+            end do
+          end if
+        end if
+      end do
+    end do
+    ncount(0:class_num)=sum(ncount(0:class_num))
+    coverout(ilon,ilat,:)=coverout(ilon,ilat,:)/real(max(ncount,1))
+  End Do
+ 
+End Do
+
+deallocate(lbuff)
+
+Return
+End
+    
+    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine reads soil data down to nscale_4=1
 ! (i.e., 4km) resolution.
@@ -1212,7 +1422,7 @@ Do ilat=1,21600
     Read(10,REC=ilat) databuffer
     i4databuffer = databuffer
   end if  
-  aglat=callat(90.,ilat,1)
+  aglat=callat(90.,ilat,10)
 
   ! read corrosponding lai data and fill to 1km grid
   nlrp=int(real(ilat+3)/4.)
@@ -1244,7 +1454,7 @@ Do ilat=1,21600
     
   Do ilon=1,43200
     
-    aglon=callon(-180.,ilon,1)
+    aglon=callon(-180.,ilon,10)
     
     Call lltoijmod(aglon,aglat,alci,alcj,nface)
     lci = nint(alci)
@@ -1294,7 +1504,133 @@ if (ozlaipatch) deallocate(laiin)
 Return
 End
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine reads MODIS data at nscale=500m resolution
+! (i.e., no storage, simply read and bin)
+!
 
+Subroutine modisstream(sibdim,coverout,countn,num,month,vegfilename,laifilename,class_num,mapjveg, &
+                      ncid,varid,ncfile)
+
+Use ccinterp
+use netcdf_m
+
+Implicit None
+
+integer, intent(in) :: num,month,class_num
+Integer, dimension(2), intent(in) :: sibdim
+Real, dimension(1:sibdim(1),1:sibdim(2),0:num), intent(out) :: coverout
+real, dimension(:,:,:), allocatable :: laiin
+Real aglon,aglat,alci,alcj,bx,by,bdelta,tbx,tby,tbdelta
+Real callon,callat
+Integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: countn
+integer, dimension(class_num), intent(in) :: mapjveg
+Integer*1, dimension(1:86400) :: databuffer
+Integer*1, dimension(1:21600) :: datatemp
+Integer*1, dimension(1:86400,1:12) :: lbuff
+integer, dimension(86400) :: i4databuffer
+integer, dimension(21600) :: i4datatemp
+integer, dimension(1:sibdim(1),1:sibdim(2),0:num) :: ncount
+Integer ilat,ilon,lci,lcj,nface,ctmp,ltmp,mthrng,imth,lrp,nlrp,k
+integer ntmp,ix,iy,tix,tiy,vegtmp,i
+integer ierr
+integer, dimension(0:12), intent(in) :: ncid, varid
+logical, dimension(0:12), intent(in) :: ncfile
+character*2 cmth
+Character*10 fname
+character(len=*), intent(in) :: vegfilename, laifilename
+
+if ( month==0 ) then
+  mthrng=12
+else
+  mthrng=1
+end if
+
+coverout=0
+countn=0
+
+Write(6,*) "Read MODIS + LAI data (stream)"
+
+lrp=-1
+
+Do ilat=1,43200
+
+  if (mod(ilat,50).eq.0) then
+    Write(6,*) 'USGS + LAI - ',ilat,'/ 43200'
+  end if
+  
+  ! Read data
+  ierr = nf90_get_var(ncid(0),varid(0),i4databuffer,start=(/1,ilat/),count=(/86400,1/))
+  aglat=callat(90.,ilat,5)
+
+  ! read corrosponding lai data and fill to 1km grid
+  nlrp=int(real(ilat+7)/8.)
+  if (lrp/=nlrp) then
+    lrp=nlrp
+    do imth=1,mthrng
+      if ( ncfile(imth) ) then
+        ierr = nf90_get_var(ncid(imth),varid(imth),i4datatemp,start=(/1,lrp/),count=(/10800,1/))  
+      else  
+        read(10+imth,REC=lrp) datatemp
+        i4datatemp = datatemp
+      end if  
+      do k=1,10800
+        lbuff(8*k-7:8*k,imth)=i4datatemp(k)
+      end do
+    end do
+  end if
+    
+  Do ilon=1,86400
+    
+    aglon=callon(-180.,ilon,5)
+    
+    Call lltoijmod(aglon,aglat,alci,alcj,nface)
+    lci = nint(alci)
+    lcj = nint(alcj)
+    lcj = lcj+nface*sibdim(1)
+    
+    vegtmp=mod(i4databuffer(ilon)+256,256)
+    if ( vegtmp==0 ) then
+      ctmp=0
+    else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
+      ctmp=max(min(vegtmp,class_num),1)
+    else
+      ctmp = -1
+      do i = 1,class_num
+        if ( vegtmp==mapjveg(i) ) then
+          ctmp=i
+          exit
+        end if
+      end do
+    end if
+    if (ctmp>=0.and.ctmp<=class_num) then
+      coverout(lci,lcj,ctmp)=coverout(lci,lcj,ctmp)+1.
+      ncount(lci,lcj,ctmp)=ncount(lci,lcj,ctmp)+1
+      countn(lci,lcj)=1
+      if ( ctmp>0 ) then
+        do imth=1,mthrng
+          ltmp=mod(lbuff(ilon,imth)+256,256)
+          if (ltmp>0.and.ltmp<100) then
+            coverout(lci,lcj,class_num+(ctmp-1)*mthrng+imth)=coverout(lci,lcj,class_num+(ctmp-1)*mthrng+imth)+real(ltmp)/10.
+            ncount(lci,lcj,class_num+(ctmp-1)*mthrng+imth)=ncount(lci,lcj,class_num+(ctmp-1)*mthrng+imth)+1
+          end if
+        end do
+      end if
+    end if
+    
+  End Do
+End Do
+do lcj=1,sibdim(2)
+  do lci=1,sibdim(1)
+    ncount(lci,lcj,0:class_num)=sum(ncount(lci,lcj,0:class_num))
+  end do
+end do
+coverout=coverout/real(max(ncount,1))
+
+Return
+End
+
+    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine reads soil at nscale_4=1
 ! (i.e., 4km) resolution.
@@ -1340,11 +1676,11 @@ Do ilat=1,5400
     Read(20,REC=ilat) databuffer
     i4databuffer = databuffer
   end if  
-  aglat=callat(90.,ilat,1)
+  aglat=callat(90.,ilat,40)
   
   Do ilon=1,10800
     
-    aglon=callon(-180.,ilon,1)
+    aglon=callon(-180.,ilon,40)
     
     Call lltoijmod(aglon,aglat,alci,alcj,nface)
     lci = nint(alci)
@@ -1411,7 +1747,7 @@ select case(datatype)
 end select
 
 Do ilat=1,5400
-  aglat=callat(90.,ilat,4)
+  aglat=callat(90.,ilat,40)
 
   if (mod(ilat,50).eq.0) then
     Write(6,*) cmsg,ilat,'/ 5400'
@@ -1430,7 +1766,7 @@ Do ilat=1,5400
   end where
   
   Do ilon=1,10800
-    aglon=callon(-180.,ilon,4)
+    aglon=callon(-180.,ilon,40)
     
     Call lltoijmod(aglon,aglat,alci,alcj,nface)
     lci = nint(alci)
@@ -1545,11 +1881,11 @@ Do ilat=1,720
 
     ! Read data
     ierr = nf90_get_var(ncid,varid,databuffer,start=(/1,ilat,rectime/),count=(/1440,1,1/)) 
-    aglat=callat(90.,ilat,30)
+    aglat=callat(90.,ilat,300)
   
     Do ilon=1,1440
     
-      aglon=callon(-180.,ilon,30)
+      aglon=callon(-180.,ilon,300)
     
       Call lltoijmod(aglon,aglat,alci,alcj,nface)
       lci = nint(alci)
@@ -1581,7 +1917,7 @@ Subroutine solvejshift(lonin,jin,jout,nscale)
 Implicit None
 
 Real, intent(in) :: lonin
-Integer, intent(in) :: nscale
+Integer, intent(in) :: nscale ! actually related to the inverse of nscale
 Integer, dimension(1:2,1:2), intent(out) :: jin,jout
 Integer jshift
 
@@ -1673,8 +2009,8 @@ Integer, dimension(1:2), intent(out) :: lldim
 Real, dimension(1:2,1:2), intent(in) :: sll
 Integer i,j
 
-i=nint((sll(1,2)-sll(1,1))*120./Real(nscale))
-j=nint((sll(2,2)-sll(2,1))*120./Real(nscale))
+i=nint((sll(1,2)-sll(1,1))*1200./Real(nscale))
+j=nint((sll(2,2)-sll(2,1))*1200./Real(nscale))
 
 subsec=int(sqrt(real(i)*real(j)/(real(sibsize)**2)))+1
 subsec=max(subsec,1)
@@ -1682,10 +2018,10 @@ subsec=max(subsec,1)
 lldim(1)=nint(real(i)/real(subsec))
 lldim(2)=nint(real(j)/real(subsec))
 
-If ((real(lldim(1)*nscale*subsec)).LT.((sll(1,2)-sll(1,1))*120.)) lldim(1)=lldim(1)+1
-If ((real(lldim(2)*nscale*subsec)).LT.((sll(2,2)-sll(2,1))*120.)) lldim(2)=lldim(2)+1
-If ((nint((90.-sll(2,2))*120.)+lldim(2)*nscale).GT.21600) lldim(2)=(21600-nint((90.-sll(2,2))*120.))/nscale
-If ((lldim(1)*nscale).GT.43200) lldim(1)=43200/nscale
+If ((real(lldim(1)*nscale*subsec)).LT.((sll(1,2)-sll(1,1))*1200.)) lldim(1)=lldim(1)+1
+If ((real(lldim(2)*nscale*subsec)).LT.((sll(2,2)-sll(2,1))*1200.)) lldim(2)=lldim(2)+1
+If ((nint((90.-sll(2,2))*1200.)+lldim(2)*nscale).GT.216000) lldim(2)=(216000-nint((90.-sll(2,2))*1200.))/nscale
+If ((lldim(1)*nscale).GT.432000) lldim(1)=432000/nscale
 
 If ((lldim(1).LT.1).OR.(lldim(2).LT.1)) Then
   lldim=(/ 0, 0 /)
@@ -1709,7 +2045,7 @@ Integer, dimension(1:2), intent(in) :: lldim
 Real, intent(in) :: slonn,slatx
 Integer, intent(in) :: nx,ny
 
-latlon=(/ slonn+Real((nx-1)*lldim(1)*nscale)/120., slatx-Real((ny-1)*lldim(2)*nscale)/120. /)
+latlon=(/ slonn+Real((nx-1)*lldim(1)*nscale)/1200., slatx-Real((ny-1)*lldim(2)*nscale)/1200. /)
 if (latlon(2).LT.-90.) latlon(2)=-90.
 
 Return
@@ -1727,7 +2063,7 @@ Implicit None
 Real, intent(in) :: latlon
 Integer, intent(in) :: i,nscale
 
-callon=(Real(i-1)+0.5)*real(nscale)/120.+latlon
+callon=(Real(i-1)+0.5)*real(nscale)/1200.+latlon
 
 Return
 End
@@ -1760,7 +2096,7 @@ Implicit None
 Real, intent(in) :: latlon
 Integer, intent(in) :: i,nscale
 
-callat=latlon-(Real(i-1)+0.5)*real(nscale)/120.
+callat=latlon-(Real(i-1)+0.5)*real(nscale)/1200.
 
 Return
 End
@@ -1776,7 +2112,7 @@ Implicit None
 Real, intent(in) :: aglon,latlon
 Integer, intent(in) :: nscale
 
-indexlon=(aglon-latlon)*120./real(nscale)+0.5
+indexlon=(aglon-latlon)*1200./real(nscale)+0.5
 	    
 Return
 End	    
@@ -1792,7 +2128,7 @@ Implicit None
 Real, intent(in) :: aglat,latlon
 Integer, intent(in) :: nscale
    
-indexlat=(-aglat+latlon)*120./real(nscale)+0.5
+indexlat=(-aglat+latlon)*1200./real(nscale)+0.5
 
 Return
 End
@@ -1824,9 +2160,9 @@ Logical, dimension(1:sibdim(1),1:sibdim(2)), intent(in) :: maskn
 tlld=rlld
 
 templl(1,1)=latlon(1)
-templl(1,2)=latlon(1)+real(lldim(1)*nscale)/120.
+templl(1,2)=latlon(1)+real(lldim(1)*nscale)/1200.
 templl(2,2)=latlon(2)
-templl(2,1)=latlon(2)-real(lldim(2)*nscale)/120.
+templl(2,1)=latlon(2)-real(lldim(2)*nscale)/1200.
 
 Do i=1,2
   If (templl(2,i).LT.-90.) templl(2,i)=-90.
@@ -1843,11 +2179,11 @@ Select Case(mode)
     sll=templl
     Return
   Case(1)
-    sermask=sermask.AND.(grid.LE.scalelimit)
+    sermask=sermask.AND.(grid<=scalelimit)
   Case(2)
-    sermask=sermask.AND.(grid.GE.scalelimit)
+    sermask=sermask.AND.(grid>=scalelimit)
   Case(3)
-    sermask=sermask.AND.(grid.EQ.scalelimit)
+    sermask=sermask.AND.(grid==scalelimit)
   Case(4)
     ! Do nothing
   Case Default
@@ -1878,10 +2214,10 @@ Do i=1,2
   End Do
 End Do
 
-sll(1,1)=real(int((sll(1,1)-latlon(1))*120./real(nscale)))*real(nscale)/120.+latlon(1)
-sll(1,2)=real(rndup((sll(1,2)-latlon(1))*120./real(nscale)))*real(nscale)/120.+latlon(1)
-sll(2,1)=-real(rndup((latlon(2)-sll(2,1))*120./real(nscale)))*real(nscale)/120.+latlon(2)
-sll(2,2)=-real(int((latlon(2)-sll(2,2))*120./real(nscale)))*real(nscale)/120.+latlon(2)
+sll(1,1)=real(int((sll(1,1)-latlon(1))*1200./real(nscale)))*real(nscale)/1200.+latlon(1)
+sll(1,2)=real(rndup((sll(1,2)-latlon(1))*1200./real(nscale)))*real(nscale)/1200.+latlon(1)
+sll(2,1)=-real(rndup((latlon(2)-sll(2,1))*1200./real(nscale)))*real(nscale)/1200.+latlon(2)
+sll(2,2)=-real(int((latlon(2)-sll(2,2))*1200./real(nscale)))*real(nscale)/1200.+latlon(2)
 
 ! Check bounds
 Do i=1,2
@@ -1927,10 +2263,10 @@ mode=1
 If (nscale==999) mode=0
 
 maxscale=Int(0.5*real(nscale)/Real(scalelimit))*scalelimit
-maxscale=findfact(21600,maxscale,-scalelimit)
+maxscale=findfact(216000,maxscale,-scalelimit)
 If (maxscale.LT.scalelimit) maxscale=scalelimit
 
-llstore=(/ 43200/maxscale , 21600/maxscale /)
+llstore=(/ 432000/maxscale , 216000/maxscale /)
 Call searchdim(mode,sll,maxscale,tscale,latlon,llstore,grid,maskn,rlld,sibdim)
 Call scaleconvert(maxscale,subsecmax,llstore,sll,sibsize)
 
@@ -1940,19 +2276,19 @@ If (subsecmax<1) Then
   nscale=maxscale
 Else
   nscale=Int(Minval(grid,maskn)/Real(scalelimit))*scalelimit
-  nscale=findfact(21600,nscale,-scalelimit)
+  nscale=findfact(216000,nscale,-scalelimit)
   nscale=max(nscale,scalelimit)
   subsec=subsecmax+1
   Do While (subsec>subsecmax)
     ! Get estimate of array size
-    llstore=(/ 43200/nscale , 21600/nscale /)
+    llstore=(/ 432000/nscale , 216000/nscale /)
     ! Calculate domain for search
     Call searchdim(mode,sll,nscale,tscale,latlon,llstore,grid,maskn,rlld,sibdim)
     ! Define number of points in domain and subdivide into tiles if array is too big
     Call scaleconvert(nscale,subsec,llstore,sll,sibsize)
     If (subsec>subsecmax) Then
       nscale=nscale+scalelimit
-      nscale=findfact(21600,nscale,scalelimit)
+      nscale=findfact(216000,nscale,scalelimit)
     End If
   End Do
 End If
@@ -1961,7 +2297,7 @@ nscale=min(nscale,maxscale)
 nscale=max(nscale,scalelimit)
 
 
-llstore=(/ 43200/nscale , 21600/nscale /)
+llstore=(/ 432000/nscale , 216000/nscale /)
 ! Calculate domain for search
 Call searchdim(mode,sll,nscale,tscale,latlon,llstore,grid,maskn,rlld,sibdim)
 ! Define number of points in domain and subdivide into tiles if array is too big

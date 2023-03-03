@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -28,12 +28,13 @@ Implicit None
 include 'version.h'
 
 character(len=1024), dimension(:,:), allocatable :: options
-character(len=1024), dimension(15) :: fname
+character(len=1024), dimension(16) :: fname
 character(len=1024) topofile
 character(len=1024) landtypeout
 character(len=1024) newtopofile
 character(len=1024) outputmode
 character(len=1024) veginput, soilinput, laiinput, albvisinput, albnirinput
+character(len=1024) veg2input
 character(len=1024) pftconfig, mapconfig, atebconfig
 character(len=1024) user_veginput, user_laiinput
 character(len=1024) soilconfig, change_landuse
@@ -51,7 +52,8 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  atebconfig,alb3939,samoapatch,      &
                  user_veginput, user_laiinput,       &
                  ovegfrac,zerozs,soilconfig,         &
-                 change_landuse,year,natural_maxtile
+                 change_landuse,year,                &
+                 natural_maxtile,veg2input
 
 ! Start banner
 write(6,*) "=============================================================================="
@@ -75,7 +77,8 @@ options(:,2) = ''
 call readswitch(options,nopts)
 call defaults(options,nopts)
 
-veginput='gigbp2_0ll.img'
+veginput=''
+veg2input='landcover_2020.nc'
 soilinput='usda4.img'
 laiinput=''
 albvisinput='salbvis223.img'
@@ -124,6 +127,7 @@ fname(12)=user_laiinput
 fname(13)=atebconfig
 fname(14)=soilconfig
 fname(15)=change_landuse
+fname(16)=veg2input
 
 outmode=1
 if ( outputmode=='igbp' ) then
@@ -182,7 +186,7 @@ write(6,*) '    year=0'
 Write(6,*) '    topofile="topout"'
 Write(6,*) '    newtopofile="newtopout"'
 Write(6,*) '    landtypeout="veg"'
-Write(6,*) '    veginput="gigbp2_0ll.img"'
+Write(6,*) '    veg2input="landcover_2020.nc"'
 Write(6,*) '    soilinput="usda4.img"'
 Write(6,*) '    laiinput="slai01.img"'
 Write(6,*) '    albvisinput="salbvis223.img"'
@@ -214,7 +218,7 @@ Write(6,*) '    topofile        = topography (input) file'
 Write(6,*) '    newtopofile     = Output topography file name'
 Write(6,*) '                      (if igbplsmask=t)'
 Write(6,*) '    landtypeout     = Land-use filename'
-Write(6,*) '    veginput        = Location of IGBP input file'
+Write(6,*) '    veg2input       = Location of IGBP input file'
 Write(6,*) '    soilinput       = Location of USDA input file'
 Write(6,*) '    laiinput        = Location of LAI input file for month>0'
 Write(6,*) '                      or path to LAI files for month=0'
@@ -319,7 +323,7 @@ Implicit None
 Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile,zerozs,ovegfrac
 Integer, intent(in) :: nopts,binlimit,month,year,outmode,natural_maxtile
 Character(len=*), dimension(nopts,2), intent(in) :: options
-Character(len=*), dimension(15), intent(in) :: fname
+Character(len=*), dimension(16), intent(in) :: fname
 character(len=1024) filename
 Character(len=80), dimension(1:3) :: outputdesc
 Character(len=1024) returnoption,csize
@@ -1287,8 +1291,13 @@ save_crop_c3 = 0.
 save_crop_c4 = 0.
 
 ! Read default igbp data
-call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land',fastigbp,ozlaipatch,binlimit,month,year, &
-             fname(4),fname(6),class_num,mapjveg,mapwater)
+if ( fname(4)/="" ) then
+  call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land',fastigbp,ozlaipatch,binlimit,month,year, &
+               fname(4),fname(6),class_num,mapjveg,mapwater)
+else
+  call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land2',fastigbp,ozlaipatch,binlimit,month,year, &
+               fname(16),fname(6),class_num,mapjveg,mapwater)
+end if    
 call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month,year, &
              fname(5),fname(6),class_num,mapjveg,mapwater)
 call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month,year, &
