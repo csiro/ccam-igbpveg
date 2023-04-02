@@ -345,11 +345,11 @@ If (fastigbp) then
             Select Case(datatype)
               Case('land')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,10)
-                Call igbpread(latlon,nscale_x,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
+                Call igbpread(latlon,nscale_x,lldim_x,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
                               ncid,varid,ncfile)
               Case('land2')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,5)
-                Call modisread(latlon,nscale_x,lldim,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
+                Call modisread(latlon,nscale_x,lldim_x,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
                                ncid,varid,ncfile)
               Case('soil')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
@@ -533,11 +533,11 @@ If (subsec/=0) then
         Select Case(datatype)
           Case('land')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,10)
-            Call igbpread(latlon,nscale_x,lldim,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
+            Call igbpread(latlon,nscale_x,lldim_x,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
                           ncid,varid,ncfile)
           Case('land2')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,5)
-            Call modisread(latlon,nscale_x,lldim,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
+            Call modisread(latlon,nscale_x,lldim_x,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
                            ncid,varid,ncfile)
           Case('soil')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)

@@ -1,2 +1,2 @@
 character(len=*), parameter :: version = &
-'IGBPVEG Date:   Wed Aug 10 08:25:08 2022 +0800 commit 3bebb132a922669799dc51d59cb1502e28c59ab8'
+'IGBPVEG Date:   Fri Mar 3 11:30:35 2023 +1100 commit 68c09926e4ad89520f396653597f32e59def1cb8'
