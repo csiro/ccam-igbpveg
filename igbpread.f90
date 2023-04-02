@@ -2018,8 +2018,14 @@ subsec=max(subsec,1)
 lldim(1)=nint(real(i)/real(subsec))
 lldim(2)=nint(real(j)/real(subsec))
 
-If ((real(lldim(1)*nscale*subsec)).LT.((sll(1,2)-sll(1,1))*1200.)) lldim(1)=lldim(1)+1
-If ((real(lldim(2)*nscale*subsec)).LT.((sll(2,2)-sll(2,1))*1200.)) lldim(2)=lldim(2)+1
+! Backwards compatibility?
+if ( mod(nscale,10)==0 ) then
+  If (real(lldim(1)*(nscale/10)*subsec).LT.(sll(1,2)-sll(1,1))*120.) lldim(1)=lldim(1)+1
+  If (real(lldim(2)*(nscale/10)*subsec).LT.(sll(2,2)-sll(2,1))*120.) lldim(2)=lldim(2)+1
+else    
+  If (real(lldim(1)*nscale*subsec).LT.(sll(1,2)-sll(1,1))*1200.) lldim(1)=lldim(1)+1
+  If (real(lldim(2)*nscale*subsec).LT.(sll(2,2)-sll(2,1))*1200.) lldim(2)=lldim(2)+1
+end if  
 If ((nint((90.-sll(2,2))*1200.)+lldim(2)*nscale).GT.216000) lldim(2)=(216000-nint((90.-sll(2,2))*1200.))/nscale
 If ((lldim(1)*nscale).GT.432000) lldim(1)=432000/nscale
 
