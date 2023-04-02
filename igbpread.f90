@@ -367,7 +367,7 @@ If (fastigbp) then
             End Select
 
             write(6,*) 'Start bin'
-            ltest = grid>=real(minscale)
+            ltest = grid*10.>=real(minscale)
 !$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(lldim,latlon,nscale,sibdim,lcmap) &
 !$OMP   PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
             do j = 1,lldim(2)
@@ -2179,11 +2179,11 @@ Select Case(mode)
     sll=templl
     Return
   Case(1)
-    sermask=sermask.AND.(grid<=scalelimit)
+    sermask=sermask.AND.(grid*10.<=scalelimit)
   Case(2)
-    sermask=sermask.AND.(grid>=scalelimit)
+    sermask=sermask.AND.(grid*10.>=scalelimit)
   Case(3)
-    sermask=sermask.AND.(grid==scalelimit)
+    sermask=sermask.AND.(grid*10.==scalelimit)
   Case(4)
     ! Do nothing
   Case Default
@@ -2257,14 +2257,14 @@ Integer mode,maxscale,subsecmax
 Integer findfact
 Logical, dimension(1:sibdim(1),1:sibdim(2)), intent(in) :: maskn
 
-tscale=Maxval(grid,maskn)
+tscale=Maxval(grid,maskn)*10.
 
 mode=1
-If (nscale==999) mode=0
+If (nscale==9999) mode=0
 
 maxscale=Int(0.5*real(nscale)/Real(scalelimit))*scalelimit
 maxscale=findfact(216000,maxscale,-scalelimit)
-If (maxscale.LT.scalelimit) maxscale=scalelimit
+maxscale = max( maxscale, scalelimit )
 
 llstore=(/ 432000/maxscale , 216000/maxscale /)
 Call searchdim(mode,sll,maxscale,tscale,latlon,llstore,grid,maskn,rlld,sibdim)
@@ -2275,7 +2275,7 @@ If (subsecmax<1) Then
   mode=0
   nscale=maxscale
 Else
-  nscale=Int(Minval(grid,maskn)/Real(scalelimit))*scalelimit
+  nscale=Int(Minval(grid,maskn)*10./Real(scalelimit))*scalelimit
   nscale=findfact(216000,nscale,-scalelimit)
   nscale=max(nscale,scalelimit)
   subsec=subsecmax+1
