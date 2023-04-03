@@ -411,6 +411,7 @@ character(len=25) :: jdesc, kdesc
 character(len=25) :: vname
 character(len=80) :: tname
 logical, dimension(:), allocatable :: mapwater, mapice
+logical, dimension(:), allocatable :: noveg
 logical :: testurban, testwater, testice, matchfound
 character(len=2) :: dum
 
@@ -1335,13 +1336,16 @@ if ( fname(15)/='' ) then
   end if
   write(6,*) "Applying land-use change data from ",trim(fname(15))
   allocate( changedata(sibdim(1),sibdim(2),0:2) )
+  allocate( noveg(class_num) )
   ! read land-use change dataset
   call getdata(changedata,lonlat,gridout,rlld,sibdim,2,sibsize,'change',fastigbp,ozlaipatch,binlimit,month,year, &
                fname(15),fname(6),class_num,mapjveg,mapwater)
   ! reduce natural vegetation and add land-use changes
+  noveg(1:class_num) = mapwater(1:class_num)
+  noveg(13) = .true. ! IGBP urban
   do j = 1,sibdim(2)
     do i = 1,sibdim(1)
-      nsum = sum(landdata(i,j,1:class_num),mask=.not.mapwater(1:class_num))
+      nsum = sum(landdata(i,j,1:class_num),mask=.not.noveg(1:class_num))
       if ( nsum>0. ) then
         change_crop_c3 = changedata(i,j,0)
         change_crop_c4 = changedata(i,j,1)
@@ -1352,8 +1356,8 @@ if ( fname(15)/='' ) then
         landdata(i,j,12) = 0. ! IGBP crops=12
         landdata(i,j,14) = 0. ! IGBP crops/natural vegetation mosaic=14
         landdata(i,j,10) = 0. ! IGBP grassland=10 
-        newsum = sum(landdata(i,j,1:class_num),mask=.not.mapwater(1:class_num)) 
-        where ( .not.mapwater(1:class_num) )
+        newsum = sum(landdata(i,j,1:class_num),mask=.not.noveg(1:class_num)) 
+        where ( .not.noveg(1:class_num) )
           landdata(i,j,1:class_num) = landdata(i,j,1:class_num)*max(1.-change_crop_c3-change_crop_c4-change_pasture,0.001) &
                                       *nsum/newsum
         end where  
@@ -1363,6 +1367,7 @@ if ( fname(15)/='' ) then
     end do
   end do  
   deallocate( changedata )
+  deallocate( noveg )
 end if
 
 ! Read user defined data
@@ -1565,12 +1570,6 @@ do tt=1,mthrng
   outputdesc(2)='Urban fraction'
   outputdesc(3)='none'
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(33),1.,0.)
-
-  ! to be depreciated
-  !outputdesc(1)='savanna'
-  !outputdesc(2)='Savanna fraction of PFT=2'
-  !outputdesc(3)='none'
-  !call ncaddvargen(ncidarr,outputdesc,5,2,varid(34),1.,0.)
   
   call ncatt(ncidarr,'lon0',lonlat(1))
   call ncatt(ncidarr,'lat0',lonlat(2))
