@@ -1269,7 +1269,7 @@ else
   mapfrac(15,1) = 1.
   mapjveg(15) = 15    
   mapice(15) = .true.
-  mapindex(16,1) = 14 ! barran or sparsely vegetated - barren
+  mapindex(16,1) = 14 ! barren or sparsely vegetated - barren
   mapfrac(16,1) = 1.
   mapjveg(16) = 16    
   mapindex(17,1) = 16 ! water bodies - lakes
@@ -1347,22 +1347,22 @@ if ( fname(15)/='' ) then
     do i = 1,sibdim(1)
       nsum = sum(landdata(i,j,1:class_num),mask=.not.noveg(1:class_num))
       if ( nsum>0. ) then
+        ! convert existing crops and grassland into grassland.
+        landdata(i,j,10) = landdata(i,j,10) + landdata(i,j,12) + landdata(i,j,14)
+        ! expand crops with CMIP forcing as needed.
         change_crop_c3 = changedata(i,j,0)
         change_crop_c4 = changedata(i,j,1)
         change_pasture = changedata(i,j,2)
         save_crop_c3(i,j) = change_crop_c3
         save_crop_c4(i,j) = change_crop_c4
-        change_pasture = max( change_pasture, landdata(i,j,10)/nsum )
         landdata(i,j,12) = 0. ! IGBP crops=12
         landdata(i,j,14) = 0. ! IGBP crops/natural vegetation mosaic=14
-        landdata(i,j,10) = 0. ! IGBP grassland=10 
         newsum = sum(landdata(i,j,1:class_num),mask=.not.noveg(1:class_num)) 
-        where ( .not.noveg(1:class_num) )
+        where ( .not.noveg(1:class_num) .and. newsum>0. )
           landdata(i,j,1:class_num) = landdata(i,j,1:class_num)*max(1.-change_crop_c3-change_crop_c4-change_pasture,0.001) &
                                       *nsum/newsum
         end where  
-        landdata(i,j,12) = max(landdata(i,j,12) + (change_crop_c3+change_crop_c4)*nsum,1.e-3)
-        landdata(i,j,10) = max(landdata(i,j,10) + change_pasture*nsum,1.e-3)
+        landdata(i,j,12) = max(landdata(i,j,12) + (change_crop_c3+change_crop_c4+change_pasture)*nsum,1.e-3)
       end if  
     end do
   end do  
@@ -2615,7 +2615,7 @@ do j = 1,sibdim(2)
         fneedlebroad=0.
       endif
       
-      do n = 1,natural_maxtile+4
+      do n = 1,natural_maxtile+2
         iv = vtype(i,j,n)
         if ( iv>0 ) then
           do k = 1,natural_maxtile
@@ -2669,23 +2669,23 @@ do j = 1,sibdim(2)
         ! C3 and C4 crops
         sermask(6:7) = .false.
         tadd = tadd + 2
-        if ( fg3>0. ) then
-          ! C3 grass (pasture)
-          sermask(9) = .false.
-          tadd = tadd + 1
-        end if
-        if ( fg4>0. ) then
-          ! C4 grass (pasture)  
-          sermask(10) = .false.
-          tadd = tadd + 1
-        end if
-        if ( fg3==0. .and. fg4==0. ) then
-          ! tundra (pasture)
-          sermask(8) = .false.
-          tadd = tadd + 1
-        end if  
-        if ( tadd>4 ) then
-          write(6,*) "ERROR: tadd is greater than maximum 4 land-use change tiles"
+        !if ( fg3>0. ) then
+        !  ! C3 grass (pasture)
+        !  sermask(9) = .false.
+        !  tadd = tadd + 1
+        !end if
+        !if ( fg4>0. ) then
+        !  ! C4 grass (pasture)  
+        !  sermask(10) = .false.
+        !  tadd = tadd + 1
+        !end if
+        !if ( fg3==0. .and. fg4==0. ) then
+        !  ! tundra (pasture)
+        !  sermask(8) = .false.
+        !  tadd = tadd + 1
+        !end if  
+        if ( tadd>2 ) then
+          write(6,*) "ERROR: tadd is greater than maximum 2 land-use change tiles"
           call finishbanner
           stop -1
         end if
