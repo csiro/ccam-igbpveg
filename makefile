@@ -68,7 +68,7 @@ endif
 OBJT = igbpveg.o igbpread.o readswitch.o ncwrite.o misc.o ccinterp.o\
        latltoij_m.o setxyz_m.o xyzinfo_m.o newmpar_m.o \
        indices_m.o parm_m.o precis_m.o ind_m.o jimco_m.o jimcc_m.o \
-       jim_utils.o nfft_m.o ncread.o netcdf_m.o stacklimit.o
+       jim_utils.o nfft_m.o ncread.o netcdf_m.o
 
 igbpveg :$(OBJT)
 	$(FC) $(XFLAGS) $(OBJT) $(LIBS) -o igbpveg
@@ -79,8 +79,6 @@ clean:
 
 .SUFFIXES:.f90
 
-stacklimit.o: stacklimit.c
-	cc -c stacklimit.c
 version.h: FORCE
 	rm -f brokenver tmpver
 	echo "character(len=*), parameter :: version = &" > brokenver

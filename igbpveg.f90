@@ -63,10 +63,6 @@ write(6,*) "====================================================================
 write(6,*) 'IGBPVEG - IGBP 1km to CC grid'
 write(6,*) trim(version)
 
-#ifndef stacklimit
-! For linux only - removes stacklimit on all processors
-call setstacklimit(-1)
-#endif 
 
 ! Read switches
 nopts=1
