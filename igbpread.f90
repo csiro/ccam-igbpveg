@@ -2764,8 +2764,10 @@ do ivegfrac = ivegstart,ivegend
           stop -1
         end if
       end if
-      datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
-      countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+      if ( iveg>=0 ) then
+        datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
+        countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+      end if  
 
     end do ! i
     if ( mod(j,dimlen(2)/10)==0 .or. j==dimlen(2) ) then
