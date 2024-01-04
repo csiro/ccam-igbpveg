@@ -2523,271 +2523,274 @@ if ( datafilename/='' ) then
   datalocal(:,:,:) = 0. ! accumulation array per grid point and veg type
   countlocal(:,:) = 0
 
-!---------- using frac ------------
-ivegstart=-1
-ivegend=-1
-numclassin=0
-if ( ovegfrac ) then
-  ivegstart=0
-  ivegend=class_num
-endif
-do ivegfrac = ivegstart,ivegend
- select case(ivegfrac)
-  case(-1)
-    cmsg='land_cover'
-    ierr = nf_inq_varid(ncid,cmsg,varid)
-    if ( ierr/=nf_noerr ) then
-      varid = 1
-      ierr = nf_inq_varname(ncid,varid,cmsg)      
-    end if
-  case(0)
-    cmsg='water'
-    numclassin=numclassin+1
-  case(1)
-    cmsg='evergreen_needleleaf_forest'
-    numclassin=numclassin+1
-  case(2)
-    cmsg='evergreen_broadleaf_forest'
-    numclassin=numclassin+1
-  case(3)
-    cmsg='deciduous_needleleaf_forest'
-    numclassin=numclassin+1
-  case(4)
-    cmsg='deciduous_broadleaf_forest'
-    numclassin=numclassin+1
-  case(5)
-    cmsg='mixed_forest'
-    numclassin=numclassin+1
-  case(6)
-    cmsg='closed_shrublands'
-    numclassin=numclassin+1
-  case(7)
-    cmsg='open_shrublands'
-    numclassin=numclassin+1
-  case(8)
-    cmsg='woody_savannas'
-    numclassin=numclassin+1
-  case(9)
-    cmsg='savannas'
-    numclassin=numclassin+1
-  case(10)
-    cmsg='grasslands'
-    numclassin=numclassin+1
-  case(11)
-    cmsg='permanent_wetlands'
-    numclassin=numclassin+1
-  case(12)
-    cmsg='croplands'
-    numclassin=numclassin+1
-  case(13)
-    cmsg='urban_and_builtup'
-    numclassin=numclassin+1
-  case(14)
-    cmsg='cropland_natural_vegetation_mosaic'
-    numclassin=numclassin+1
-  case(15)
-    cmsg='snowandice'
-    numclassin=numclassin+1
-  case(16)
-    cmsg='barren_sparsely_vegetated'
-    numclassin=numclassin+1
-  case(17)
-    cmsg='unclassified_filled'
-    numclassin=numclassin+1
- end select
- write(6,*)"#########################################cmsg=",trim(cmsg)
- write(6,*)"ivegfrac,numclassin=",ivegfrac,numclassin
+  !---------- using frac ------------
+  ivegstart=-1
+  ivegend=-1
+  numclassin=0
+  if ( ovegfrac ) then
+    ivegstart=0
+    ivegend=class_num
+  endif
+  do ivegfrac = ivegstart,ivegend
+    select case(ivegfrac)
+      case(-1)
+        cmsg='land_cover'
+        ierr = nf_inq_varid(ncid,cmsg,varid)
+        if ( ierr/=nf_noerr ) then
+          varid = 1
+          ierr = nf_inq_varname(ncid,varid,cmsg)      
+        end if
+      case(0)
+        cmsg='water'
+        numclassin=numclassin+1
+      case(1)
+        cmsg='evergreen_needleleaf_forest'
+        numclassin=numclassin+1
+      case(2)
+        cmsg='evergreen_broadleaf_forest'
+        numclassin=numclassin+1
+      case(3)
+        cmsg='deciduous_needleleaf_forest'
+        numclassin=numclassin+1
+      case(4)
+        cmsg='deciduous_broadleaf_forest'
+        numclassin=numclassin+1
+      case(5)
+        cmsg='mixed_forest'
+        numclassin=numclassin+1
+      case(6)
+        cmsg='closed_shrublands'
+        numclassin=numclassin+1
+      case(7)
+        cmsg='open_shrublands'
+        numclassin=numclassin+1
+      case(8)
+        cmsg='woody_savannas'
+        numclassin=numclassin+1
+      case(9)
+        cmsg='savannas'
+        numclassin=numclassin+1
+      case(10)
+        cmsg='grasslands'
+        numclassin=numclassin+1
+      case(11)
+        cmsg='permanent_wetlands'
+        numclassin=numclassin+1
+      case(12)
+        cmsg='croplands'
+        numclassin=numclassin+1
+      case(13)
+        cmsg='urban_and_builtup'
+        numclassin=numclassin+1
+      case(14)
+        cmsg='cropland_natural_vegetation_mosaic'
+        numclassin=numclassin+1
+      case(15)
+        cmsg='snowandice'
+        numclassin=numclassin+1
+      case(16)
+        cmsg='barren_sparsely_vegetated'
+        numclassin=numclassin+1
+      case(17)
+        cmsg='unclassified_filled'
+        numclassin=numclassin+1
+    end select
+    write(6,*)"#########################################cmsg=",trim(cmsg)
+    write(6,*)"ivegfrac,numclassin=",ivegfrac,numclassin
 
-  ierr = nf_inq_varid(ncid,cmsg,varid)
-  write(6,*)"ierr, varid=",ierr , varid
-  if ( ierr/=nf_noerr ) then
-    write(6,*) "ERROR: Cannot locate ",cmsg," field in veg file ",trim(datafilename)
-    call finishbanner
-    stop -1
-  end if
-  write(6,*)"varndims, ivegfrac=",varndims, ivegfrac
-  select case(varndims)
-    case(2)
-      start(1:2) = 1
-      ncount(1:2) = dimlen(1:2)
-      ierr = nf_get_vara_int(ncid,varid,start(1:2),ncount(1:2),coverin) ! here % cover for this veg type
-    case(3)
-      start(1:3) = 1
-      ncount(1:2) = dimlen(1:2)
-      ncount(3) = 1
-      ierr = nf_get_vara_int(ncid,varid,start(1:3),ncount(1:3),coverin) ! here % cover for this veg type
-    case default
-      write(6,*) "ERROR: Cannot process data with ndims ",varndims
+    ierr = nf_inq_varid(ncid,cmsg,varid)
+    write(6,*)"ierr, varid=",ierr , varid
+    if ( ierr/=nf_noerr ) then
+      write(6,*) "ERROR: Cannot locate ",cmsg," field in veg file ",trim(datafilename)
       call finishbanner
       stop -1
-  end select
-
-  ! Process user specified land-cover
-  write(6,*) "Processing user specified land-cover data ivegfrac=",ivegfrac,sibdim(1)
-
-!---------- using frac ------------
-! loop over all datappoints in user landcover dataset
-! here assumes regular lon/lat grid
-  if ( ovegfrac ) then
-!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) &
-!$OMP   PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
-  do j = 1,dimlen(2)
-    aglat = latin(j)
-    do i = 1,dimlen(1)
-      aglon = lonin(i)  
-      call lltoijmod(aglon,aglat,alci,alcj,nface)
-      lci = nint(alci)
-      lcj = nint(alcj)
-      lcj = lcj + nface*sibdim(1)
-      lcmap(i,j,1) = lci
-      lcmap(i,j,2) = lcj
-    end do
-  end do
-!$OMP END PARALLEL DO  
-  
-  do j = 1,dimlen(2)
-    do i = 1,dimlen(1)
-      lci = lcmap(i,j,1)
-      lcj = lcmap(i,j,2)
-!---------- using frac ------------
-      !tmp index holders
-      jlcn=max(j-1,1)
-      jlcx=min(j+1,dimlen(2))
-      ilcn=max(i-1,1)
-      ilcx=min(i+1,dimlen(1))
-
-      ! assuming lon/lat input grid
-      ! dy = dlat*circe/360.
-      ! dx = cos(lat)*dlon*circe/360.
-      dy = circe*abs(latin(jlcx)-latin(jlcn))/(360.*real(jlcx-jlcn))
-      dx = cos(aglat*3.14159/180.)*circe*abs(lonin(ilcx)-lonin(ilcn))/(360.*real(ilcx-ilcn))
-      dgridin=max(dx,dy)
-      ! how much to increment (+/-) to ensure finding data within model grid box
-      !i.e. need to search at least 5 grid points of input 5km grid for model 1 km grid
-      inc=int(dgridin/grid(lci,lcj)/2)+1
-      ilcn=max(1,lci-inc)
-      ilcx=min(sibdim(1),lci+inc)
-      jlcn=max(1,lcj-nface*sibdim(1)-inc)+nface*sibdim(1)
-      jlcx=min(sibdim(1),lcj-nface*sibdim(1)+inc)+nface*sibdim(1)
-
-!==============================================
-      do lcj = min(jlcn , jlcx),max(jlcn , jlcx)
-      do lci = min(ilcn , ilcx),max(ilcn , ilcx)
-!==============================================
-      vegtmp = ivegfrac ! if using veg fractions - index of vegtype, specified in loop
-!---------- using frac ------------
-      if ( lci .eq. diaglci .and. lcj .eq. diaglcj ) then
-       write(6,*)"inc=",inc,dgridin,dx,dy
-       write(6,*)"inx,jnx=",ilcn,ilcx,jlcn,jlcx
-      endif
-      if ( vegtmp==0 ) then
-        iveg=0
-      else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
-        iveg=max(min(vegtmp,class_num),1)
-      else if ( found_missing .and. vegtmp==missing_int ) then
-        ! missing
-        iveg = -1 
-      else
-        iveg = -1
-        do k = 1,class_num
-          if ( mapjveg(k)==coverin(i,j) ) then
-            iveg = k
-            exit
-          end if
-        end do
-        if ( iveg==-1 ) then
-          write(6,*) "ERROR: land_cover data is not defined in mapping data"
-          write(6,*) "Invalid land_cover index ",iveg,coverin(i,j)," at lat,lon=",aglat,aglon
-          write(6,*) "Valid indices are ",mapjveg(1:class_num)
-          call finishbanner
-          stop -1
-        end if
-      end if
-!---------- using frac ------------
-       if ( iveg>=0 .and. iveg<=class_num ) then
-        if ( coverin(i,j) .le. 100 ) then ! to avoid 255 when not defined, here coverin is % for this vegtype
-          countlocal(lci,lcj) = countlocal(lci,lcj) + 1 ! total number of hits for this gridbox
-          datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + coverin(i,j)/100. ! here coverin is % for this vegtype
-          countfrac(lci,lcj,iveg) = countfrac(lci,lcj,iveg) + 1 ! number of hits for this gribbox and vegtype
-        endif
-       end if
-       if ( lci .eq. diaglci .and. lcj .eq. diaglcj ) then
-         write(6,*)"lci,lcj,iveg,countlocal,datalocal,countfrac"
-         write(6,*)lci,lcj,iveg,countlocal(lci,lcj),datalocal(lci,lcj,iveg),countfrac(lci,lcj,iveg)
-         write(6,*)"coverin,i,j=",coverin(i,j),i,j,aglon,aglat
-       endif
-
-      end do ! ilc
-      end do ! jlc
-!---------- using frac ------------
-
-    end do ! i
-    if ( mod(j,dimlen(2)/10)==0 .or. j==dimlen(2) ) then
-      write(6,*) "User land_cover ",j,"/",dimlen(2)
     end if
-  end do ! j
+    write(6,*)"varndims, ivegfrac=",varndims, ivegfrac
+    select case(varndims)
+      case(2)
+        start(1:2) = 1
+        ncount(1:2) = dimlen(1:2)
+        ierr = nf_get_vara_int(ncid,varid,start(1:2),ncount(1:2),coverin) ! here % cover for this veg type
+      case(3)
+        start(1:3) = 1
+        ncount(1:2) = dimlen(1:2)
+        ncount(3) = 1
+        ierr = nf_get_vara_int(ncid,varid,start(1:3),ncount(1:3),coverin) ! here % cover for this veg type
+      case default
+        write(6,*) "ERROR: Cannot process data with ndims ",varndims
+        call finishbanner
+        stop -1
+    end select
 
-  else ! ovegfrac ..else..
+    ! Process user specified land-cover
+    write(6,*) "Processing user specified land-cover data ivegfrac=",ivegfrac,sibdim(1)
+
+    !---------- using frac ------------
+    ! loop over all datappoints in user landcover dataset
+    ! here assumes regular lon/lat grid
+    if ( ovegfrac ) then
+      !$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) &
+      !$OMP   PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
+      do j = 1,dimlen(2)
+        aglat = latin(j)
+        do i = 1,dimlen(1)
+          aglon = lonin(i)  
+          call lltoijmod(aglon,aglat,alci,alcj,nface)
+          lci = nint(alci)
+          lcj = nint(alcj)
+          lcj = lcj + nface*sibdim(1)
+          lcmap(i,j,1) = lci
+          lcmap(i,j,2) = lcj
+        end do
+      end do
+      !$OMP END PARALLEL DO  
   
-!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) &
-!$OMP   PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
-  do j = 1,dimlen(2)
-    aglat = latin(j)
-    do i = 1,dimlen(1)
-      aglon = lonin(i)  
-      call lltoijmod(aglon,aglat,alci,alcj,nface)
-      lci = nint(alci)
-      lcj = nint(alcj)
-      lcj = lcj + nface*sibdim(1)
-      lcmap(i,j,1) = lci
-      lcmap(i,j,2) = lcj
-    end do
-  end do
-!$OMP END PARALLEL DO
+      do j = 1,dimlen(2)
+        do i = 1,dimlen(1)
+          lci = lcmap(i,j,1)
+          lcj = lcmap(i,j,2)
+          !---------- using frac ------------
+          !tmp index holders
+          jlcn=max(j-1,1)
+          jlcx=min(j+1,dimlen(2))
+          ilcn=max(i-1,1)
+          ilcx=min(i+1,dimlen(1))
+
+          ! assuming lon/lat input grid
+          ! dy = dlat*circe/360.
+          ! dx = cos(lat)*dlon*circe/360.
+          dy = circe*abs(latin(jlcx)-latin(jlcn))/(360.*real(jlcx-jlcn))
+          dx = cos(aglat*3.14159/180.)*circe*abs(lonin(ilcx)-lonin(ilcn))/(360.*real(ilcx-ilcn))
+          dgridin=max(dx,dy)
+          ! how much to increment (+/-) to ensure finding data within model grid box
+          !i.e. need to search at least 5 grid points of input 5km grid for model 1 km grid
+          inc=int(dgridin/grid(lci,lcj)/2)+1
+          ilcn=max(1,lci-inc)
+          ilcx=min(sibdim(1),lci+inc)
+          jlcn=max(1,lcj-nface*sibdim(1)-inc)+nface*sibdim(1)
+          jlcx=min(sibdim(1),lcj-nface*sibdim(1)+inc)+nface*sibdim(1)
+
+          !==============================================
+          do lcj = min(jlcn , jlcx),max(jlcn , jlcx)
+            do lci = min(ilcn , ilcx),max(ilcn , ilcx)
+              !==============================================
+              vegtmp = ivegfrac ! if using veg fractions - index of vegtype, specified in loop
+              !---------- using frac ------------
+              if ( lci .eq. diaglci .and. lcj .eq. diaglcj ) then
+                write(6,*)"inc=",inc,dgridin,dx,dy
+                write(6,*)"inx,jnx=",ilcn,ilcx,jlcn,jlcx
+              endif
+              if ( vegtmp==0 ) then
+                iveg=0
+              else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
+                iveg=max(min(vegtmp,class_num),1)
+              else if ( found_missing .and. vegtmp==missing_int ) then
+                ! missing
+                iveg = -1 
+              else
+                iveg = -1
+                do k = 1,class_num
+                  if ( mapjveg(k)==coverin(i,j) ) then
+                    iveg = k
+                    exit
+                  end if
+                end do
+                if ( iveg==-1 ) then
+                  write(6,*) "ERROR: land_cover data is not defined in mapping data"
+                  write(6,*) "Invalid land_cover index ",iveg,coverin(i,j)," at lat,lon=",latin(j),lonin(i)
+                  write(6,*) "Valid indices are ",mapjveg(1:class_num)
+                  call finishbanner
+                  stop -1
+                end if
+              end if
+              !---------- using frac ------------
+              if ( iveg>=0 .and. iveg<=class_num ) then
+                if ( coverin(i,j) .le. 100 ) then ! to avoid 255 when not defined, here coverin is % for this vegtype
+                  countlocal(lci,lcj) = countlocal(lci,lcj) + 1 ! total number of hits for this gridbox
+                  datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + coverin(i,j)/100. ! here coverin is % for this vegtype
+                  countfrac(lci,lcj,iveg) = countfrac(lci,lcj,iveg) + 1 ! number of hits for this gribbox and vegtype
+                endif
+              end if
+              if ( lci .eq. diaglci .and. lcj .eq. diaglcj ) then
+                write(6,*)"lci,lcj,iveg,countlocal,datalocal,countfrac"
+                write(6,*)lci,lcj,iveg,countlocal(lci,lcj),datalocal(lci,lcj,iveg),countfrac(lci,lcj,iveg)
+                write(6,*)"coverin,i,j=",coverin(i,j),i,j,aglon,aglat
+              endif
+
+            end do ! ilc
+          end do ! jlc
+          !---------- using frac ------------
+
+        end do ! i
+        if ( mod(j,dimlen(2)/10)==0 .or. j==dimlen(2) ) then
+          write(6,*) "User land_cover ",j,"/",dimlen(2)
+        end if
+      end do ! j
+
+    else ! ovegfrac ..else..
+  
+      !$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) &
+      !$OMP   PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
+      do j = 1,dimlen(2)
+        aglat = latin(j)
+        do i = 1,dimlen(1)
+          aglon = lonin(i)  
+          call lltoijmod(aglon,aglat,alci,alcj,nface)
+          lci = nint(alci)
+          lcj = nint(alcj)
+          lcj = lcj + nface*sibdim(1)
+          lcmap(i,j,1) = lci
+          lcmap(i,j,2) = lcj
+        end do
+      end do
+      !$OMP END PARALLEL DO
       
-  do j = 1,dimlen(2)
-    do i = 1,dimlen(1)
-      lci = lcmap(i,j,1)
-      lcj = lcmap(i,j,2)
-!==============================================
-      vegtmp = coverin(i,j)  ! if using landtype - index of vegtype, from read 
-      if ( vegtmp==0 ) then
-        iveg=0
-      else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
-        iveg=max(min(vegtmp,class_num),1)
-      else if ( found_missing .and. vegtmp==missing_int ) then
-        ! missing
-        iveg = -1 
-      else
-        iveg = -1
-        do k = 1,class_num
-          if ( mapjveg(k)==coverin(i,j) ) then
-            iveg = k
-            exit
+      do j = 1,dimlen(2)
+        do i = 1,dimlen(1)
+          lci = lcmap(i,j,1)
+          lcj = lcmap(i,j,2)
+          !==============================================
+          vegtmp = coverin(i,j)  ! if using landtype - index of vegtype, from read 
+          if ( vegtmp==0 ) then
+            iveg=0
+          else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
+            iveg=max(min(vegtmp,class_num),1)
+          else if ( found_missing .and. vegtmp==missing_int ) then
+            ! missing
+            iveg = -1 
+          else
+            iveg = -1
+            do k = 1,class_num
+              if ( mapjveg(k)==coverin(i,j) ) then
+                iveg = k
+                exit
+              end if
+            end do
+            if ( iveg==-1 ) then
+              write(6,*) "ERROR: land_cover data is not defined in mapping data"
+              write(6,*) "Invalid land_cover index ",iveg,coverin(i,j)," at lat,lon=",aglat,aglon
+              write(6,*) "Valid indices are ",mapjveg(1:class_num)
+              call finishbanner
+              stop -1
+            end if
           end if
-        end do
-        if ( iveg==-1 ) then
-          write(6,*) "ERROR: land_cover data is not defined in mapping data"
-          write(6,*) "Invalid land_cover index ",iveg,coverin(i,j)," at lat,lon=",aglat,aglon
-          write(6,*) "Valid indices are ",mapjveg(1:class_num)
-          call finishbanner
-          stop -1
-        end if
-      end if
-      if ( iveg>=0 ) then
-        datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
-        countlocal(lci,lcj) = countlocal(lci,lcj) + 1
-      end if 
+          if ( iveg>=0 ) then
+            datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
+            countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+          else if ( sum(dataout(lci,lcj,:))>0. ) then
+            datalocal(lci,lcj,:) = datalocal(lci,lcj,:) + dataout(lci,lcj,:)
+            countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+          end if 
 
-    end do ! i
-    if ( mod(j,dimlen(2)/10)==0 .or. j==dimlen(2) ) then
-      write(6,*) "User land_cover ",j,"/",dimlen(2)
+        end do ! i
+        if ( mod(j,dimlen(2)/10)==0 .or. j==dimlen(2) ) then
+          write(6,*) "User land_cover ",j,"/",dimlen(2)
+        end if
+      end do ! j  
+  
     end if
-  end do ! j  
   
-  end if
-  
-enddo ! ivegfrac=0,class_num
+  enddo ! ivegfrac=0,class_num
   
   ! Average LAI before redistributing vegetation classes
   lailocal(:,:,:) = 0.
