@@ -2448,7 +2448,6 @@ if ( datafilename/='' ) then
   if ( ierr/=nf_noerr ) then
     varid = 1
     ierr = nf_inq_varname(ncid,varid,varname)
-    if ( ierr==nf_noerr ) write(6,*) "Found ",trim(varname)
   end if  
   if ( ierr/=nf_noerr ) then
     write(6,*) "ERROR: Cannot locate land_cover variable in veg file ",trim(datafilename)
@@ -2536,6 +2535,11 @@ do ivegfrac = ivegstart,ivegend
  select case(ivegfrac)
   case(-1)
     cmsg='land_cover'
+    ierr = nf_inq_varid(ncid,cmsg,varid)
+    if ( ierr/=nf_noerr ) then
+      varid = 1
+      ierr = nf_inq_varname(ncid,varid,cmsg)      
+    end if
   case(0)
     cmsg='water'
     numclassin=numclassin+1
