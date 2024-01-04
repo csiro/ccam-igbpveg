@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -62,7 +62,6 @@ write(6,*) "====================================================================
 
 write(6,*) 'IGBPVEG - IGBP 1km to CC grid'
 write(6,*) trim(version)
-
 
 ! Read switches
 nopts=1
@@ -1481,8 +1480,8 @@ albvisdata=tmp(:,:,0)
 albnirdata=tmp(:,:,1)
 
 deallocate( soildata, tmp )
-allocate( vfrac(sibdim(1),sibdim(2),natural_maxtile+4), vtype(sibdim(1),sibdim(2),natural_maxtile+5) )
-allocate( vlai(sibdim(1),sibdim(2),natural_maxtile+4) )
+allocate( vfrac(sibdim(1),sibdim(2),natural_maxtile+2), vtype(sibdim(1),sibdim(2),natural_maxtile+2) )
+allocate( vlai(sibdim(1),sibdim(2),natural_maxtile+2) )
 !allocate( savannafrac(sibdim(1),sibdim(2)) )
 
 write(6,*) "Create output file"
@@ -1530,7 +1529,7 @@ do tt=1,mthrng
   outputdesc(3)=''
   call ncaddvargen(ncidarr,outputdesc,5,2,varid(4),1.,0.)
   
-  do j = 1,natural_maxtile+4
+  do j = 1,natural_maxtile+2
     tname=''
     write(tname,'("lai",I1.1)') j
     outputdesc(1)=tname
@@ -1919,9 +1918,9 @@ do tt=1,mthrng
     do i=1,sibdim(1)
       if (lsdata(i,j)>=0.5) then
         ! water  
-        vtype(i,j,1:natural_maxtile+4)=0
+        vtype(i,j,1:natural_maxtile+2)=0
         vfrac(i,j,1)=1.
-        vfrac(i,j,2:natural_maxtile+4)=0.
+        vfrac(i,j,2:natural_maxtile+2)=0.
         vlai(i,j,:)=0.
       else
         ! land  
@@ -1934,7 +1933,6 @@ do tt=1,mthrng
         else    
           sermsk=.not.mapwater(:)
           if ( fname(15)/='' ) then
-            sermsk(10) = .false.
             sermsk(12) = .false.
           end if  
           icefrac = 0.
@@ -1950,18 +1948,13 @@ do tt=1,mthrng
           end do
           if ( fname(15)/='' ) then
             if ( icefrac<0.99 ) then ! avoid crops where there is large amounts of ice
-              k = natural_maxtile+1 ! grassland
-              sibmax(1) = 10
-              vtype(i,j,k)=sibmax(1)
-              vfrac(i,j,k)=max( landdata(i,j,sibmax(1)), 0.001 )
-              vlai(i,j,k)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)
-              k = natural_maxtile+2 ! crop
+              k = natural_maxtile+1 ! crop
               sibmax(1) = 12
               vtype(i,j,k)=sibmax(1)
               vfrac(i,j,k)=max( landdata(i,j,sibmax(1)), 0.001 )
               vlai(i,j,k)=landdata(i,j,class_num+(sibmax(1)-1)*mthrng+tt)
             end if  
-            ! k = natural_maxtile+3,natural_maxtile+4 are reserved for outmode=1
+            ! k = natural_maxtile+2 is reserved for outmode=1
           end if              
           vfrac(i,j,:)=vfrac(i,j,:)/sum(vfrac(i,j,:))
         end if  
@@ -1970,10 +1963,10 @@ do tt=1,mthrng
   end do
   if ( outmode==1 ) then
     call convertigbp(vtype,vfrac,vlai,sibdim,lsdata,rlld,class_num,mapindex,mapfrac,pft_len, &
-        save_crop_c3,save_crop_c4,natural_maxtile,fname(15))
+         save_crop_c3,save_crop_c4,natural_maxtile,fname(15))
   end if
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
-  do j = 1,natural_maxtile+4
+  do j = 1,natural_maxtile+2
     rdata=Real(vtype(:,:,j))
     call ncwritedatgen(ncidarr,rdata,dimcount,varid(6+3*j-3))
     call ncwritedatgen(ncidarr,vfrac(:,:,j),dimcount,varid(7+3*j-3))
@@ -2491,12 +2484,12 @@ implicit none
 
 integer, intent(in) :: class_num, pft_len, natural_maxtile
 Integer, dimension(2), intent(in) :: sibdim
-integer, dimension(sibdim(1),sibdim(2),natural_maxtile+4), intent(inout) :: vtype
+integer, dimension(sibdim(1),sibdim(2),natural_maxtile+2), intent(inout) :: vtype
 integer, dimension(class_num,natural_maxtile), intent(in) :: mapindex
 integer, dimension(1) :: pos
 integer i, j, n, ipos, iv
 integer iv_new, k, tadd
-real, dimension(sibdim(1),sibdim(2),natural_maxtile+4), intent(inout) :: vfrac, vlai
+real, dimension(sibdim(1),sibdim(2),natural_maxtile+2), intent(inout) :: vfrac, vlai
 real, dimension(class_num,natural_maxtile), intent(in) :: mapfrac
 real, dimension(pft_len) :: newlai
 real, dimension(pft_len) :: newgrid
@@ -2660,33 +2653,11 @@ do j = 1,sibdim(2)
         newlai(:) = newlai(:)/newgrid(:)
       end where
       sermask = .true.
-      tadd = 0
       if ( change_landuse/='' ) then
         ! C3 and C4 crops
         sermask(6:7) = .false.
-        tadd = tadd + 2
-        !if ( fg3>0. ) then
-        !  ! C3 grass (pasture)
-        !  sermask(9) = .false.
-        !  tadd = tadd + 1
-        !end if
-        !if ( fg4>0. ) then
-        !  ! C4 grass (pasture)  
-        !  sermask(10) = .false.
-        !  tadd = tadd + 1
-        !end if
-        !if ( fg3==0. .and. fg4==0. ) then
-        !  ! tundra (pasture)
-        !  sermask(8) = .false.
-        !  tadd = tadd + 1
-        !end if  
-        if ( tadd>2 ) then
-          write(6,*) "ERROR: tadd is greater than maximum 2 land-use change tiles"
-          call finishbanner
-          stop -1
-        end if
         ipos = count( newgrid(:)>0. )
-        do while ( ipos>natural_maxtile+tadd )
+        do while ( ipos>natural_maxtile+2 )
           pos = minloc(newgrid(:), newgrid(:)>0. .and. sermask)
           newgrid(pos(1)) = 0.
           nsum = sum(newgrid(:))

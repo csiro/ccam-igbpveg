@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -31,7 +31,7 @@
 Subroutine getdata(dataout,glonlat,grid,tlld,sibdim,num,sibsize,datatype,fastigbp,ozlaipatch,binlimit,month, &
                    year,datafilename,laifilename,class_num,mapjveg,mapwater)
 
-Use ccinterp
+use ccinterp
 use netcdf_m
 
 Implicit None
@@ -1271,25 +1271,25 @@ Do ilat=1,lldim_30(2)
     select case(n)
       case(1)
         ierr = nf90_inq_varid(ncid,"c3ann",varid)
-        indx = 0
+        indx = 0 ! C3 crop
       case(2)
         ierr = nf90_inq_varid(ncid,"c4ann",varid)
-        indx = 1
+        indx = 1 ! C4 crop
       case(3)
         ierr = nf90_inq_varid(ncid,"c3per",varid)
-        indx = 0
+        indx = 0 ! C3 crop
       case(4)
         ierr = nf90_inq_varid(ncid,"c4per",varid)
-        indx = 1
+        indx = 1 ! C4 crop
       case(5)
         ierr = nf90_inq_varid(ncid,"c3nfx",varid)
-        indx = 0
+        indx = 0 ! C3 crop
       case(6)
         ierr = nf90_inq_varid(ncid,"pastr",varid)
-        indx = 2
+        indx = 2 ! Pasture
       case(7)
         ierr = nf90_inq_varid(ncid,"range",varid)
-        indx = 2
+        indx = 2 ! Pasture
     end select    
 
     ! Read data
@@ -2414,6 +2414,7 @@ real missing_real
 integer, dimension(:,:), allocatable :: coverin
 character(len=*), intent(in) :: datafilename, laifilename
 character(len=1024), dimension(3) :: dimname
+character(len=1024) varname
 logical found_missing
 
 !---------- using frac ------------
@@ -2444,6 +2445,11 @@ if ( datafilename/='' ) then
   end if
   
   ierr = nf_inq_varid(ncid,'land_cover',varid)
+  if ( ierr/=nf_noerr ) then
+    varid = 1
+    ierr = nf_inq_varname(ncid,varid,varname)
+    if ( ierr==nf_noerr ) write(6,*) "Found ",trim(varname)
+  end if  
   if ( ierr/=nf_noerr ) then
     write(6,*) "ERROR: Cannot locate land_cover variable in veg file ",trim(datafilename)
     call finishbanner
@@ -2767,7 +2773,7 @@ do ivegfrac = ivegstart,ivegend
       if ( iveg>=0 ) then
         datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
         countlocal(lci,lcj) = countlocal(lci,lcj) + 1
-      end if  
+      end if 
 
     end do ! i
     if ( mod(j,dimlen(2)/10)==0 .or. j==dimlen(2) ) then
