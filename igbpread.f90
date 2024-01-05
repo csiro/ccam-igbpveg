@@ -2768,7 +2768,7 @@ if ( datafilename/='' ) then
             end do
             if ( iveg==-1 ) then
               write(6,*) "ERROR: land_cover data is not defined in mapping data"
-              write(6,*) "Invalid land_cover index ",iveg,coverin(i,j)," at lat,lon=",aglat,aglon
+              write(6,*) "Invalid land_cover index ",iveg,coverin(i,j)," at lat,lon=",latin(j),lonin(i)
               write(6,*) "Valid indices are ",mapjveg(1:class_num)
               call finishbanner
               stop -1
@@ -2778,7 +2778,6 @@ if ( datafilename/='' ) then
             datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
             countlocal(lci,lcj) = countlocal(lci,lcj) + 1
           else if ( sum(dataout(lci,lcj,:))>0. ) then
-            datalocal(lci,lcj,:) = datalocal(lci,lcj,:) + dataout(lci,lcj,:)
             countlocal(lci,lcj) = countlocal(lci,lcj) + 1
           end if 
 
