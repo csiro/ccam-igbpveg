@@ -1370,6 +1370,13 @@ if ( fname(11)/='' .or. fname(12)/='' ) then
   call modifylanddata(landdata,lonlat,sibdim,class_num*(1+mthrng),month,fname(11),fname(12),class_num,mapjveg,gridout,ovegfrac)
 end if
 
+do i = 1,class_num
+  if ( sum(mapfrac(i,:))==0. ) then
+    write(6,*) "Removing as missing for class = ",i
+    landdata(:,:,i) = 0.
+  end if
+end do
+
 deallocate(gridout)
 allocate(urbandata(sibdim(1),sibdim(2)),lsdata(sibdim(1),sibdim(2)),oceandata(sibdim(1),sibdim(2)))
 allocate(urbantype(sibdim(1),sibdim(2)))
@@ -1482,7 +1489,6 @@ albnirdata=tmp(:,:,1)
 deallocate( soildata, tmp )
 allocate( vfrac(sibdim(1),sibdim(2),natural_maxtile+2), vtype(sibdim(1),sibdim(2),natural_maxtile+2) )
 allocate( vlai(sibdim(1),sibdim(2),natural_maxtile+2) )
-!allocate( savannafrac(sibdim(1),sibdim(2)) )
 
 write(6,*) "Create output file"
 dimnum(1:2)=sibdim(1:2) ! CC grid dimensions
@@ -2516,7 +2522,7 @@ if ( any(mapindex<0) .and. pft_len<18 ) then
 end if
 
 do i=1,class_num
-  if ( abs(sum(mapfrac(i,:))-1.)>0.01 ) then
+  if ( abs(sum(mapfrac(i,:))-1.)>0.01 .and. sum(mapfrac(i,:))>0. ) then
     write(6,*) "ERROR: mapconfig fractions do not sum to 1."
     write(6,*) "iveg,mapfactor ",i,mapfrac(i,:)
     call finishbanner
@@ -2525,7 +2531,6 @@ do i=1,class_num
 end do
 
 write(6,*) "Mapping IGBP classes to CABLE PFTs"
-!savannafrac(:,:) = 0.
 do j = 1,sibdim(2)
   do i = 1,sibdim(1)
     if ( lsdata(i,j)<0.5 ) then
