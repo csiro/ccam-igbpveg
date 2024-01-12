@@ -10,9 +10,6 @@ XFLAGS = -qopenmp -axCORE-AVX2 -assume byterecl -fp-model precise -traceback
 endif
 INC = -I $(NETCDF_ROOT)/include
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
-ifneq ($(NCCLIB),yes)
-LIBS += -lnetcdff
-endif
 PPFLAG90 = -fpp
 PPFLAG77 = -fpp
 DEBUGFLAG = -check all -debug all -fpe0
@@ -61,9 +58,6 @@ ifeq ($(TEST),yes)
 XFLAGS += $(DEBUGFLAG)
 endif
 
-ifeq ($(NCCLIB),yes)
-XFLAGS += -Dncclib
-endif
 
 OBJT = igbpveg.o igbpread.o readswitch.o ncwrite.o misc.o ccinterp.o\
        latltoij_m.o setxyz_m.o xyzinfo_m.o newmpar_m.o \
