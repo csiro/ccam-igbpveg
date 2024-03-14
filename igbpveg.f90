@@ -82,7 +82,7 @@ outputmode=''
 pftconfig=''
 mapconfig=''
 atebconfig=''
-ozlaipatch=.false.
+ozlaipatch=.false. ! depreciated
 user_veginput=''
 ovegfrac=.false.
 user_laiinput=''
@@ -129,7 +129,7 @@ if ( outputmode=='igbp' ) then
   outmode=0
 end if
 
-call createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,year, &
+call createveg(options,nopts,fname,fastigbp,igbplsmask,tile,month,year, &
                binlimit,outmode,zerozs,ovegfrac,natural_maxtile,alb3939,samoapatch)
 
 deallocate(options)
@@ -188,7 +188,6 @@ Write(6,*) '    albvisinput="salbvis223.img"'
 Write(6,*) '    albnirinput="salbnir223.img"'
 Write(6,*) '    fastigbp=t'
 Write(6,*) '    igbplsmask=t'
-!Write(6,*) '    ozlaipatch=f'
 Write(6,*) '    tile=t'
 Write(6,*) '    binlimit=2'
 write(6,*) '    zerozs=.true.'
@@ -308,14 +307,14 @@ End
 ! This subroutine processes the sib data
 !
 
-Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,ozlaipatch,tile,month,year, &
+Subroutine createveg(options,nopts,fname,fastigbp,igbplsmask,tile,month,year, &
                      binlimit,outmode,zerozs,ovegfrac,natural_maxtile,alb3939,samoapatch)
 
 Use ccinterp
 
 Implicit None
 
-Logical, intent(in) :: fastigbp,igbplsmask,ozlaipatch,tile,zerozs,ovegfrac
+Logical, intent(in) :: fastigbp,igbplsmask,tile,zerozs,ovegfrac
 Integer, intent(in) :: nopts,binlimit,month,year,outmode,natural_maxtile
 Character(len=*), dimension(nopts,2), intent(in) :: options
 Character(len=*), dimension(16), intent(in) :: fname
@@ -1288,17 +1287,17 @@ save_crop_c4 = 0.
 
 ! Read default igbp data
 if ( fname(4)/="" ) then
-  call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land',fastigbp,ozlaipatch,binlimit,month,year, &
+  call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land',fastigbp,binlimit,month,year, &
                fname(4),fname(6),class_num,mapjveg,mapwater)
 else
-  call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land2',fastigbp,ozlaipatch,binlimit,month,year, &
+  call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land2',fastigbp,binlimit,month,year, &
                fname(16),fname(6),class_num,mapjveg,mapwater)
 end if    
-call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,ozlaipatch,binlimit,month,year, &
+call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,binlimit,month,year, &
              fname(5),fname(6),class_num,mapjveg,mapwater)
-call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,ozlaipatch,binlimit,month,year, &
+call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,binlimit,month,year, &
              fname(7),fname(6),class_num,mapjveg,mapwater)
-call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,ozlaipatch,binlimit,month,year, &
+call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,binlimit,month,year, &
              fname(8),fname(6),class_num,mapjveg,mapwater)
 
 ! Remove small fractions before land-cover change
@@ -1333,7 +1332,7 @@ if ( fname(15)/='' ) then
   allocate( changedata(sibdim(1),sibdim(2),0:2) )
   allocate( noveg(class_num) )
   ! read land-use change dataset
-  call getdata(changedata,lonlat,gridout,rlld,sibdim,2,sibsize,'change',fastigbp,ozlaipatch,binlimit,month,year, &
+  call getdata(changedata,lonlat,gridout,rlld,sibdim,2,sibsize,'change',fastigbp,binlimit,month,year, &
                fname(15),fname(6),class_num,mapjveg,mapwater)
   ! reduce natural vegetation and add land-use changes
   noveg(1:class_num) = mapwater(1:class_num)

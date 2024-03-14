@@ -28,7 +28,7 @@
 ! or datatype=soil).
 !
 
-Subroutine getdata(dataout,glonlat,grid,tlld,sibdim,num,sibsize,datatype,fastigbp,ozlaipatch,binlimit,month, &
+Subroutine getdata(dataout,glonlat,grid,tlld,sibdim,num,sibsize,datatype,fastigbp,binlimit,month, &
                    year,datafilename,laifilename,class_num,mapjveg,mapwater)
 
 use ccinterp
@@ -46,7 +46,7 @@ integer, dimension(:,:,:), allocatable :: lcmap
 Integer nscale,nscale_x,nface,subsec,mode,tmp
 Integer i,j,k,lci,lcj,nx,ny,imth,mthrng,netcount
 Integer basesize,scalelimit,minscale
-integer ierr
+integer ierr, jj
 Character(len=*), intent(in) :: datatype, datafilename, laifilename
 Character(len=10) fname
 Real, dimension(sibdim(1),sibdim(2),0:num), intent(out) :: dataout
@@ -63,7 +63,7 @@ Real, dimension(1:2,1:2,0:num) :: covertemp
 real, dimension(1:12) :: netlai
 Real aglon,aglat,alci,alcj,serlon,serlat,slonn,slatx,elon,elat,tscale,baselon
 Real ipol,callon,callat,indexlon,indexlat
-Logical, intent(in) :: fastigbp,ozlaipatch
+Logical, intent(in) :: fastigbp
 Logical, dimension(:,:), allocatable :: sermask
 logical, dimension(:,:,:), allocatable :: sermask0,sermask2
 logical, dimension(sibdim(1),sibdim(2)) :: ltest
@@ -345,7 +345,7 @@ If (fastigbp) then
             Select Case(datatype)
               Case('land')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,10)
-                Call igbpread(latlon,nscale_x,lldim_x,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
+                Call igbpread(latlon,nscale_x,lldim_x,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
                               ncid,varid,ncfile)
               Case('land2')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,5)
@@ -385,60 +385,71 @@ If (fastigbp) then
 !$OMP END PARALLEL DO
             
             if ( datatype=='land' .or. datatype=='land2' ) then
-              do j = 1,lldim(2)
-                do i = 1,lldim(1)           
-                  lci = lcmap(i,j,1)
-                  lcj = lcmap(i,j,2)
-                  if ( ltest(lci,lcj) ) then
-                    newcover(0:num) = coverout(i,j,0:num)
-                    newdata(0:num) = dataout(lci,lcj,0:num)
-                    if ( sum(abs(newcover(0:class_num)))<0.001 ) then
-                      if ( countn(lci,lcj)==0 ) then
-                        dataout(lci,lcj,0:num) = -1. ! Missing value?
-                        countn(lci,lcj) = 1
+
+!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(jj,j,i,k,lci,lcj,newcover,newdata)
+              do jj = 1,sibdim(2)
+                do j = 1,lldim(2)
+                  do i = 1,lldim(1)           
+                    lci = lcmap(i,j,1) 
+                    lcj = lcmap(i,j,2)
+                    if ( lcj==jj .and. ltest(lci,lcj) ) then
+                      newcover(0:num) = coverout(i,j,0:num)
+                      newdata(0:num) = dataout(lci,lcj,0:num)
+                      if ( sum(abs(newcover(0:class_num)))<0.001 ) then
+                        if ( countn(lci,lcj)==0 ) then
+                          dataout(lci,lcj,0:num) = -1. ! Missing value?
+                          countn(lci,lcj) = 1
+                        end if
+                      else
+                        if ( newdata(0)<0. ) then
+                          newdata(0:num) = 0. ! reset missing point after finding non-trival data
+                          countn(lci,lcj) = 0
+                        end if
+                        newdata(0:class_num) = newdata(0:class_num) + newcover(0:class_num)
+                        do k = class_num+1,num
+                          if ( newcover(k)==0. .and. countn(lci,lcj)>0 ) then
+                            newdata(k) = newdata(k)*real(countn(lci,lcj)+1) &
+                                /real(countn(lci,lcj))
+                          else if ( newdata(k)==0. ) then
+                            newdata(k) = newcover(k)*real(countn(lci,lcj)+1)
+                          else
+                            newdata(k) = newdata(k) + newcover(k)
+                          end if
+                        end do  
+                        dataout(lci,lcj,0:num) = newdata(0:num)
+                        countn(lci,lcj) = countn(lci,lcj) + 1
                       end if
-                    else
-                      if ( newdata(0)<0. ) then
-                        newdata(0:num) = 0. ! reset missing point after finding non-trival data
-                        countn(lci,lcj) = 0
-                      end if
-                      newdata(0:class_num) = newdata(0:class_num) + newcover(0:class_num)
-                      where ( newcover(class_num+1:num)==0. .and. countn(lci,lcj)>0 )
-                        newdata(class_num+1:num) = newdata(class_num+1:num)*real(countn(lci,lcj)+1) &
-                            /real(countn(lci,lcj))
-                      elsewhere ( newdata(class_num+1:num)==0. )
-                        newdata(class_num+1:num) = newcover(class_num+1:num)*real(countn(lci,lcj)+1)
-                      elsewhere
-                        newdata(class_num+1:num) = newdata(class_num+1:num) + newcover(class_num+1:num)
-                      end where
-                      dataout(lci,lcj,0:num) = newdata(0:num)
-                      countn(lci,lcj) = countn(lci,lcj) + 1
                     end if
-                  end if
+                  end do
                 end do
               end do
+!$OMP END PARALLEL DO
             else
-              do j = 1,lldim(2)
-                do i = 1,lldim(1)              
-                  lci = lcmap(i,j,1)
-                  lcj = lcmap(i,j,2)
-                  if ( ltest(lci,lcj) ) then
-                    if ( sum(abs(coverout(i,j,:)))<=0.01 ) then
-                      if ( countn(lci,lcj)==0 ) then
-                        dataout(lci,lcj,:) = -1. ! Missing value?
-                        countn(lci,lcj) = 1
+!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(jj,j,i,lci,lcj)
+              do jj = 1,sibdim(2)  
+                do j = 1,lldim(2)
+                  do i = 1,lldim(1)              
+                    lci = lcmap(i,j,1)
+                    lcj = lcmap(i,j,2)
+                    if ( lcj==jj .and. ltest(lci,lcj) ) then
+                      if ( sum(abs(coverout(i,j,:)))<=0.01 ) then
+                        if ( countn(lci,lcj)==0 ) then
+                          dataout(lci,lcj,:) = -1. ! Missing value?
+                          countn(lci,lcj) = 1
+                        end if
+                      else
+                        if ( dataout(lci,lcj,0)<0. ) then
+                          dataout(lci,lcj,:) = 0. ! reset missing point after finding non-trival data
+                          countn(lci,lcj) = 0
+                        end If
+                        dataout(lci,lcj,:) = dataout(lci,lcj,:) + coverout(i,j,:)
+                        countn(lci,lcj) = countn(lci,lcj) + 1                      
                       end if
-                    else
-                      if ( dataout(lci,lcj,0)<0. ) then
-                        dataout(lci,lcj,:) = 0. ! reset missing point after finding non-trival data
-                        countn(lci,lcj) = 0
-                      end If
-                      dataout(lci,lcj,:) = dataout(lci,lcj,:) + coverout(i,j,:)
-                      countn(lci,lcj) = countn(lci,lcj) + 1                      
                     end if
-                  end If
-                end Do
-              end Do
+                  end do  
+                end do
+              end do
+!$OMP END PARALLEL DO
             end if
             write(6,*) 'Bin complete'
 
@@ -461,7 +472,7 @@ Else
 
   Select Case(datatype)
     Case('land')
-      Call igbpstream(sibdim,dataout,countn,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
+      Call igbpstream(sibdim,dataout,countn,num,month,datafilename,laifilename,class_num,mapjveg, &
                       ncid,varid,ncfile)
     Case('land2')
       Call modisstream(sibdim,dataout,countn,num,month,datafilename,laifilename,class_num,mapjveg, &
@@ -533,7 +544,7 @@ If (subsec/=0) then
         Select Case(datatype)
           Case('land')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,10)
-            Call igbpread(latlon,nscale_x,lldim_x,coverout,num,month,ozlaipatch,datafilename,laifilename,class_num,mapjveg, &
+            Call igbpread(latlon,nscale_x,lldim_x,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
                           ncid,varid,ncfile)
           Case('land2')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,5)
@@ -710,14 +721,13 @@ End
 ! This subroutine reads sib data down to nscale=1km resolution
 !
 
-Subroutine igbpread(latlon,nscale,lldim,coverout,num,month,ozlaipatch,vegfilename,laifilename,class_num,mapjveg, &
+Subroutine igbpread(latlon,nscale,lldim,coverout,num,month,vegfilename,laifilename,class_num,mapjveg, &
                     ncid,varid,ncfile)
 
 use netcdf_m
 
 Implicit None
 
-logical, intent(in) :: ozlaipatch
 Integer, intent(in) :: nscale,num,month,class_num
 Real, dimension(1:2), intent(in) :: latlon
 Integer, dimension(1:2), intent(in) :: lldim
@@ -732,11 +742,10 @@ Integer, dimension(2,2) :: jin,jout
 integer, dimension(class_num), intent(in) :: mapjveg
 Integer ilat,ilon,jlat,recpos,mthrng,imth,lrp,ctmp,ltmp,nlrp,k
 integer i,j,ntmp,ix,iy,tiy,tix,vegtmp
-Integer, dimension(2) :: llint
+Integer llint1, llint2
 integer ierr
 integer, dimension(0:12), intent(in) :: ncid, varid
 logical, dimension(0:12), intent(in) :: ncfile
-real, dimension(:,:,:), allocatable :: laiin
 real bx,by,bdelta,tbx,tby,tbdelta
 character(len=2) cmth
 Character(len=10) fname
@@ -749,46 +758,6 @@ else
 end if
 
 allocate(lbuff(43200,nscale,mthrng))
-
-if (ozlaipatch) then
-  write(6,*) "CSIRO LAI dataset patch"
-  if (month==0) then
-    imth=1
-  else
-    imth=month
-  end if
-  write(cmth,'(I2.2)') imth
-  open(30,file='aus_lai.'//cmth,STATUS='OLD')
-  read(30,*) bx,by,bdelta,ix,iy
-  close(30)
-  allocate(laiin(ix,iy,mthrng))
-  if (month.eq.0) then
-    do imth=1,mthrng
-      write(cmth,'(I2.2)') imth
-      open(30,file='aus_lai.'//cmth,STATUS='OLD')
-      read(30,*) tbx,tby,tbdelta,tix,tiy
-      if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
-        write(6,*) "ERROR: LAI data has different dimensions for different months"
-        call finishbanner
-        stop -1
-      end if
-      read(30,*) laiin(:,:,imth)
-      close(30)
-    end do
-  else
-    write(cmth,'(I2.2)') imth
-    write(6,*) 'Open aus_lai.'//cmth
-    open(30,file='aus_lai.'//cmth,STATUS='OLD')
-    read(30,*) tbx,tby,tbdelta,tix,tiy
-    if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
-      write(6,*) "ERROR: LAI data has different dimensions for different months"
-      call finishbanner
-      stop -1
-    end if
-    read(30,*) laiin(:,:,1)
-    close(30)
-  end if
-end if
 
 ! To speed-up the code, 43200x(nscale) blocks of the igbp file are read
 ! at a time.  The data is then averaged in memory.  This system speeds-up the
@@ -807,9 +776,9 @@ Do ilat=1,lldim(2)
   end if
   
   ! Read data
-  llint(2)=nint((90.-latlon(2))*120.)+(ilat-1)*nscale
+  llint2=nint((90.-latlon(2))*120.)+(ilat-1)*nscale
   Do jlat=1,nscale
-    recpos=llint(2)+jlat
+    recpos=llint2+jlat
     if ( ncfile(0) ) then
       ierr = nf90_get_var(ncid(0),varid(0),i4datatemp,start=(/1,recpos/),count=(/43200,1/))  
     else  
@@ -824,7 +793,7 @@ Do ilat=1,lldim(2)
   do imth=1,mthrng
     lrp=-1
     Do jlat=1,nscale
-      recpos=llint(2)+jlat
+      recpos=llint2+jlat
       ! read corrosponding lai data and fill to 1km grid
       nlrp=int(real(recpos+3)/4.)
       if (lrp/=nlrp) then
@@ -839,29 +808,19 @@ Do ilat=1,lldim(2)
         do k=1,10800
           ltemp2(4*k-3:4*k)=i4datatemp(k)
         end do
-        if (ozlaipatch) then
-          tiy=nint((by-90.+(real(llint(2)+jlat)-0.5)/120.)/bdelta+0.5)
-          if ( tiy>=1 .and. tiy<=iy ) then
-            do k=1,43200
-              tix=nint(((real(k)-0.5)/120.-180.-bx)/bdelta+0.5)
-              if ( tix>=1 .and. tix<=ix ) then
-                ltemp2(k)=laiin(tix,tiy,imth)
-              end if
-            end do
-          end if
-        end if
       end if
       lbuff(jin(1,1):jin(1,2),jlat,imth)=ltemp2(jout(1,1):jout(1,2))
       lbuff(jin(2,1):jin(2,2),jlat,imth)=ltemp2(jout(2,1):jout(2,2))
     End Do
   end do
  
+!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ilon,llint1,ncount,j,i,vegtmp,ctmp) &
+!$OMP   PRIVATE(k,imth,ltmp)
   Do ilon=1,lldim(1)
-    llint(1)=(ilon-1)*nscale
-
-    ncount=0
+    llint1=(ilon-1)*nscale
+    ncount(:)=0
     do j=1,nscale
-      do i=llint(1)+1,llint(1)+nscale
+      do i=llint1+1,llint1+nscale
         vegtmp=mod(databuffer(i,j)+256,256)
         if ( vegtmp==0 ) then
           ctmp=0
@@ -894,11 +853,11 @@ Do ilat=1,lldim(2)
     ncount(0:class_num)=sum(ncount(0:class_num))
     coverout(ilon,ilat,:)=coverout(ilon,ilat,:)/real(max(ncount,1))
   End Do
+!$OMP END PARALLEL DO  
  
 End Do
 
 deallocate(lbuff)
-if (ozlaipatch) deallocate(laiin)
 
 Return
 End
@@ -927,7 +886,7 @@ Integer, dimension(2,2) :: jin,jout
 integer, dimension(class_num), intent(in) :: mapjveg
 Integer ilat,ilon,jlat,recpos,mthrng,imth,lrp,ctmp,ltmp,nlrp,k
 integer i,j,ntmp,ix,iy,tiy,tix,vegtmp
-Integer, dimension(2) :: llint
+Integer llint1, llint2
 integer ierr
 integer, dimension(0:12), intent(in) :: ncid, varid
 logical, dimension(0:12), intent(in) :: ncfile
@@ -962,9 +921,9 @@ Do ilat=1,lldim(2)
   end if
   
   ! Read data
-  llint(2)=nint((90.-latlon(2))*240.)+(ilat-1)*nscale
+  llint2=nint((90.-latlon(2))*240.)+(ilat-1)*nscale
   Do jlat=1,nscale
-    recpos=llint(2)+jlat
+    recpos=llint2+jlat
     ierr = nf90_get_var(ncid(0),varid(0),i4datatemp,start=(/1,recpos/),count=(/86400,1/))  
     ! Shift lon to zero
     databuffer(jin(1,1):jin(1,2),jlat)=i4datatemp(jout(1,1):jout(1,2))
@@ -974,7 +933,7 @@ Do ilat=1,lldim(2)
   do imth=1,mthrng
     lrp=-1
     Do jlat=1,nscale
-      recpos=llint(2)+jlat
+      recpos=llint2+jlat
       ! read corrosponding lai data and fill to 1km grid
       nlrp=int(real(recpos+7)/8.)
       if (lrp/=nlrp) then
@@ -994,13 +953,14 @@ Do ilat=1,lldim(2)
       lbuff(jin(2,1):jin(2,2),jlat,imth)=ltemp2(jout(2,1):jout(2,2))
     End Do
   end do
- 
-  Do ilon=1,lldim(1)
-    llint(1)=(ilon-1)*nscale
 
+!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ilon,llint1,ncount,j,i,vegtmp) &
+!$OMP   PRIVATE(ctmp,k,imth,ltmp)
+  Do ilon=1,lldim(1)
+    llint1=(ilon-1)*nscale
     ncount=0
     do j=1,nscale
-      do i=llint(1)+1,llint(1)+nscale
+      do i=llint1+1,llint1+nscale
         vegtmp=mod(databuffer(i,j)+256,256)
         if ( vegtmp==0 ) then
           ctmp=0
@@ -1033,6 +993,7 @@ Do ilat=1,lldim(2)
     ncount(0:class_num)=sum(ncount(0:class_num))
     coverout(ilon,ilat,:)=coverout(ilon,ilat,:)/real(max(ncount,1))
   End Do
+!$OMP END PARALLEL DO  
  
 End Do
 
@@ -1066,7 +1027,7 @@ Integer, dimension(2,2) :: jin,jout
 Integer ilat,ilon,jlat,recpos,i
 integer ierr
 integer, intent(in) :: ncid, varid
-Integer, dimension(2) :: llint_4
+Integer llint_41, llint_42
 logical, intent(in) :: ncfile
 real nsum
 integer, dimension(0:13), parameter :: masmap=(/ 0, 1, 1, 4, 2, 4, 7, 2, 2, 5, 6, 3, 8, 9 /)
@@ -1086,9 +1047,9 @@ Do ilat=1,lldim_4(2)
   end if
   
   ! Read data
-  llint_4(2)=nint((90.-latlon(2))*30.)+(ilat-1)*nscale_4
+  llint_42=nint((90.-latlon(2))*30.)+(ilat-1)*nscale_4
   Do jlat=1,nscale_4
-    recpos=llint_4(2)+jlat
+    recpos=llint_42+jlat
     if ( ncfile ) then
       ierr = nf90_get_var(ncid,varid,i4datatemp,start=(/1,recpos/),count=(/10800,1/))  
     else    
@@ -1100,9 +1061,10 @@ Do ilat=1,lldim_4(2)
     databuffer(jin(2,1):jin(2,2),jlat)=i4datatemp(jout(2,1):jout(2,2))
   End Do
   
+!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ilon,llint_41,dataslice,nsum,i)  
   Do ilon=1,lldim_4(1)
-    llint_4(1)=(ilon-1)*nscale_4
-    dataslice(1:nscale_4,1:nscale_4) = databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4)
+    llint_41=(ilon-1)*nscale_4
+    dataslice(1:nscale_4,1:nscale_4) = databuffer(llint_41+1:llint_41+nscale_4,1:nscale_4)
     Call dataconvert(dataslice(:,:),faosoil,nscale_4,13)
     nsum=sum(faosoil(1:13))
     if (nsum>0.) then
@@ -1114,6 +1076,8 @@ Do ilat=1,lldim_4(2)
       coverout(ilon,ilat,:)=0.
     end if
   End Do
+!$OMP END PARALLEL DO  
+  
 End Do
 
 Return
@@ -1135,7 +1099,7 @@ Integer, dimension(2), intent(in) :: lldim_4
 Integer, dimension(10800,1:nscale_4) :: databuffer
 Integer*1, dimension(10800) :: datatemp
 integer, dimension(10800) :: i4datatemp
-Integer, dimension(2) :: llint_4
+Integer llint_41, llint_42
 Integer ilat,ilon,jlat,recpos,ncount
 Integer, dimension(2,2) :: jin,jout
 integer ierr
@@ -1164,9 +1128,9 @@ Do ilat=1,lldim_4(2)
   end if
   
   ! Read data
-  llint_4(2)=nint((90.-latlon(2))*30.)+(ilat-1)*nscale_4
+  llint_42=nint((90.-latlon(2))*30.)+(ilat-1)*nscale_4
   Do jlat=1,nscale_4
-    recpos=llint_4(2)+jlat
+    recpos=llint_42+jlat
     if ( ncfile ) then
       ierr = nf90_get_var(ncid,varid,i4datatemp,start=(/1,recpos/),count=(/10800,1/))  
     else  
@@ -1182,18 +1146,21 @@ Do ilat=1,lldim_4(2)
     databuffer=databuffer+256
   end where
   
+!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ilon,llint_41,sermask,ncount)  
   Do ilon=1,lldim_4(1)
-    llint_4(1)=(ilon-1)*nscale_4
-    sermask=(databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4) > 0)
-    sermask=sermask.and.(databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4) <= 100)
+    llint_41=(ilon-1)*nscale_4
+    sermask=(databuffer(llint_41+1:llint_41+nscale_4,1:nscale_4) > 0)
+    sermask=sermask.and.(databuffer(llint_41+1:llint_41+nscale_4,1:nscale_4) <= 100)
     ncount = count(sermask)
     if ( ncount > 0 ) then
-      dataout(ilon,ilat)=real(sum(databuffer(llint_4(1)+1:llint_4(1)+nscale_4,1:nscale_4),sermask)) &
+      dataout(ilon,ilat)=real(sum(databuffer(llint_41+1:llint_41+nscale_4,1:nscale_4),sermask)) &
                         /(real(ncount)*100.)
     else
       dataout(ilon,ilat)=0. ! missing value flag
     end if
   End Do
+!$OMP END PARALLEL DO
+
 End Do
 
 Return
@@ -1222,7 +1189,7 @@ Integer ilat,ilon,jlat,recpos,i
 integer varid, ierr, indx, n, dimid
 integer iposa, iposb, rectime, yyyy, dimlen
 integer, intent(in) :: ncid
-Integer, dimension(2) :: llint_30
+Integer llint_301, llint_302
 real nsum
 Logical, dimension(nscale_30,nscale_30) :: sermask
 character(len=*), intent(in) :: changedatafile
@@ -1293,23 +1260,25 @@ Do ilat=1,lldim_30(2)
     end select    
 
     ! Read data
-    llint_30(2)=nint((90.-latlon(2))*4.)+(ilat-1)*nscale_30
+    llint_302=nint((90.-latlon(2))*4.)+(ilat-1)*nscale_30
     Do jlat=1,nscale_30
-      recpos=llint_30(2)+jlat
+      recpos=llint_302+jlat
       ierr = nf90_get_var(ncid,varid,datatemp,start=(/1,recpos,rectime/),count=(/1440,1,1/))
       ! Shift lon to zero
       databuffer(jin(1,1):jin(1,2),jlat)=datatemp(jout(1,1):jout(1,2))
       databuffer(jin(2,1):jin(2,2),jlat)=datatemp(jout(2,1):jout(2,2))
     End Do
-  
+
+!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ilon,llint_301,sermask,nsum)    
     Do ilon=1,lldim_30(1)
-      llint_30(1)=(ilon-1)*nscale_30
-      sermask = databuffer(llint_30(1)+1:llint_30(1)+nscale_30,1:nscale_30)>=0. .and. &
-                databuffer(llint_30(1)+1:llint_30(1)+nscale_30,1:nscale_30)<=1.
+      llint_301=(ilon-1)*nscale_30
+      sermask = databuffer(llint_301+1:llint_301+nscale_30,1:nscale_30)>=0. .and. &
+                databuffer(llint_301+1:llint_301+nscale_30,1:nscale_30)<=1.
       nsum=count(sermask)
       coverout(ilon,ilat,indx)=coverout(ilon,ilat,indx) &
-          +sum(databuffer(llint_30(1)+1:llint_30(1)+nscale_30,1:nscale_30),mask=sermask)/real(nsum)  
+          +sum(databuffer(llint_301+1:llint_301+nscale_30,1:nscale_30),mask=sermask)/real(nsum)  
     End Do
+!$OMP END PARALLEL DO    
     
   end do  
     
@@ -1324,7 +1293,7 @@ End
 ! (i.e., no storage, simply read and bin)
 !
 
-Subroutine igbpstream(sibdim,coverout,countn,num,month,ozlaipatch,vegfilename,laifilename,class_num,mapjveg, &
+Subroutine igbpstream(sibdim,coverout,countn,num,month,vegfilename,laifilename,class_num,mapjveg, &
                       ncid,varid,ncfile)
 
 Use ccinterp
@@ -1332,11 +1301,9 @@ use netcdf_m
 
 Implicit None
 
-logical, intent(in) :: ozlaipatch
 integer, intent(in) :: num,month,class_num
 Integer, dimension(2), intent(in) :: sibdim
 Real, dimension(1:sibdim(1),1:sibdim(2),0:num), intent(out) :: coverout
-real, dimension(:,:,:), allocatable :: laiin
 Real aglon,aglat,alci,alcj,bx,by,bdelta,tbx,tby,tbdelta
 Real callon,callat
 Integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: countn
@@ -1366,46 +1333,6 @@ coverout=0
 countn=0
 
 Write(6,*) "Read USGS + LAI data (stream)"
-
-if (ozlaipatch) then
-  write(6,*) "CSIRO LAI dataset patch"
-  if (month==0) then
-    imth=1
-  else
-    imth=month
-  end if
-  write(cmth,'(I2.2)') imth
-  open(30,file='aus_lai.'//cmth,STATUS='OLD')
-  read(30,*) bx,by,bdelta,ix,iy
-  close(30)
-  allocate(laiin(ix,iy,mthrng))
-  if (month.eq.0) then
-    do imth=1,mthrng
-      write(cmth,'(I2.2)') imth
-      open(30,file='aus_lai.'//cmth,STATUS='OLD')
-      read(30,*) tbx,tby,tbdelta,tix,tiy
-      if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
-        write(6,*) "ERROR: LAI data has different dimensions for different months"
-        call finishbanner
-        stop -1
-      end if
-      read(30,*) laiin(:,:,imth)
-      close(30)
-    end do
-  else
-    write(cmth,'(I2.2)') imth
-    write(6,*) 'Open aus_lai.'//cmth
-    open(30,file='aus_lai.'//cmth,STATUS='OLD')
-    read(30,*) tbx,tby,tbdelta,tix,tiy
-    if ((tix.ne.ix).or.(tiy.ne.iy).or.(tbx.ne.bx).or.(tby.ne.by).or.(tbdelta.ne.bdelta)) then
-      write(6,*) "ERROR: LAI data has different dimensions for different months"
-      call finishbanner
-      stop -1
-    end if
-    read(30,*) laiin(:,:,1)
-    close(30)
-  end if
-end if
 
 lrp=-1
 
@@ -1438,17 +1365,6 @@ Do ilat=1,21600
       do k=1,10800
         lbuff(4*k-3:4*k,imth)=i4datatemp(k)
       end do
-      if (ozlaipatch) then
-        tiy=nint((by-90.+(real(ilat)-0.5)/120.)/bdelta+0.5)
-        if ((tiy>=1).and.(tiy<=iy)) then
-          do k=1,43200
-            tix=nint(((real(k)-0.5)/120.-180.-bx)/bdelta+0.5)
-            if ((tix>=1).and.(tix<=ix)) then
-              lbuff(k,imth)=laiin(tix,tiy,imth)
-            end if
-          end do
-        end if
-      end if      
     end do
   end if
     
@@ -1498,8 +1414,6 @@ do lcj=1,sibdim(2)
   end do
 end do
 coverout=coverout/real(max(ncount,1))
-
-if (ozlaipatch) deallocate(laiin)
 
 Return
 End
@@ -2359,8 +2273,9 @@ real testdata
 integer ilon,ilat,pos(1),i
 logical, dimension(class_num), intent(in) :: mapwater, mapice
 
-do ilon=1,sibdim(1)
-  do ilat=1,sibdim(2)
+!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ilat,ilon,pos,testdata)
+do ilat=1,sibdim(2)
+  do ilon=1,sibdim(1)
     pos=Maxloc(landdata(ilon,ilat,1:class_num),.not.mapwater)
     if (1-nint(lsdata(ilon,ilat))==0) then
       testdata=sum(landdata(ilon,ilat,1:class_num),mapwater)
@@ -2377,6 +2292,7 @@ do ilon=1,sibdim(1)
     end if
   end do
 end do
+!$OMP END PARALLEL DO
 
 return
 end
@@ -2402,6 +2318,7 @@ integer ncid, ncidlai, varid, ierr
 integer lci, lcj, nface, iveg, imonth
 integer i, j, vegtmp, k, varndims
 integer missing_int
+integer jj
 real, dimension(sibdim(1),sibdim(2),0:num), intent(inout) :: dataout
 real, dimension(sibdim(1),sibdim(2),0:num) :: datalocal
 real, dimension(sibdim(1),sibdim(2),12) :: lailocal
@@ -2644,42 +2561,123 @@ if ( datafilename/='' ) then
         end do
       end do
       !$OMP END PARALLEL DO  
-  
-      do j = 1,dimlen(2)
-        do i = 1,dimlen(1)
-          lci = lcmap(i,j,1)
-          lcj = lcmap(i,j,2)
-          !---------- using frac ------------
-          !tmp index holders
-          jlcn=max(j-1,1)
-          jlcx=min(j+1,dimlen(2))
-          ilcn=max(i-1,1)
-          ilcx=min(i+1,dimlen(1))
 
-          ! assuming lon/lat input grid
-          ! dy = dlat*circe/360.
-          ! dx = cos(lat)*dlon*circe/360.
-          dy = circe*abs(latin(jlcx)-latin(jlcn))/(360.*real(jlcx-jlcn))
-          dx = cos(aglat*3.14159/180.)*circe*abs(lonin(ilcx)-lonin(ilcn))/(360.*real(ilcx-ilcn))
-          dgridin=max(dx,dy)
-          ! how much to increment (+/-) to ensure finding data within model grid box
-          !i.e. need to search at least 5 grid points of input 5km grid for model 1 km grid
-          inc=int(dgridin/grid(lci,lcj)/2)+1
-          ilcn=max(1,lci-inc)
-          ilcx=min(sibdim(1),lci+inc)
-          jlcn=max(1,lcj-nface*sibdim(1)-inc)+nface*sibdim(1)
-          jlcx=min(sibdim(1),lcj-nface*sibdim(1)+inc)+nface*sibdim(1)
-
-          !==============================================
-          do lcj = min(jlcn , jlcx),max(jlcn , jlcx)
-            do lci = min(ilcn , ilcx),max(ilcn , ilcx)
-              !==============================================
-              vegtmp = ivegfrac ! if using veg fractions - index of vegtype, specified in loop
+      !$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(jj,j,i,lci,lcj,jlcn,jlcx) &
+      !$OMP   PRIVATE(ilcn,ilcx,dx,dy,dgridin,inc,vegtmp,iveg,k)
+      do jj = 1,sibdim(2)
+        do j = 1,dimlen(2)
+          do i = 1,dimlen(1)
+            lci = lcmap(i,j,1)
+            lcj = lcmap(i,j,2)
+            if ( lcj==jj ) then
               !---------- using frac ------------
-              if ( lci .eq. diaglci .and. lcj .eq. diaglcj ) then
-                write(6,*)"inc=",inc,dgridin,dx,dy
-                write(6,*)"inx,jnx=",ilcn,ilcx,jlcn,jlcx
-              endif
+              !tmp index holders
+              jlcn=max(j-1,1)
+              jlcx=min(j+1,dimlen(2))
+              ilcn=max(i-1,1)
+              ilcx=min(i+1,dimlen(1))
+
+              ! assuming lon/lat input grid
+              ! dy = dlat*circe/360.
+              ! dx = cos(lat)*dlon*circe/360.
+              dy = circe*abs(latin(jlcx)-latin(jlcn))/(360.*real(jlcx-jlcn))
+              dx = cos(aglat*3.14159/180.)*circe*abs(lonin(ilcx)-lonin(ilcn))/(360.*real(ilcx-ilcn))
+              dgridin=max(dx,dy)
+              ! how much to increment (+/-) to ensure finding data within model grid box
+              !i.e. need to search at least 5 grid points of input 5km grid for model 1 km grid
+              inc=int(dgridin/grid(lci,lcj)/2)+1
+              ilcn=max(1,lci-inc)
+              ilcx=min(sibdim(1),lci+inc)
+              jlcn=max(1,lcj-nface*sibdim(1)-inc)+nface*sibdim(1)
+              jlcx=min(sibdim(1),lcj-nface*sibdim(1)+inc)+nface*sibdim(1)
+
+              !==============================================
+              do lcj = min(jlcn , jlcx),max(jlcn , jlcx)
+                do lci = min(ilcn , ilcx),max(ilcn , ilcx)
+                  !==============================================
+                  vegtmp = ivegfrac ! if using veg fractions - index of vegtype, specified in loop
+                  !---------- using frac ------------
+                  if ( lci .eq. diaglci .and. lcj .eq. diaglcj ) then
+                    write(6,*)"inc=",inc,dgridin,dx,dy
+                    write(6,*)"inx,jnx=",ilcn,ilcx,jlcn,jlcx
+                  endif
+                  if ( vegtmp==0 ) then
+                    iveg=0
+                  else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
+                    iveg=max(min(vegtmp,class_num),1)
+                  else if ( found_missing .and. vegtmp==missing_int ) then
+                    ! missing
+                    iveg = -1 
+                  else
+                    iveg = -1
+                    do k = 1,class_num
+                      if ( mapjveg(k)==coverin(i,j) ) then
+                        iveg = k
+                        exit
+                      end if
+                    end do
+                    if ( iveg==-1 ) then
+                      write(6,*) "ERROR: land_cover data is not defined in mapping data"
+                      write(6,*) "Invalid land_cover index ",iveg,coverin(i,j)," at lat,lon=",latin(j),lonin(i)
+                      write(6,*) "Valid indices are ",mapjveg(1:class_num)
+                      call finishbanner
+                      stop -1
+                    end if
+                  end if
+                  !---------- using frac ------------
+                  if ( iveg>=0 .and. iveg<=class_num ) then
+                    if ( coverin(i,j) .le. 100 ) then ! to avoid 255 when not defined, here coverin is % for this vegtype
+                      countlocal(lci,lcj) = countlocal(lci,lcj) + 1 ! total number of hits for this gridbox
+                      datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + coverin(i,j)/100. ! here coverin is % for this vegtype
+                      countfrac(lci,lcj,iveg) = countfrac(lci,lcj,iveg) + 1 ! number of hits for this gribbox and vegtype
+                    endif
+                  end if
+                  if ( lci .eq. diaglci .and. lcj .eq. diaglcj ) then
+                    write(6,*)"lci,lcj,iveg,countlocal,datalocal,countfrac"
+                    write(6,*)lci,lcj,iveg,countlocal(lci,lcj),datalocal(lci,lcj,iveg),countfrac(lci,lcj,iveg)
+                    write(6,*)"coverin,i,j=",coverin(i,j),i,j,aglon,aglat
+                  endif
+
+                end do ! ilc
+              end do ! jlc
+              !---------- using frac ------------
+            end if 
+          end do ! i
+        end do ! j
+        if ( mod(jj,sibdim(2)/10)==0 .or. jj==sibdim(2) ) then
+          write(6,*) "User land_cover ",jj,"/",sibdim(2)
+        end if
+      end do   
+      !$OMP END PARALLEL DO      
+
+    else ! ovegfrac ..else..
+  
+      !$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) &
+      !$OMP   PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
+      do j = 1,dimlen(2)
+        aglat = latin(j)
+        do i = 1,dimlen(1)
+          aglon = lonin(i)  
+          call lltoijmod(aglon,aglat,alci,alcj,nface)
+          lci = nint(alci)
+          lcj = nint(alcj)
+          lcj = lcj + nface*sibdim(1)
+          lcmap(i,j,1) = lci
+          lcmap(i,j,2) = lcj
+        end do
+      end do
+      !$OMP END PARALLEL DO
+      
+      !$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(jj,j,i,lci,lcj,nface,vegtmp) &
+      !$OMP   PRIVATE(iveg,k)
+      do jj = 1,sibdim(2)
+        do j = 1,dimlen(2)
+          do i = 1,dimlen(1)
+            lci = lcmap(i,j,1)
+            lcj = lcmap(i,j,2)
+            if ( lcj==jj ) then
+              !==============================================
+              vegtmp = coverin(i,j)  ! if using landtype - index of vegtype, from read 
               if ( vegtmp==0 ) then
                 iveg=0
               else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
@@ -2703,90 +2701,25 @@ if ( datafilename/='' ) then
                   stop -1
                 end if
               end if
-              !---------- using frac ------------
-              if ( iveg>=0 .and. iveg<=class_num ) then
-                if ( coverin(i,j) .le. 100 ) then ! to avoid 255 when not defined, here coverin is % for this vegtype
-                  countlocal(lci,lcj) = countlocal(lci,lcj) + 1 ! total number of hits for this gridbox
-                  datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + coverin(i,j)/100. ! here coverin is % for this vegtype
-                  countfrac(lci,lcj,iveg) = countfrac(lci,lcj,iveg) + 1 ! number of hits for this gribbox and vegtype
-                endif
-              end if
-              if ( lci .eq. diaglci .and. lcj .eq. diaglcj ) then
-                write(6,*)"lci,lcj,iveg,countlocal,datalocal,countfrac"
-                write(6,*)lci,lcj,iveg,countlocal(lci,lcj),datalocal(lci,lcj,iveg),countfrac(lci,lcj,iveg)
-                write(6,*)"coverin,i,j=",coverin(i,j),i,j,aglon,aglat
-              endif
+              if ( iveg>=0 ) then
+                datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
+                countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+              else !if ( sum(datalocal(lci,lcj,:))>0. ) then
+                ! missing value.
+                datalocal(lci,lcj,1:class_num) = datalocal(lci,lcj,1:class_num) + &
+                    dataout(lci,lcj,1:class_num)
+                countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+              end if 
 
-            end do ! ilc
-          end do ! jlc
-          !---------- using frac ------------
-
-        end do ! i
-        if ( mod(j,dimlen(2)/10)==0 .or. j==dimlen(2) ) then
-          write(6,*) "User land_cover ",j,"/",dimlen(2)
+            end if  
+          end do ! i
+        end do ! j  
+        if ( mod(jj,sibdim(2)/10)==0 .or. jj==sibdim(2) ) then
+          write(6,*) "User land_cover ",jj,"/",sibdim(2)
         end if
-      end do ! j
-
-    else ! ovegfrac ..else..
-  
-      !$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(dimlen,latin,lonin,sibdim,lcmap) &
-      !$OMP   PRIVATE(j,aglat,i,aglon,alci,alcj,nface,lci,lcj)
-      do j = 1,dimlen(2)
-        aglat = latin(j)
-        do i = 1,dimlen(1)
-          aglon = lonin(i)  
-          call lltoijmod(aglon,aglat,alci,alcj,nface)
-          lci = nint(alci)
-          lcj = nint(alcj)
-          lcj = lcj + nface*sibdim(1)
-          lcmap(i,j,1) = lci
-          lcmap(i,j,2) = lcj
-        end do
       end do
       !$OMP END PARALLEL DO
-      
-      do j = 1,dimlen(2)
-        do i = 1,dimlen(1)
-          lci = lcmap(i,j,1)
-          lcj = lcmap(i,j,2)
-          !==============================================
-          vegtmp = coverin(i,j)  ! if using landtype - index of vegtype, from read 
-          if ( vegtmp==0 ) then
-            iveg=0
-          else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
-            iveg=max(min(vegtmp,class_num),1)
-          else if ( found_missing .and. vegtmp==missing_int ) then
-            ! missing
-            iveg = -1 
-          else
-            iveg = -1
-            do k = 1,class_num
-              if ( mapjveg(k)==coverin(i,j) ) then
-                iveg = k
-                exit
-              end if
-            end do
-            if ( iveg==-1 ) then
-              write(6,*) "ERROR: land_cover data is not defined in mapping data"
-              write(6,*) "Invalid land_cover index ",iveg,coverin(i,j)," at lat,lon=",latin(j),lonin(i)
-              write(6,*) "Valid indices are ",mapjveg(1:class_num)
-              call finishbanner
-              stop -1
-            end if
-          end if
-          if ( iveg>=0 ) then
-            datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
-            countlocal(lci,lcj) = countlocal(lci,lcj) + 1
-          else if ( sum(dataout(lci,lcj,:))>0. ) then
-            countlocal(lci,lcj) = countlocal(lci,lcj) + 1
-          end if 
 
-        end do ! i
-        if ( mod(j,dimlen(2)/10)==0 .or. j==dimlen(2) ) then
-          write(6,*) "User land_cover ",j,"/",dimlen(2)
-        end if
-      end do ! j  
-  
     end if
   
   enddo ! ivegfrac=0,class_num
@@ -2939,19 +2872,25 @@ if ( laifilename/='' ) then
   end do 
 !$OMP END PARALLEL DO
       
-  do j = 1,dimlen_lai(2)
-    do i = 1,dimlen_lai(1)
-      lci = lcmap(i,j,1)
-      lcj = lcmap(i,j,2)
-      if ( .not.found_missing .or. all( laiin(i,j,1:dimlen_lai(3))/=missing_real ) ) then
-        lailocal(lci,lcj,1:dimlen_lai(3)) = lailocal(lci,lcj,1:dimlen_lai(3)) + laiin(i,j,1:dimlen_lai(3))
-        countlocal(lci,lcj) = countlocal(lci,lcj) + 1
-      end if  
+!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(jj,j,i,lci,lcj)
+  do jj = 1,sibdim(2)
+    do j = 1,dimlen_lai(2)
+      do i = 1,dimlen_lai(1)
+        lci = lcmap(i,j,1)
+        lcj = lcmap(i,j,2)
+        if ( lcj==jj ) then
+          if ( .not.found_missing .or. all( laiin(i,j,1:dimlen_lai(3))/=missing_real ) ) then
+            lailocal(lci,lcj,1:dimlen_lai(3)) = lailocal(lci,lcj,1:dimlen_lai(3)) + laiin(i,j,1:dimlen_lai(3))
+            countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+          end if  
+        end if  
+      end do
+      if ( mod(j,10)==0 .or. j==dimlen_lai(2) ) then
+        write(6,*) "User LAI ",j,"/",dimlen_lai(2)
+      end if
     end do
-    if ( mod(j,10)==0 .or. j==dimlen_lai(2) ) then
-      write(6,*) "User LAI ",j,"/",dimlen_lai(2)
-    end if
   end do
+!$OMP END PARALLEL DO
   
   ! replace dataout with non-trival input data
   if ( month==0 ) then
