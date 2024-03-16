@@ -75,11 +75,9 @@ clean:
 
 version.h: FORCE
 	rm -f brokenver tmpver
-	echo "character(len=*), parameter :: version = &" > brokenver
-	echo "'IGBPVEG '" >> brokenver
 	echo "character(len=*), parameter :: version = &" > tmpver
 	echo "'IGBPVEG `git log | head -3 | tail -1`" "`git log | head -1`'" >> tmpver
-	cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
+	cmp tmpver version.h || mv tmpver version.h
 FORCE:
 
 .f90.o:
