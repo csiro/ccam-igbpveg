@@ -23,6 +23,10 @@ Program igbpveg
 
 ! This code creates CCAM vegie data using the 1km SiB dataset
 
+#ifdef _OPENMP
+use omp_lib, only : omp_get_max_threads
+#endif
+
 Implicit None
 
 include 'version.h'
@@ -62,6 +66,10 @@ write(6,*) "====================================================================
 
 write(6,*) 'IGBPVEG - IGBP 1km to CC grid'
 write(6,*) trim(version)
+
+#ifdef _OPENMP
+write(6,*) "Using OpenMP with number of threads = ",omp_get_max_threads()
+#endif
 
 ! Read switches
 nopts=1

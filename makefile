@@ -17,9 +17,9 @@ endif
 
 ifeq ($(GFORTRAN),yes)
 FC = gfortran
-XFLAGS = -O2 -mtune=native -march=native
+XFLAGS = -O2 -mtune=native -march=native -fopenmp
 ifeq ($(ZEN3),yes)
-XFLAGS = -O2 -mtune=native -march=native -fallow-argument-mismatch
+XFLAGS = -O2 -mtune=native -march=native -fallow-argument-mismatch -fopenmp
 endif
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
