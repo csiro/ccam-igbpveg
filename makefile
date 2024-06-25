@@ -74,7 +74,7 @@ clean:
 .SUFFIXES:.f90
 
 version.h: FORCE
-	rm -f brokenver tmpver
+	rm -f tmpver
 	echo "character(len=*), parameter :: version = &" > tmpver
 	echo "'IGBPVEG `git log | head -3 | tail -1`" "`git log | head -1`'" >> tmpver
 	cmp tmpver version.h || mv tmpver version.h
