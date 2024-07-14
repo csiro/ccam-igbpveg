@@ -2429,6 +2429,8 @@ if ( datafilename/='' ) then
     stop -1
   end if
   ierr = nf_get_vara_real(ncid,varid,start(2:2),ncount(2:2),latin)
+  write(6,*) "Found longitude range ",lonin(1),lonin(dimlen(1))
+  write(6,*) "Found latitude range  ",latin(1),latin(dimlen(2))
   
 !---------- using frac ------------
 ! clear copunter for number of veg fraction hits per veg type
@@ -2436,7 +2438,7 @@ if ( datafilename/='' ) then
 
 !---------- using frac ------------
   ! Process land-cover
-  write(6,*) "Processing land-cover data"
+  write(6,*) "Processing land-cover data for ovegfrac = ",ovegfrac
   datalocal(:,:,:) = 0. ! accumulation array per grid point and veg type
   countlocal(:,:) = 0
 
@@ -2706,8 +2708,7 @@ if ( datafilename/='' ) then
                 countlocal(lci,lcj) = countlocal(lci,lcj) + 1
               else !if ( sum(datalocal(lci,lcj,:))>0. ) then
                 ! missing value.
-                datalocal(lci,lcj,1:class_num) = datalocal(lci,lcj,1:class_num) + &
-                    dataout(lci,lcj,1:class_num)
+                datalocal(lci,lcj,1:class_num) = datalocal(lci,lcj,1:class_num) + dataout(lci,lcj,1:class_num)  
                 countlocal(lci,lcj) = countlocal(lci,lcj) + 1
               end if 
 
@@ -2719,7 +2720,7 @@ if ( datafilename/='' ) then
         end if
       end do
       !$OMP END PARALLEL DO
-
+  
     end if
   
   enddo ! ivegfrac=0,class_num

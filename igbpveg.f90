@@ -2372,6 +2372,7 @@ Character*47 dc
 Real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsmskin,oceanin
 Real, dimension(sibdim(1),sibdim(2)) :: topo,sd,lsmsk
 Real, dimension(sibdim(1),sibdim(2)) :: tmax, tmin
+Real, dimension(sibdim(1),sibdim(2)) :: slope, slope_std
 real, dimension(sibdim(2)) :: dum
 Real, dimension(1) :: ra,rb,rc,rd
 logical, intent(in) :: zerozs
@@ -2399,6 +2400,20 @@ if (ierr==0) then
   ierr=nf_get_vara_real(ncid,varid,spos,npos,tmax)
   ierr=nf_inq_varid(ncid,'zmin',varid)
   ierr=nf_get_vara_real(ncid,varid,spos,npos,tmin)
+  ierr=nf_inq_varid(ncid,'slope',varid)
+  if ( ierr==nf_noerr ) then
+    ierr=nf_get_vara_real(ncid,varid,spos,npos,slope)    
+  else
+    write(6,*) "Using default slope"  
+    slope=0.08
+  end if  
+  ierr=nf_inq_varid(ncid,'slope_std',varid)
+  if ( ierr==nf_noerr ) then
+    ierr=nf_get_vara_real(ncid,varid,spos,npos,slope_std)    
+  else
+    write(6,*) "Using default slope_std"  
+    slope_std=0.03
+  end if  
   ierr=nf_close(ncid)
 else
   lnctopo=0
@@ -2407,6 +2422,8 @@ else
   Read(topounit,*,IOSTAT=ierr) topo ! Topography data
   Read(topounit,*,IOSTAT=ierr) lsmsk ! land/sea mask (to be replaced)
   Read(topounit,*,IOSTAT=ierr) sd ! Topography standard deviation
+  slope = 0.08
+  slope_std = 0.03
   Close(topounit)
 end if
 
@@ -2423,6 +2440,8 @@ if ( zerozs ) then
     sd(:,:)   = 0.
     tmax(:,:) = 0.
     tmin(:,:) = 0.
+    slope(:,:) = 0.
+    slope_std(:,:) = 0.
   end where
 end if
 
@@ -2444,6 +2463,8 @@ if (lnctopo==1) then
   ierr=nf_def_var(ncid,'tsd',nf_float,3,dimid(1:3),varid)
   ierr=nf_def_var(ncid,'zmax',nf_float,3,dimid(1:3),varid)
   ierr=nf_def_var(ncid,'zmin',nf_float,3,dimid(1:3),varid)
+  ierr=nf_def_var(ncid,'slope',nf_float,3,dimid(1:3),varid)
+  ierr=nf_def_var(ncid,'slope_std',nf_float,3,dimid(1:3),varid)  
   ierr=nf_put_att_real(ncid,nf_global,'lon0',nf_real,1,ra)
   ierr=nf_put_att_real(ncid,nf_global,'lat0',nf_real,1,rb)
   ierr=nf_put_att_real(ncid,nf_global,'schmidt',nf_real,1,rc)
@@ -2467,7 +2488,11 @@ if (lnctopo==1) then
   ierr=nf_inq_varid(ncid,'zmax',varid)
   ierr=nf_put_vara_real(ncid,varid,spos,npos,tmax)
   ierr=nf_inq_varid(ncid,'zmin',varid)
-  ierr=nf_put_vara_real(ncid,varid,spos,npos,tmin)  
+  ierr=nf_put_vara_real(ncid,varid,spos,npos,tmin) 
+  ierr=nf_inq_varid(ncid,'slope',varid)
+  ierr=nf_put_vara_real(ncid,varid,spos,npos,slope)    
+  ierr=nf_inq_varid(ncid,'slope_std',varid)
+  ierr=nf_put_vara_real(ncid,varid,spos,npos,slope_std)    
   ierr=nf_close(ncid)
 else
   Open(topounit,FILE=topoout,FORM='formatted',STATUS='replace',IOSTAT=ierr)
