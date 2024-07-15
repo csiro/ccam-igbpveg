@@ -2376,7 +2376,11 @@ Real, dimension(sibdim(1),sibdim(2)) :: slope, slope_std
 real, dimension(sibdim(2)) :: dum
 Real, dimension(1) :: ra,rb,rc,rd
 logical, intent(in) :: zerozs
+logical found_slope, found_slope_std
+
 ilout=Min(sibdim(1),30) ! To be compatiable with terread
+found_slope = .false.
+found_slope_std = .false.
 
 Write(6,*) "Adjust topography data for consistancy with land-sea mask"
 
@@ -2401,14 +2405,16 @@ if (ierr==0) then
   ierr=nf_inq_varid(ncid,'zmin',varid)
   ierr=nf_get_vara_real(ncid,varid,spos,npos,tmin)
   ierr=nf_inq_varid(ncid,'slope',varid)
-  if ( ierr==nf_noerr ) then
+  found_slope = ierr==nf_noerr
+  if ( found_slope ) then
     ierr=nf_get_vara_real(ncid,varid,spos,npos,slope)    
   else
     write(6,*) "Using default slope"  
     slope=0.08
   end if  
   ierr=nf_inq_varid(ncid,'slope_std',varid)
-  if ( ierr==nf_noerr ) then
+  found_slope_std = ierr==nf_noerr
+  if ( found_slope_std ) then
     ierr=nf_get_vara_real(ncid,varid,spos,npos,slope_std)    
   else
     write(6,*) "Using default slope_std"  
@@ -2463,8 +2469,12 @@ if (lnctopo==1) then
   ierr=nf_def_var(ncid,'tsd',nf_float,3,dimid(1:3),varid)
   ierr=nf_def_var(ncid,'zmax',nf_float,3,dimid(1:3),varid)
   ierr=nf_def_var(ncid,'zmin',nf_float,3,dimid(1:3),varid)
-  ierr=nf_def_var(ncid,'slope',nf_float,3,dimid(1:3),varid)
-  ierr=nf_def_var(ncid,'slope_std',nf_float,3,dimid(1:3),varid)  
+  if ( found_slope ) then
+    ierr=nf_def_var(ncid,'slope',nf_float,3,dimid(1:3),varid)
+  end if
+  if ( found_slope_std ) then
+    ierr=nf_def_var(ncid,'slope_std',nf_float,3,dimid(1:3),varid)  
+  end if  
   ierr=nf_put_att_real(ncid,nf_global,'lon0',nf_real,1,ra)
   ierr=nf_put_att_real(ncid,nf_global,'lat0',nf_real,1,rb)
   ierr=nf_put_att_real(ncid,nf_global,'schmidt',nf_real,1,rc)
@@ -2489,10 +2499,14 @@ if (lnctopo==1) then
   ierr=nf_put_vara_real(ncid,varid,spos,npos,tmax)
   ierr=nf_inq_varid(ncid,'zmin',varid)
   ierr=nf_put_vara_real(ncid,varid,spos,npos,tmin) 
-  ierr=nf_inq_varid(ncid,'slope',varid)
-  ierr=nf_put_vara_real(ncid,varid,spos,npos,slope)    
-  ierr=nf_inq_varid(ncid,'slope_std',varid)
-  ierr=nf_put_vara_real(ncid,varid,spos,npos,slope_std)    
+  if ( found_slope ) then
+    ierr=nf_inq_varid(ncid,'slope',varid)
+    ierr=nf_put_vara_real(ncid,varid,spos,npos,slope)    
+  end if
+  if ( found_slope_std ) then
+    ierr=nf_inq_varid(ncid,'slope_std',varid)
+    ierr=nf_put_vara_real(ncid,varid,spos,npos,slope_std)    
+  end if  
   ierr=nf_close(ncid)
 else
   Open(topounit,FILE=topoout,FORM='formatted',STATUS='replace',IOSTAT=ierr)
