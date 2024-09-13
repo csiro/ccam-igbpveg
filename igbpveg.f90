@@ -82,10 +82,10 @@ call defaults(options,nopts)
 
 veginput=''
 veg2input='landcover_2020.nc'
-soilinput='usda4.img'
+soilinput='usda4.img.nc'
 laiinput=''
-albvisinput='salbvis223.img'
-albnirinput='salbnir223.img'
+albvisinput='salbvis_landcover2020.img.nc'
+albnirinput='salbnir_landcover2020.img.nc'
 outputmode=''
 pftconfig=''
 mapconfig=''
@@ -412,6 +412,7 @@ character(len=25) :: vegnametmp, atebtypetmp
 character(len=25) :: jdesc, kdesc
 character(len=25) :: vname
 character(len=80) :: tname
+character(len=5) :: landmode
 logical, dimension(:), allocatable :: mapwater, mapice
 logical, dimension(:), allocatable :: noveg
 logical :: testurban, testwater, testice, matchfound
@@ -1059,7 +1060,7 @@ if ( fname(13)/='' .and. outmode==1 ) then
   
 else
   write(6,*) "Defining default aTEB classes"  
-  ateb_len = 8
+  ateb_len = 18
   allocate( ateb_desc(ateb_len) )
   allocate( bldheight(ateb_len), hwratio(ateb_len), sigvegc(ateb_len), sigmabld(ateb_len) )
   allocate( industryfg(ateb_len), trafficfg(ateb_len), roofalpha(ateb_len) )
@@ -1078,17 +1079,27 @@ else
   ateb_desc(6) = "Industrial-low"
   ateb_desc(7) = "Industrial-medium"
   ateb_desc(8) = "Industrial-high"
-  bldheight(:) = (/ 6.,   4.,   6.,   8.,  18.,   4.,   8.,  12. /)
-  hwratio(:) = (/ 0.4,  0.2,  0.4,  0.6,   2.,  0.5,   1.,  1.5 /)
-  sigvegc(:) = (/ 0.38, 0.45, 0.38, 0.34, 0.05, 0.40, 0.30, 0.20 /)
-  sigmabld(:) = (/ 0.45, 0.40, 0.45, 0.46, 0.65, 0.40, 0.45, 0.50 /)
-  industryfg(:) = (/ 0.,   0.,   0.,   0.,   0.,  10.,  20.,  30. /)
-  trafficfg(:) = (/ 1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5,  1.5 /)
-  roofalpha(:) = (/ 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20 /)
-  wallalpha(:) = (/ 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.30 /)
-  roadalpha(:) = (/ 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10 /)
-  vegalphac(:) = (/ 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20 /)
-  zovegc(:) = (/ 0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1 /)
+  ateb_desc(9) = "lcz1"
+  ateb_desc(10) = "lcz2"
+  ateb_desc(11) = "lcz3"
+  ateb_desc(12) = "lcz4"
+  ateb_desc(13) = "lcz5"
+  ateb_desc(14) = "lcz6"
+  ateb_desc(15) = "lcz7"
+  ateb_desc(16) = "lcz8"
+  ateb_desc(17) = "lcz9"
+  ateb_desc(18) = "lcz10"
+  bldheight(:) = (/ 6.,   4.,   6.,   8.,  18.,   4.,   8.,  12., 50., 17.5, 6.5, 50., 17.5, 6.5, 5., 6.5, 6.5, 10. /)
+  hwratio(:) = (/ 0.4,  0.2,  0.4,  0.6,   2.,  0.5,   1.,  1.5, 2.5, 1.25, 1.25, 1., 0.5, 0.5, 1.5, 0.2, 0.15, 0.35 /)
+  sigvegc(:) = (/ 0.38, 0.45, 0.38, 0.34, 0.05, 0.40, 0.30, 0.20, 0.05, 0.1, 0.15, 0.35, 0.3, 0.45, 0.15, 0.1, 0.7, 0.45 /)
+  sigmabld(:) = (/ 0.45, 0.40, 0.45, 0.46, 0.65, 0.40, 0.45, 0.50, 0.5, 0.55, 0.55, 0.3, 0.3, 0.3, 0.75, 0.4, 0.15, 0.25 /)
+  industryfg(:) = (/ 0.,   0.,   0.,   0.,   0.,  10.,  20.,  30., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0. /)
+  trafficfg(:) = 1.5
+  roofalpha(:) = 0.2
+  wallalpha(:) = 0.3
+  roadalpha(:) = 0.1
+  vegalphac(:) = 0.2
+  zovegc(:) = 0.1
   roofthick(:,1) = 0.01
   roofthick(:,2) = 0.09
   roofthick(:,3) = 0.40
@@ -1140,8 +1151,8 @@ else
   infiltration(:) = 0.5
   internalgain(:) = 5.
   bldtemp(:) = 291.16
-  heatprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
-  coolprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0. /)
+  heatprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. /)
+  coolprop(:) = (/ 0.5, 0.5, 0.5, 0.5, 1., 0., 0., 0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. /)
 end if
 
 
@@ -1208,7 +1219,7 @@ if ( fname(10)/='' .and. outmode==1 ) then
 else
     
   write(6,*) "Defining default VEG->PFT mapping"      
-  class_num = 17
+  class_num = 27
   allocate( mapindex(class_num,natural_maxtile), mapfrac(class_num,natural_maxtile) )
   allocate( mapwater(class_num), mapice(class_num) )
   allocate( mapjveg(class_num) )
@@ -1278,10 +1289,41 @@ else
   mapfrac(17,1) = 1.
   mapjveg(17) = 17    
   mapwater(17) = .true.
+  mapindex(18,1) = -109 ! lcz1
+  mapfrac(18,1) = 1.
+  mapjveg(18) = 101
+  mapindex(19,1) = -110 ! lcz2
+  mapfrac(19,1) = 1.
+  mapjveg(19) = 102
+  mapindex(20,1) = -111 ! lcz3
+  mapfrac(20,1) = 1.
+  mapjveg(20) = 103
+  mapindex(21,1) = -112 ! lcz4
+  mapfrac(21,1) = 1.
+  mapjveg(21) = 104
+  mapindex(22,1) = -113 ! lcz5
+  mapfrac(22,1) = 1.
+  mapjveg(22) = 105
+  mapindex(23,1) = -114 ! lcz6
+  mapfrac(23,1) = 1.
+  mapjveg(23) = 106
+  mapindex(24,1) = -115 ! lcz7
+  mapfrac(24,1) = 1.
+  mapjveg(24) = 107
+  mapindex(25,1) = -116 ! lcz8
+  mapfrac(25,1) = 1.
+  mapjveg(25) = 108
+  mapindex(26,1) = -117 ! lcz9
+  mapfrac(26,1) = 1.
+  mapjveg(26) = 109
+  mapindex(27,1) = -118 ! lcz10
+  mapfrac(27,1) = 1.
+  mapjveg(27) = 110
   
 end if
 
-
+! check land-use 
+call checklanduse(fname,landmode)
 
 ! allocate memory
 allocate( sermsk(class_num) )
@@ -1294,13 +1336,8 @@ save_crop_c3 = 0.
 save_crop_c4 = 0.
 
 ! Read default igbp data
-if ( fname(4)/="" ) then
-  call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land',fastigbp,binlimit,month,year, &
-               fname(4),fname(6),class_num,mapjveg,mapwater)
-else
-  call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,'land2',fastigbp,binlimit,month,year, &
-               fname(16),fname(6),class_num,mapjveg,mapwater)
-end if    
+call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,landmode,fastigbp,binlimit,month,year, &
+             fname(4),fname(6),class_num,mapjveg,mapwater)
 call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,binlimit,month,year, &
              fname(5),fname(6),class_num,mapjveg,mapwater)
 call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,binlimit,month,year, &
@@ -2367,8 +2404,8 @@ integer, dimension(3) :: dimid
 Integer ilout,ierr,ia,ib,i
 integer ncid,lnctopo,varid
 Character(len=*), intent(in) :: toponame,topoout
-Character*80 formout
-Character*47 dc
+Character(len=80) formout
+Character(len=47) dc
 Real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsmskin,oceanin
 Real, dimension(sibdim(1),sibdim(2)) :: topo,sd,lsmsk
 Real, dimension(sibdim(1),sibdim(2)) :: tmax, tmin
@@ -2928,3 +2965,48 @@ end if
 
 return
 end subroutine findindex
+    
+subroutine checklanduse(fname,landmode)
+
+use netcdf_m
+
+implicit none
+
+integer ncid, ierr, varid
+character(len=*), dimension(16), intent(inout) :: fname
+character(len=*), intent(out) :: landmode
+
+landmode = ""
+
+if ( fname(4) == "" ) then
+  fname(4) = fname(16)
+end if
+
+ierr=nf_open(fname(4),nf_nowrite,ncid)
+if ( ierr /= nf_noerr ) then
+  write(6,*) "WARN: Landuse is not a netcdf file.  Assuming older configuration"
+  return
+end if
+  
+ierr=nf_inq_varid(ncid,'landcover',varid)
+if ( ierr == nf_noerr ) then
+  landmode = "land2"
+end if
+
+if ( landmode=="" ) then
+  ierr=nf_inq_varid(ncid,'vegt',varid)
+  if ( ierr == nf_noerr ) then
+    landmode = "land"
+  end if
+end if
+
+ierr=nf_close(ncid)
+
+if ( landmode=="" ) then
+  write(6,*) "ERROR: Cannot identify landuse data"
+  call finishbanner
+  stop -1
+end if
+
+return
+end subroutine checklanduse

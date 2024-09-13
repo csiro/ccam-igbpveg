@@ -156,7 +156,7 @@ Select Case(datatype)
     end if
   Case('land2')
     Write(6,*) 'Process MODIS land-use and mod15_BU LAI datasets.'
-    scalelimit=10
+    scalelimit=5
     ierr = nf90_open(trim(datafilename)//'.nc',nf90_nowrite,ncid(0))
     if ( ierr==nf90_noerr ) then
       ncfile(0) = .true.
@@ -732,7 +732,7 @@ Integer, intent(in) :: nscale,num,month,class_num
 Real, dimension(1:2), intent(in) :: latlon
 Integer, dimension(1:2), intent(in) :: lldim
 Real, dimension(lldim(1),lldim(2),0:num), intent(inout) :: coverout
-Integer*1, dimension(43200) :: datatemp
+Integer(kind=1), dimension(43200) :: datatemp
 integer, dimension(43200,nscale) :: databuffer
 Integer, dimension(43200) :: ltemp2
 integer, dimension(:,:,:), allocatable :: lbuff
@@ -876,7 +876,7 @@ Integer, intent(in) :: nscale,num,month,class_num
 Real, dimension(1:2), intent(in) :: latlon
 Integer, dimension(1:2), intent(in) :: lldim
 Real, dimension(lldim(1),lldim(2),0:num), intent(inout) :: coverout
-Integer*1, dimension(86400) :: datatemp
+Integer(kind=1), dimension(86400) :: datatemp
 integer, dimension(86400,nscale) :: databuffer
 Integer, dimension(86400) :: ltemp2
 integer, dimension(:,:,:), allocatable :: lbuff
@@ -1021,7 +1021,7 @@ Real, dimension(lldim_4(1),lldim_4(2),0:8), intent(out) :: coverout
 real, dimension(0:13) :: faosoil
 integer, dimension(nscale_4,nscale_4) :: dataslice
 Integer, dimension(10800,1:nscale_4) :: databuffer
-Integer*1, dimension(10800) :: datatemp
+Integer(kind=1), dimension(10800) :: datatemp
 integer, dimension(10800) :: i4datatemp
 Integer, dimension(2,2) :: jin,jout
 Integer ilat,ilon,jlat,recpos,i
@@ -1097,7 +1097,7 @@ Implicit None
 Integer, intent(in) :: nscale_4
 Integer, dimension(2), intent(in) :: lldim_4
 Integer, dimension(10800,1:nscale_4) :: databuffer
-Integer*1, dimension(10800) :: datatemp
+Integer(kind=1), dimension(10800) :: datatemp
 integer, dimension(10800) :: i4datatemp
 Integer llint_41, llint_42
 Integer ilat,ilon,jlat,recpos,ncount
@@ -1308,9 +1308,9 @@ Real aglon,aglat,alci,alcj,bx,by,bdelta,tbx,tby,tbdelta
 Real callon,callat
 Integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: countn
 integer, dimension(class_num), intent(in) :: mapjveg
-Integer*1, dimension(1:43200) :: databuffer
-Integer*1, dimension(1:10800) :: datatemp
-Integer*1, dimension(1:43200,1:12) :: lbuff
+Integer(kind=1), dimension(1:43200) :: databuffer
+Integer(kind=1), dimension(1:10800) :: datatemp
+Integer(kind=1), dimension(1:43200,1:12) :: lbuff
 integer, dimension(43200) :: i4databuffer
 integer, dimension(10800) :: i4datatemp
 integer, dimension(1:sibdim(1),1:sibdim(2),0:num) :: ncount
@@ -1319,8 +1319,8 @@ integer ntmp,ix,iy,tix,tiy,vegtmp,i
 integer ierr
 integer, dimension(0:12), intent(in) :: ncid, varid
 logical, dimension(0:12), intent(in) :: ncfile
-character*2 cmth
-Character*10 fname
+character(len=2) cmth
+Character(len=10) fname
 character(len=*), intent(in) :: vegfilename, laifilename
 
 if ( month==0 ) then
@@ -1439,9 +1439,9 @@ Real aglon,aglat,alci,alcj,bx,by,bdelta,tbx,tby,tbdelta
 Real callon,callat
 Integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: countn
 integer, dimension(class_num), intent(in) :: mapjveg
-Integer*1, dimension(1:86400) :: databuffer
-Integer*1, dimension(1:21600) :: datatemp
-Integer*1, dimension(1:86400,1:12) :: lbuff
+Integer(kind=1), dimension(1:86400) :: databuffer
+Integer(kind=1), dimension(1:21600) :: datatemp
+Integer(kind=1), dimension(1:86400,1:12) :: lbuff
 integer, dimension(86400) :: i4databuffer
 integer, dimension(21600) :: i4datatemp
 integer, dimension(1:sibdim(1),1:sibdim(2),0:num) :: ncount
@@ -1450,8 +1450,8 @@ integer ntmp,ix,iy,tix,tiy,vegtmp,i
 integer ierr
 integer, dimension(0:12), intent(in) :: ncid, varid
 logical, dimension(0:12), intent(in) :: ncfile
-character*2 cmth
-Character*10 fname
+character(len=2) cmth
+Character(len=10) fname
 character(len=*), intent(in) :: vegfilename, laifilename
 
 if ( month==0 ) then
@@ -1563,7 +1563,7 @@ Real, dimension(sibdim(1),sibdim(2),0:8), intent(out) :: coverout
 Real aglon,aglat,alci,alcj
 Real callon,callat
 Integer, dimension(sibdim(1),sibdim(2)), intent(out) :: countn
-Integer*1, dimension(10800) :: databuffer
+Integer(kind=1), dimension(10800) :: databuffer
 Integer, dimension(10800) :: i4databuffer
 Integer ilat,ilon,lci,lcj,nface,cpos,i
 integer ierr
@@ -1638,7 +1638,7 @@ Implicit None
 Integer, dimension(2), intent(in) :: sibdim
 Integer, dimension(sibdim(1),sibdim(2)), intent(out) :: countn
 Integer, dimension(10800) :: databuffer
-Integer*1, dimension(10800) :: datatemp
+Integer(kind=1), dimension(10800) :: datatemp
 Integer ilat,ilon,lci,lcj,nface
 integer ierr
 integer, intent(in) :: ncid, varid
@@ -2033,9 +2033,9 @@ Real, intent(in) :: aglon,latlon
 Integer, intent(in) :: nscale
 
 indexlon=(aglon-latlon)*1200./real(nscale)+0.5
-	    
+
 Return
-End	    
+End
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This function calculates the array index for a specified lat
