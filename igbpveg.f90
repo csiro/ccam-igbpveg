@@ -2984,6 +2984,9 @@ end if
 
 ierr=nf_open(fname(4),nf_nowrite,ncid)
 if ( ierr /= nf_noerr ) then
+  ierr = nf_open(trim(fname(4))//'.nc',nf_nowrite,ncid)
+end if
+if ( ierr /= nf_noerr ) then
   write(6,*) "WARN: Landuse is not a netcdf file.  Assuming older configuration"
   return
 end if

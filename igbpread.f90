@@ -1061,7 +1061,7 @@ Do ilat=1,lldim_4(2)
     databuffer(jin(2,1):jin(2,2),jlat)=i4datatemp(jout(2,1):jout(2,2))
   End Do
   
-!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ilon,llint_41,dataslice,nsum,i)  
+!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ilon,llint_41,dataslice,nsum,i,faosoil)  
   Do ilon=1,lldim_4(1)
     llint_41=(ilon-1)*nscale_4
     dataslice(1:nscale_4,1:nscale_4) = databuffer(llint_41+1:llint_41+nscale_4,1:nscale_4)
