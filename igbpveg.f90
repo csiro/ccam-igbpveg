@@ -325,7 +325,7 @@ Implicit None
 Logical, intent(in) :: fastigbp,igbplsmask,tile,zerozs,ovegfrac
 Integer, intent(in) :: nopts,binlimit,month,year,outmode,natural_maxtile
 Character(len=*), dimension(nopts,2), intent(in) :: options
-Character(len=*), dimension(16), intent(in) :: fname
+Character(len=*), dimension(16), intent(inout) :: fname
 character(len=1024) filename
 Character(len=80), dimension(1:3) :: outputdesc
 Character(len=1024) returnoption,csize
