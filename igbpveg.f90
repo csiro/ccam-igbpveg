@@ -32,12 +32,13 @@ Implicit None
 include 'version.h'
 
 character(len=1024), dimension(:,:), allocatable :: options
-character(len=1024), dimension(16) :: fname
+character(len=1024), dimension(17) :: fname
 character(len=1024) topofile
 character(len=1024) landtypeout
 character(len=1024) newtopofile
 character(len=1024) outputmode
 character(len=1024) veginput, soilinput, laiinput, albvisinput, albnirinput
+character(len=1024) urbaninput
 character(len=1024) veg2input
 character(len=1024) pftconfig, mapconfig, atebconfig
 character(len=1024) user_veginput, user_laiinput
@@ -57,7 +58,8 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  user_veginput, user_laiinput,       &
                  ovegfrac,zerozs,soilconfig,         &
                  change_landuse,year,                &
-                 natural_maxtile,veg2input
+                 natural_maxtile,urbaninput,         &
+                 veg2input
 
 ! Start banner
 write(6,*) "=============================================================================="
@@ -97,6 +99,7 @@ user_laiinput=''
 zerozs=.true.
 soilconfig=''
 change_landuse=''
+urbaninput=''
 month=0
 year=0
 natural_maxtile = 5
@@ -131,6 +134,7 @@ fname(13)=atebconfig
 fname(14)=soilconfig
 fname(15)=change_landuse
 fname(16)=veg2input
+fname(17)=urbaninput
 
 outmode=1
 if ( outputmode=='igbp' ) then
@@ -189,11 +193,12 @@ write(6,*) '    year=0'
 Write(6,*) '    topofile="topout"'
 Write(6,*) '    newtopofile="newtopout"'
 Write(6,*) '    landtypeout="veg"'
-Write(6,*) '    veg2input="landcover_2020.nc"'
+Write(6,*) '    veginput="landcover_2020.nc"'
 Write(6,*) '    soilinput="usda4.img"'
 Write(6,*) '    laiinput="slai01.img"'
 Write(6,*) '    albvisinput="salbvis223.img"'
 Write(6,*) '    albnirinput="salbnir223.img"'
+write(6,*) '    urbaninput="lcz_filtered_plus100_lcz_filter_v3_resampled_factor5.nc"'
 Write(6,*) '    fastigbp=t'
 Write(6,*) '    igbplsmask=t'
 Write(6,*) '    tile=t'
@@ -220,12 +225,13 @@ Write(6,*) '    topofile        = topography (input) file'
 Write(6,*) '    newtopofile     = Output topography file name'
 Write(6,*) '                      (if igbplsmask=t)'
 Write(6,*) '    landtypeout     = Land-use filename'
-Write(6,*) '    veg2input       = Location of IGBP input file'
+Write(6,*) '    veginput        = Location of IGBP input file'
 Write(6,*) '    soilinput       = Location of USDA input file'
 Write(6,*) '    laiinput        = Location of LAI input file for month>0'
 Write(6,*) '                      or path to LAI files for month=0'
 Write(6,*) '    albvisinput     = Location of VIS Albedo input file'
 Write(6,*) '    albnirinput     = Location of NIR Albedo input file'
+write(6,*) '    urbaninput      = Location of urban LCZ data'
 Write(6,*) '    fastigbp        = Turn on fastigbp mode (see notes below)'
 Write(6,*) '    igbplsmask      = Define land/sea mask from IGBP dataset'
 !Write(6,*) '    ozlaipath      = Use CSIRO LAI dataset for Australia'
@@ -325,7 +331,7 @@ Implicit None
 Logical, intent(in) :: fastigbp,igbplsmask,tile,zerozs,ovegfrac
 Integer, intent(in) :: nopts,binlimit,month,year,outmode,natural_maxtile
 Character(len=*), dimension(nopts,2), intent(in) :: options
-Character(len=*), dimension(16), intent(inout) :: fname
+Character(len=*), dimension(17), intent(inout) :: fname
 character(len=1024) filename
 Character(len=80), dimension(1:3) :: outputdesc
 Character(len=1024) returnoption,csize
@@ -1337,13 +1343,13 @@ save_crop_c4 = 0.
 
 ! Read default igbp data
 call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,landmode,fastigbp,binlimit,month,year, &
-             fname(4),fname(6),class_num,mapjveg,mapwater)
+             fname(4),fname(6),fname(17),class_num,mapjveg,mapwater)
 call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,binlimit,month,year, &
-             fname(5),fname(6),class_num,mapjveg,mapwater)
+             fname(5),fname(6),fname(17),class_num,mapjveg,mapwater)
 call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,binlimit,month,year, &
-             fname(7),fname(6),class_num,mapjveg,mapwater)
+             fname(7),fname(6),fname(17),class_num,mapjveg,mapwater)
 call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,binlimit,month,year, &
-             fname(8),fname(6),class_num,mapjveg,mapwater)
+             fname(8),fname(6),fname(17),class_num,mapjveg,mapwater)
 
 ! Remove small fractions before land-cover change
 do j = 1,sibdim(2)

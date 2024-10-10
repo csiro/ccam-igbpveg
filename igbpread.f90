@@ -29,7 +29,7 @@
 !
 
 Subroutine getdata(dataout,glonlat,grid,tlld,sibdim,num,sibsize,datatype,fastigbp,binlimit,month, &
-                   year,datafilename,laifilename,class_num,mapjveg,mapwater)
+                   year,datafilename,laifilename,urbanfilename,class_num,mapjveg,mapwater)
 
 use ccinterp
 use netcdf_m
@@ -47,7 +47,8 @@ Integer nscale,nscale_x,nface,subsec,mode,tmp
 Integer i,j,k,lci,lcj,nx,ny,imth,mthrng,netcount
 Integer basesize,scalelimit,minscale
 integer ierr, jj
-Character(len=*), intent(in) :: datatype, datafilename, laifilename
+integer ncid_urban, varid_urban
+Character(len=*), intent(in) :: datatype, datafilename, laifilename, urbanfilename
 Character(len=10) fname
 Real, dimension(sibdim(1),sibdim(2),0:num), intent(out) :: dataout
 Real, dimension(sibdim(1),sibdim(2)), intent(in) :: grid
@@ -174,6 +175,19 @@ Select Case(datatype)
         call finishbanner
       end if
     end if
+    if ( urbanfilename/='' ) then
+      ierr = nf90_open(trim(urbanfilename),nf90_nowrite,ncid_urban)
+      if ( ierr/=nf90_noerr ) then
+        write(6,*) "ERROR: Cannot open ",trim(urbanfilename)
+        write(6,*) nf90_strerror(ierr)
+        call finishbanner
+        stop -1
+      end if
+      write(6,*) "Found netcdf version ",trim(urbanfilename)
+      ierr = nf90_inq_varid(ncid_urban,"lcz",varid_urban)
+    else
+      varid_urban=-999
+    end if        
     if (month==0) then
       do imth=1,mthrng
         write(fname,'("slai",I2.2,".img")') imth
@@ -350,7 +364,7 @@ If (fastigbp) then
               Case('land2')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,5)
                 Call modisread(latlon,nscale_x,lldim_x,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
-                               ncid,varid,ncfile)
+                               ncid,varid,ncfile,ncid_urban,varid_urban)
               Case('soil')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
                 Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename,ncid(0),varid(0),ncfile(0))
@@ -476,7 +490,7 @@ Else
                       ncid,varid,ncfile)
     Case('land2')
       Call modisstream(sibdim,dataout,countn,num,month,datafilename,laifilename,class_num,mapjveg, &
-                       ncid,varid,ncfile)
+                       ncid,varid,ncfile,ncid_urban,varid_urban)
     Case('soil')
       Call soilstream(sibdim,dataout,countn,datafilename,ncid(0),varid(0),ncfile(0))
     Case('albvis','albnir')
@@ -549,7 +563,7 @@ If (subsec/=0) then
           Case('land2')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,5)
             Call modisread(latlon,nscale_x,lldim_x,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
-                           ncid,varid,ncfile)
+                           ncid,varid,ncfile,ncid_urban,varid_urban)
           Case('soil')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
             Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename,ncid(0),varid(0),ncfile(0))
@@ -695,6 +709,11 @@ Select Case(datatype)
         close(10+imth)
       end if
     end do
+    if ( datatype=='land2' ) then
+      if ( urbanfilename/='' ) then
+        ierr = nf90_close(ncid_urban)
+      end if
+    end if
   Case('soil')
     if ( ncfile(0) ) then
       ierr = nf90_close(ncid(0))
@@ -866,13 +885,14 @@ End
 ! This subroutine reads modis data down to nscale=1km resolution    
     
 Subroutine modisread(latlon,nscale,lldim,coverout,num,month,vegfilename,laifilename,class_num,mapjveg, &
-                     ncid,varid,ncfile)
+                     ncid,varid,ncfile,ncid_urban,varid_urban)
 
 use netcdf_m
 
 Implicit None
 
 Integer, intent(in) :: nscale,num,month,class_num
+integer, intent(in) :: ncid_urban, varid_urban
 Real, dimension(1:2), intent(in) :: latlon
 Integer, dimension(1:2), intent(in) :: lldim
 Real, dimension(lldim(1),lldim(2),0:num), intent(inout) :: coverout
@@ -880,13 +900,13 @@ Integer(kind=1), dimension(86400) :: datatemp
 integer, dimension(86400,nscale) :: databuffer
 Integer, dimension(86400) :: ltemp2
 integer, dimension(:,:,:), allocatable :: lbuff
-integer, dimension(86400) :: i4datatemp
+integer, dimension(86400) :: i4datatemp, i4datatemp_urban
 integer, dimension(0:num) :: ncount
 Integer, dimension(2,2) :: jin,jout
 integer, dimension(class_num), intent(in) :: mapjveg
 Integer ilat,ilon,jlat,recpos,mthrng,imth,lrp,ctmp,ltmp,nlrp,k
 integer i,j,ntmp,ix,iy,tiy,tix,vegtmp
-Integer llint1, llint2
+Integer llint1, llint2, lstep, lai_ratio
 integer ierr
 integer, dimension(0:12), intent(in) :: ncid, varid
 logical, dimension(0:12), intent(in) :: ncfile
@@ -909,7 +929,9 @@ allocate(lbuff(86400,nscale,mthrng))
 ! code considerably.  However, there are limitations as to the size of data
 ! that can be stored in memory.
 
-Call solvejshift(latlon(1),jin,jout,240)
+lstep = 86400/360
+
+Call solvejshift(latlon(1),jin,jout,lstep)
 
 lrp=-1
 coverout=0.
@@ -917,25 +939,38 @@ coverout=0.
 Do ilat=1,lldim(2)
 
   if ((mod(ilat,50).eq.0).or.(ilat.eq.lldim(2))) then
-    Write(6,*) 'MODIS + LAI - ',ilat,'/',lldim(2)
+    if ( varid_urban/=-999 ) then
+      Write(6,*) 'MODIS + LAI + Urban - ',ilat,'/',lldim(2)        
+    else
+      Write(6,*) 'MODIS + LAI - ',ilat,'/',lldim(2)
+    end if  
   end if
   
-  ! Read data
-  llint2=nint((90.-latlon(2))*240.)+(ilat-1)*nscale
+  ! Read land-use data
+  llint2=nint((90.-latlon(2))*real(lstep))+(ilat-1)*nscale
   Do jlat=1,nscale
     recpos=llint2+jlat
     ierr = nf90_get_var(ncid(0),varid(0),i4datatemp,start=(/1,recpos/),count=(/86400,1/))  
+    if ( varid_urban/=-999 ) then
+      ierr = nf90_get_var(ncid_urban,varid_urban,i4datatemp_urban,start=(/1,recpos/),count=(/86400,1/))
+      where ( i4datatemp_urban>=101 .and. i4datatemp_urban<=110 )
+        i4datatemp = i4datatemp_urban
+      end where
+    end if    
     ! Shift lon to zero
     databuffer(jin(1,1):jin(1,2),jlat)=i4datatemp(jout(1,1):jout(1,2))
     databuffer(jin(2,1):jin(2,2),jlat)=i4datatemp(jout(2,1):jout(2,2))
   End Do
   
+  lai_ratio = 86400/10800 
+  
+  ! Read LAI data
   do imth=1,mthrng
     lrp=-1
     Do jlat=1,nscale
       recpos=llint2+jlat
       ! read corrosponding lai data and fill to 1km grid
-      nlrp=int(real(recpos+7)/8.)
+      nlrp=int(real(recpos+lai_ratio-1)/real(lai_ratio))
       if (lrp/=nlrp) then
         lrp=nlrp
         if ( ncfile(imth) ) then
@@ -946,7 +981,7 @@ Do ilat=1,lldim(2)
           i4datatemp(1:10800) = datatemp(1:10800)
         end if  
         do k=1,10800
-          ltemp2(8*k-7:8*k)=i4datatemp(k)
+          ltemp2(lai_ratio*(k-1)+1:lai_ratio*k)=i4datatemp(k)
         end do
       end if
       lbuff(jin(1,1):jin(1,2),jlat,imth)=ltemp2(jout(1,1):jout(1,2))
@@ -954,8 +989,8 @@ Do ilat=1,lldim(2)
     End Do
   end do
 
-!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ilon,llint1,ncount,j,i,vegtmp) &
-!$OMP   PRIVATE(ctmp,k,imth,ltmp)
+  !$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ilon,llint1,ncount,j,i,vegtmp) &
+  !$OMP   PRIVATE(ctmp,k,imth,ltmp)
   Do ilon=1,lldim(1)
     llint1=(ilon-1)*nscale
     ncount=0
@@ -993,7 +1028,7 @@ Do ilat=1,lldim(2)
     ncount(0:class_num)=sum(ncount(0:class_num))
     coverout(ilon,ilat,:)=coverout(ilon,ilat,:)/real(max(ncount,1))
   End Do
-!$OMP END PARALLEL DO  
+  !$OMP END PARALLEL DO  
  
 End Do
 
@@ -1424,7 +1459,7 @@ End
 !
 
 Subroutine modisstream(sibdim,coverout,countn,num,month,vegfilename,laifilename,class_num,mapjveg, &
-                      ncid,varid,ncfile)
+                      ncid,varid,ncfile,ncid_urban,varid_urban)
 
 Use ccinterp
 use netcdf_m
@@ -1432,6 +1467,7 @@ use netcdf_m
 Implicit None
 
 integer, intent(in) :: num,month,class_num
+integer, intent(in) :: ncid_urban, varid_urban
 Integer, dimension(2), intent(in) :: sibdim
 Real, dimension(1:sibdim(1),1:sibdim(2),0:num), intent(out) :: coverout
 real, dimension(:,:,:), allocatable :: laiin
@@ -1442,7 +1478,7 @@ integer, dimension(class_num), intent(in) :: mapjveg
 Integer(kind=1), dimension(1:86400) :: databuffer
 Integer(kind=1), dimension(1:21600) :: datatemp
 Integer(kind=1), dimension(1:86400,1:12) :: lbuff
-integer, dimension(86400) :: i4databuffer
+integer, dimension(86400) :: i4databuffer, i4databuffer_urban
 integer, dimension(21600) :: i4datatemp
 integer, dimension(1:sibdim(1),1:sibdim(2),0:num) :: ncount
 Integer ilat,ilon,lci,lcj,nface,ctmp,ltmp,mthrng,imth,lrp,nlrp,k
@@ -1463,7 +1499,11 @@ end if
 coverout=0
 countn=0
 
-Write(6,*) "Read MODIS + LAI data (stream)"
+if ( varid_urban/=-999 ) then
+  Write(6,*) "Read MODIS + LAI + Urban data (stream)"  
+else
+  Write(6,*) "Read MODIS + LAI data (stream)"
+end if
 
 lrp=-1
 
@@ -1476,6 +1516,13 @@ Do ilat=1,43200
   ! Read data
   ierr = nf90_get_var(ncid(0),varid(0),i4databuffer,start=(/1,ilat/),count=(/86400,1/))
   aglat=callat(90.,ilat,5)
+  
+  if ( varid_urban/=-999 ) then
+    ierr = nf90_get_var(ncid_urban,varid_urban,i4databuffer_urban,start=(/1,ilat/),count=(/86400,1/))
+    where ( i4databuffer_urban>=101 .and. i4databuffer_urban<=110 )
+      i4databuffer = i4databuffer_urban  
+    end where
+  end if
 
   ! read corrosponding lai data and fill to 1km grid
   nlrp=int(real(ilat+7)/8.)
@@ -2456,7 +2503,7 @@ if ( datafilename/='' ) then
         cmsg='land_cover'
         ierr = nf_inq_varid(ncid,cmsg,varid)
         if ( ierr/=nf_noerr ) then
-          varid = 1
+          varid = 1 ! find first variable
           ierr = nf_inq_varname(ncid,varid,cmsg)      
         end if
       case(0)
