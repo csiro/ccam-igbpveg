@@ -1384,7 +1384,7 @@ if ( fname(15)/='' ) then
   allocate( noveg(class_num) )
   ! read land-use change dataset
   call getdata(changedata,lonlat,gridout,rlld,sibdim,2,sibsize,'change',fastigbp,binlimit,month,year, &
-               fname(15),fname(6),class_num,mapjveg,mapwater)
+               fname(15),fname(6),fname(17),class_num,mapjveg,mapwater)
   ! reduce natural vegetation and add land-use changes
   noveg(1:class_num) = mapwater(1:class_num)
   noveg(13) = .true. ! IGBP urban
