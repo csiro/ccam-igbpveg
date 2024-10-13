@@ -771,7 +771,7 @@ coverout=0.
 
 Do ilat=1,lldim(2)
 
-  if ((mod(ilat,50).eq.0).or.(ilat.eq.lldim(2))) then
+  if ((mod(ilat,50)==0).or.(ilat==lldim(2))) then
     Write(6,*) 'USGS + LAI - ',ilat,'/',lldim(2)
   end if
   
@@ -971,6 +971,8 @@ Do ilat=1,lldim(2)
           ctmp=0
         else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
           ctmp=max(min(vegtmp,class_num),1)
+        else if ( mapjveg(max(min(vegtmp-83,class_num),1))==vegtmp ) then ! urba
+          ctmp=max(min(vegtmp-83,class_num),1)  
         else
           ctmp = -1
           do k = 1,class_num
@@ -979,7 +981,6 @@ Do ilat=1,lldim(2)
               exit
             end if
           end do
-          print *,"vegtmp,ctmp ",vegtmp,ctmp
         end if
         if (ctmp>=0.and.ctmp<=class_num) then
           coverout(ilon,ilat,ctmp)=coverout(ilon,ilat,ctmp)+1.
@@ -1514,6 +1515,8 @@ Do ilat=1,43200
       ctmp=0
     else if ( mapjveg(max(min(vegtmp,class_num),1))==vegtmp ) then
       ctmp=max(min(vegtmp,class_num),1)
+    else if ( mapjveg(max(min(vegtmp-83,class_num),1))==vegtmp ) then ! urba
+      ctmp=max(min(vegtmp-83,class_num),1)  
     else
       ctmp = -1
       do i = 1,class_num
@@ -2399,19 +2402,14 @@ if ( urbanfilename/='' ) then
     do j = jj,min(jj+readrows-1,dimlen(2)) ! lat index from jj to jj+readrows-1
       jr = j - jj + 1 ! rows index from 1 to readrows
       do i = 1,dimlen(1)
-        if ( coverin(i,jr)>=101 .and. coverin(i,jr)<=110 ) then
-          aglat = latin(j)  
-          aglon = lonin(i)  
-          call lltoijmod(aglon,aglat,alci,alcj,nface)
-          lci = nint(alci)
-          lcj = nint(alcj)
-          lcj = lcj + nface*sibdim(1)
-          lcmap(i,jr,1) = lci
-          lcmap(i,jr,2) = lcj
-        else
-          lcmap(i,jr,1) = -1
-          lcmap(i,jr,2) = -1
-        end if
+        aglat = latin(j)  
+        aglon = lonin(i)  
+        call lltoijmod(aglon,aglat,alci,alcj,nface)
+        lci = nint(alci)
+        lcj = nint(alcj)
+        lcj = lcj + nface*sibdim(1)
+        lcmap(i,jr,1) = lci
+        lcmap(i,jr,2) = lcj
       end do  
     end do
     !$omp end parallel do
@@ -2423,26 +2421,33 @@ if ( urbanfilename/='' ) then
           lci = lcmap(i,jr,1)
           lcj = lcmap(i,jr,2)
           if ( lcj==jc ) then
-            iveg = -1
-            do k = 1,class_num
-              if ( mapjveg(k)==coverin(i,jr) ) then
-                iveg = k
-                exit
-              end if
-            end do
-            if ( iveg==-1 ) then
-              write(6,*) "ERROR: lcz data is not defined in mapping data"
-              write(6,*) "Invalid lcz index ",iveg,coverin(i,jr)," at lat,lon=",latin(j),lonin(i)
-              write(6,*) "Valid indices are ",mapjveg(1:class_num)
-              call finishbanner
-              stop -1
-            end if
-            datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
-            countlocal(lci,lcj) = countlocal(lci,lcj) + 1
-          end if
-        end do
-      end do  
-    end do  
+            ! coverin=101 for vegtmp=18, etc
+            vegtmp = max(min( coverin(i,jr)-83, class_num),1) 
+            if ( coverin(i,jr)<101 .or. coverin(i,jr)>110 ) then
+              iveg = -1 ! missing
+            else if ( mapjveg(vegtmp)==coverin(i,jr) ) then
+              iveg = vegtmp
+            else  
+              iveg = -1  
+              do k = 1,class_num
+                if ( mapjveg(k)==coverin(i,jr) ) then
+                  iveg = k
+                  exit
+                end if
+              end do
+            end if  
+            if ( iveg>= 0 ) then
+              datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
+              countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+            else
+              ! missing value.
+              datalocal(lci,lcj,1:class_num) = datalocal(lci,lcj,1:class_num) + dataout(lci,lcj,1:class_num)  
+              countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+            end if    
+          end if ! if lcj==jc
+        end do ! i loop
+      end do   ! j loop 
+    end do     ! jc loop
     !$omp end parallel do
     write(6,*) "Urban ",min(jj+readrows-1,dimlen(2)),"/",dimlen(2)
   end do
@@ -2896,7 +2901,7 @@ if ( datafilename/='' ) then
               if ( iveg>=0 ) then
                 datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
                 countlocal(lci,lcj) = countlocal(lci,lcj) + 1
-              else !if ( sum(datalocal(lci,lcj,:))>0. ) then
+              else 
                 ! missing value.
                 datalocal(lci,lcj,1:class_num) = datalocal(lci,lcj,1:class_num) + dataout(lci,lcj,1:class_num)  
                 countlocal(lci,lcj) = countlocal(lci,lcj) + 1
