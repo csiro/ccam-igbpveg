@@ -2321,7 +2321,7 @@ integer, dimension(:,:,:), allocatable :: lcmap
 integer ncid, ncidlai, varid, ierr
 integer lci, lcj, nface, iveg, imonth
 integer i, j, vegtmp, k, varndims
-integer jj, jr
+integer jj, jr, jc
 real, dimension(sibdim(1),sibdim(2),0:num), intent(inout) :: dataout
 real, dimension(sibdim(1),sibdim(2),0:num) :: datalocal
 real, dimension(sibdim(1),sibdim(2)), intent(in) :: grid
@@ -2391,21 +2391,17 @@ if ( urbanfilename/='' ) then
   ncount(1) = dimlen(1)
   ncount(2) = 1
   
-  !$omp parallel
   do jj = 1,dimlen(2),readrows ! base lat index in steps of readrows
-    !$omp master  
     start(2) = jj
     ncount(2) = min(readrows,dimlen(2)-jj+1)
     ierr = nf_get_vara_int(ncid,varid,start(1:2),ncount(1:2),coverin)
-    !$omp end master
-    !$omp barrier
-    !$omp do schedule(static) private(j,jr,aglat,i,aglon,alci,alcj,nface,lci,lcj)    
+    !$omp parallel do schedule(static) private(j,jr,aglat,i,aglon,alci,alcj,nface,lci,lcj)
     do j = jj,min(jj+readrows-1,dimlen(2)) ! lat index from jj to jj+readrows-1
       jr = j - jj + 1 ! rows index from 1 to readrows
-      aglat = latin(j)
       do i = 1,dimlen(1)
-        aglon = lonin(i)  
-        if ( coverin(i,jr)>=100 .and. coverin(i,jr)<=110 ) then
+        if ( coverin(i,jr)>=101 .and. coverin(i,jr)<=110 ) then
+          aglat = latin(j)  
+          aglon = lonin(i)  
           call lltoijmod(aglon,aglat,alci,alcj,nface)
           lci = nint(alci)
           lcj = nint(alcj)
@@ -2418,40 +2414,38 @@ if ( urbanfilename/='' ) then
         end if
       end do  
     end do
-    !$omp end do
-    !$omp do schedule(static)                          &
-    !$omp private(j,jr,i,lci,lcj,iveg,k)
-    do j = jj,min(jj+readrows-1,dimlen(2)) ! lat index from jj to jj+readrows-1
-      jr = j - jj + 1 ! rows index from 1 to readrows    
-      do i = 1,dimlen(1)
-        lci = lcmap(i,jr,1)
-        lcj = lcmap(i,jr,2)
-        if ( lcj==j ) then
-          iveg = -1
-          do k = 1,class_num
-            if ( mapjveg(k)==coverin(i,jr) ) then
-              iveg = k
-              exit
+    !$omp end parallel do
+    !$omp parallel do schedule(static) private(j,jr,i,lci,lcj,iveg,k)
+    do jc = 1,sibdim(2) ! cubic grid index
+      do j = jj,min(jj+readrows-1,dimlen(2)) ! lat index from jj to jj+readrows-1
+        jr = j - jj + 1 ! rows index from 1 to readrows    
+        do i = 1,dimlen(1)
+          lci = lcmap(i,jr,1)
+          lcj = lcmap(i,jr,2)
+          if ( lcj==jc ) then
+            iveg = -1
+            do k = 1,class_num
+              if ( mapjveg(k)==coverin(i,jr) ) then
+                iveg = k
+                exit
+              end if
+            end do
+            if ( iveg==-1 ) then
+              write(6,*) "ERROR: lcz data is not defined in mapping data"
+              write(6,*) "Invalid lcz index ",iveg,coverin(i,jr)," at lat,lon=",latin(j),lonin(i)
+              write(6,*) "Valid indices are ",mapjveg(1:class_num)
+              call finishbanner
+              stop -1
             end if
-          end do
-          if ( iveg==-1 ) then
-            write(6,*) "ERROR: lcz data is not defined in mapping data"
-            write(6,*) "Invalid lcz index ",iveg,coverin(i,jr)," at lat,lon=",latin(j),lonin(i)
-            write(6,*) "Valid indices are ",mapjveg(1:class_num)
-            call finishbanner
-            stop -1
+            datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
+            countlocal(lci,lcj) = countlocal(lci,lcj) + 1
           end if
-          datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
-          countlocal(lci,lcj) = countlocal(lci,lcj) + 1
-        end if
-      end do
+        end do
+      end do  
     end do  
-    !$omp end do
-    !$omp master
-    write(6,*) "Urban ",jj,"/",dimlen(2)
-    !$omp end master
+    !$omp end parallel do
+    write(6,*) "Urban ",min(jj+readrows-1,dimlen(2)),"/",dimlen(2)
   end do
-  !$omp end parallel
   
   ! Average LAI before redistributing vegetation classes
   lailocal(:,:,:) = 0.

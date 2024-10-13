@@ -1463,6 +1463,8 @@ do i = 1,class_num
   end if
 end do
 
+print *,"urbantype ",minval(urbantype),maxval(urbantype)
+
 call igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapwater)
 
 ! Read CCAM land/sea mask
