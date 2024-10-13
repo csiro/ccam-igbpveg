@@ -29,7 +29,7 @@
 !
 
 Subroutine getdata(dataout,glonlat,grid,tlld,sibdim,num,sibsize,datatype,fastigbp,binlimit,month, &
-                   year,datafilename,laifilename,urbanfilename,class_num,mapjveg,mapwater)
+                   year,datafilename,laifilename,class_num,mapjveg,mapwater)
 
 use ccinterp
 use netcdf_m
@@ -47,8 +47,7 @@ Integer nscale,nscale_x,nface,subsec,mode,tmp
 Integer i,j,k,lci,lcj,nx,ny,imth,mthrng,netcount
 Integer basesize,scalelimit,minscale
 integer ierr, jj
-integer ncid_urban, varid_urban
-Character(len=*), intent(in) :: datatype, datafilename, laifilename, urbanfilename
+Character(len=*), intent(in) :: datatype, datafilename, laifilename
 Character(len=10) fname
 Real, dimension(sibdim(1),sibdim(2),0:num), intent(out) :: dataout
 Real, dimension(sibdim(1),sibdim(2)), intent(in) :: grid
@@ -175,19 +174,6 @@ Select Case(datatype)
         call finishbanner
       end if
     end if
-    if ( urbanfilename/='' ) then
-      ierr = nf90_open(trim(urbanfilename),nf90_nowrite,ncid_urban)
-      if ( ierr/=nf90_noerr ) then
-        write(6,*) "ERROR: Cannot open ",trim(urbanfilename)
-        write(6,*) nf90_strerror(ierr)
-        call finishbanner
-        stop -1
-      end if
-      write(6,*) "Found netcdf version ",trim(urbanfilename)
-      ierr = nf90_inq_varid(ncid_urban,"lcz",varid_urban)
-    else
-      varid_urban=-999
-    end if        
     if (month==0) then
       do imth=1,mthrng
         write(fname,'("slai",I2.2,".img")') imth
@@ -364,7 +350,7 @@ If (fastigbp) then
               Case('land2')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,5)
                 Call modisread(latlon,nscale_x,lldim_x,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
-                               ncid,varid,ncfile,ncid_urban,varid_urban)
+                               ncid,varid,ncfile)
               Case('soil')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
                 Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename,ncid(0),varid(0),ncfile(0))
@@ -490,7 +476,7 @@ Else
                       ncid,varid,ncfile)
     Case('land2')
       Call modisstream(sibdim,dataout,countn,num,month,datafilename,laifilename,class_num,mapjveg, &
-                       ncid,varid,ncfile,ncid_urban,varid_urban)
+                       ncid,varid,ncfile)
     Case('soil')
       Call soilstream(sibdim,dataout,countn,datafilename,ncid(0),varid(0),ncfile(0))
     Case('albvis','albnir')
@@ -563,7 +549,7 @@ If (subsec/=0) then
           Case('land2')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,5)
             Call modisread(latlon,nscale_x,lldim_x,coverout,num,month,datafilename,laifilename,class_num,mapjveg, &
-                           ncid,varid,ncfile,ncid_urban,varid_urban)
+                           ncid,varid,ncfile)
           Case('soil')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
             Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename,ncid(0),varid(0),ncfile(0))
@@ -709,11 +695,6 @@ Select Case(datatype)
         close(10+imth)
       end if
     end do
-    if ( datatype=='land2' ) then
-      if ( urbanfilename/='' ) then
-        ierr = nf90_close(ncid_urban)
-      end if
-    end if
   Case('soil')
     if ( ncfile(0) ) then
       ierr = nf90_close(ncid(0))
@@ -885,14 +866,13 @@ End
 ! This subroutine reads modis data down to nscale=1km resolution    
     
 Subroutine modisread(latlon,nscale,lldim,coverout,num,month,vegfilename,laifilename,class_num,mapjveg, &
-                     ncid,varid,ncfile,ncid_urban,varid_urban)
+                     ncid,varid,ncfile)
 
 use netcdf_m
 
 Implicit None
 
 Integer, intent(in) :: nscale,num,month,class_num
-integer, intent(in) :: ncid_urban, varid_urban
 Real, dimension(1:2), intent(in) :: latlon
 Integer, dimension(1:2), intent(in) :: lldim
 Real, dimension(lldim(1),lldim(2),0:num), intent(inout) :: coverout
@@ -900,12 +880,12 @@ Integer(kind=1), dimension(86400) :: datatemp
 integer, dimension(86400,nscale) :: databuffer
 Integer, dimension(86400) :: ltemp2
 integer, dimension(:,:,:), allocatable :: lbuff
-integer, dimension(86400) :: i4datatemp, i4datatemp_urban
+integer, dimension(86400) :: i4datatemp
 integer, dimension(0:num) :: ncount
 Integer, dimension(2,2) :: jin,jout
 integer, dimension(class_num), intent(in) :: mapjveg
 Integer ilat,ilon,jlat,recpos,mthrng,imth,lrp,ctmp,ltmp,nlrp,k
-integer i,j,ntmp,ix,iy,tiy,tix,vegtmp
+integer i,j,ntmp,ix,iy,tiy,tix,vegtmp,recpos_urban
 Integer llint1, llint2, lstep, lai_ratio
 integer ierr
 integer, dimension(0:12), intent(in) :: ncid, varid
@@ -939,11 +919,7 @@ coverout=0.
 Do ilat=1,lldim(2)
 
   if ((mod(ilat,50).eq.0).or.(ilat.eq.lldim(2))) then
-    if ( varid_urban/=-999 ) then
-      Write(6,*) 'MODIS + LAI + Urban - ',ilat,'/',lldim(2)        
-    else
-      Write(6,*) 'MODIS + LAI - ',ilat,'/',lldim(2)
-    end if  
+    Write(6,*) 'MODIS + LAI - ',ilat,'/',lldim(2)
   end if
   
   ! Read land-use data
@@ -951,12 +927,6 @@ Do ilat=1,lldim(2)
   Do jlat=1,nscale
     recpos=llint2+jlat
     ierr = nf90_get_var(ncid(0),varid(0),i4datatemp,start=(/1,recpos/),count=(/86400,1/))  
-    if ( varid_urban/=-999 ) then
-      ierr = nf90_get_var(ncid_urban,varid_urban,i4datatemp_urban,start=(/1,recpos/),count=(/86400,1/))
-      where ( i4datatemp_urban>=101 .and. i4datatemp_urban<=110 )
-        i4datatemp = i4datatemp_urban
-      end where
-    end if    
     ! Shift lon to zero
     databuffer(jin(1,1):jin(1,2),jlat)=i4datatemp(jout(1,1):jout(1,2))
     databuffer(jin(2,1):jin(2,2),jlat)=i4datatemp(jout(2,1):jout(2,2))
@@ -1009,6 +979,7 @@ Do ilat=1,lldim(2)
               exit
             end if
           end do
+          print *,"vegtmp,ctmp ",vegtmp,ctmp
         end if
         if (ctmp>=0.and.ctmp<=class_num) then
           coverout(ilon,ilat,ctmp)=coverout(ilon,ilat,ctmp)+1.
@@ -1459,7 +1430,7 @@ End
 !
 
 Subroutine modisstream(sibdim,coverout,countn,num,month,vegfilename,laifilename,class_num,mapjveg, &
-                      ncid,varid,ncfile,ncid_urban,varid_urban)
+                      ncid,varid,ncfile)
 
 Use ccinterp
 use netcdf_m
@@ -1467,7 +1438,6 @@ use netcdf_m
 Implicit None
 
 integer, intent(in) :: num,month,class_num
-integer, intent(in) :: ncid_urban, varid_urban
 Integer, dimension(2), intent(in) :: sibdim
 Real, dimension(1:sibdim(1),1:sibdim(2),0:num), intent(out) :: coverout
 real, dimension(:,:,:), allocatable :: laiin
@@ -1478,7 +1448,7 @@ integer, dimension(class_num), intent(in) :: mapjveg
 Integer(kind=1), dimension(1:86400) :: databuffer
 Integer(kind=1), dimension(1:21600) :: datatemp
 Integer(kind=1), dimension(1:86400,1:12) :: lbuff
-integer, dimension(86400) :: i4databuffer, i4databuffer_urban
+integer, dimension(86400) :: i4databuffer
 integer, dimension(21600) :: i4datatemp
 integer, dimension(1:sibdim(1),1:sibdim(2),0:num) :: ncount
 Integer ilat,ilon,lci,lcj,nface,ctmp,ltmp,mthrng,imth,lrp,nlrp,k
@@ -1499,11 +1469,7 @@ end if
 coverout=0
 countn=0
 
-if ( varid_urban/=-999 ) then
-  Write(6,*) "Read MODIS + LAI + Urban data (stream)"  
-else
-  Write(6,*) "Read MODIS + LAI data (stream)"
-end if
+Write(6,*) "Read MODIS + LAI data (stream)"
 
 lrp=-1
 
@@ -1517,13 +1483,6 @@ Do ilat=1,43200
   ierr = nf90_get_var(ncid(0),varid(0),i4databuffer,start=(/1,ilat/),count=(/86400,1/))
   aglat=callat(90.,ilat,5)
   
-  if ( varid_urban/=-999 ) then
-    ierr = nf90_get_var(ncid_urban,varid_urban,i4databuffer_urban,start=(/1,ilat/),count=(/86400,1/))
-    where ( i4databuffer_urban>=101 .and. i4databuffer_urban<=110 )
-      i4databuffer = i4databuffer_urban  
-    end where
-  end if
-
   ! read corrosponding lai data and fill to 1km grid
   nlrp=int(real(ilat+7)/8.)
   if (lrp/=nlrp) then
@@ -2344,6 +2303,196 @@ end do
 return
 end
 
+subroutine urbanlanddata(dataout,glonlat,sibdim,num,month,urbanfilename,class_num, &
+                          mapjveg,grid)
+
+use ccinterp
+use netcdf_m
+
+implicit none
+
+integer, intent(in) :: num, month, class_num
+integer, dimension(2), intent(in) :: sibdim
+integer, dimension(2) :: dimid, dimlen 
+integer, dimension(3) :: start, ncount
+integer, dimension(sibdim(1),sibdim(2)) :: countlocal
+integer, dimension(class_num), intent(in) :: mapjveg
+integer, dimension(:,:,:), allocatable :: lcmap
+integer ncid, ncidlai, varid, ierr
+integer lci, lcj, nface, iveg, imonth
+integer i, j, vegtmp, k, varndims
+integer jj, jr
+real, dimension(sibdim(1),sibdim(2),0:num), intent(inout) :: dataout
+real, dimension(sibdim(1),sibdim(2),0:num) :: datalocal
+real, dimension(sibdim(1),sibdim(2)), intent(in) :: grid
+real, dimension(sibdim(1),sibdim(2),12) :: lailocal
+real, dimension(2), intent(in) :: glonlat
+real, dimension(:), allocatable :: lonin, latin
+real aglon, aglat, alci, alcj
+integer, dimension(:,:), allocatable :: coverin
+character(len=*), intent(in) :: urbanfilename
+character(len=1024), dimension(3) :: dimname
+character(len=1024) varname
+
+integer, parameter :: readrows = 1500
+
+! Veg file parameters
+if ( urbanfilename/='' ) then
+  ierr = nf_open(urbanfilename,nf_nowrite,ncid)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot open user urban file ",trim(urbanfilename)
+    call finishbanner
+    stop -1
+  end if
+  
+  ierr = nf_inq_varid(ncid,'lcz',varid)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot locate lcz variable in urban file ",trim(urbanfilename)
+    call finishbanner
+    stop -1
+  end if
+  ierr = nf_inq_vardimid(ncid,varid,dimid(1:2))
+  ierr = nf_inq_dim(ncid,dimid(1),dimname(1),dimlen(1))
+  ierr = nf_inq_dim(ncid,dimid(2),dimname(2),dimlen(2))
+  write(6,*) "Reading lcz data from ",trim(urbanfilename)
+  write(6,*) "Found size ",dimlen(1:2)
+
+  allocate( coverin(dimlen(1),readrows), lonin(dimlen(1)), latin(dimlen(2)) )
+  allocate( lcmap(dimlen(1),readrows,2) )
+
+  ierr = nf_inq_varid(ncid,trim(dimname(1)),varid)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot locate coordinate information for ",trim(dimname(1))
+    call finishbanner
+    stop -1
+  end if
+  start(1) = 1
+  ncount(1) = dimlen(1)
+  ierr = nf_get_vara_real(ncid,varid,start(1:1),ncount(1:1),lonin)
+  ierr = nf_inq_varid(ncid,trim(dimname(2)),varid)
+  if ( ierr/=nf_noerr ) then
+    write(6,*) "ERROR: Cannot locate coordinate information for ",trim(dimname(2))
+    call finishbanner
+    stop -1
+  end if
+  start(2) = 1
+  ncount(2) = dimlen(2)
+  ierr = nf_get_vara_real(ncid,varid,start(2:2),ncount(2:2),latin)
+  write(6,*) "Found longitude range ",lonin(1),lonin(dimlen(1))
+  write(6,*) "Found latitude range  ",latin(1),latin(dimlen(2))
+    
+  ! Process land-cover
+  write(6,*) "Processing lcz data"
+  datalocal(:,:,:) = 0. ! accumulation array per grid point and veg type
+  countlocal(:,:) = 0
+
+  ierr = nf_inq_varid(ncid,'lcz',varid)
+  start(1) = 1
+  ncount(1) = dimlen(1)
+  ncount(2) = 1
+  
+  !$omp parallel
+  do jj = 1,dimlen(2),readrows ! base lat index in steps of readrows
+    !$omp master  
+    start(2) = jj
+    ncount(2) = min(readrows,dimlen(2)-jj+1)
+    ierr = nf_get_vara_int(ncid,varid,start(1:2),ncount(1:2),coverin)
+    !$omp end master
+    !$omp barrier
+    !$omp do schedule(static) private(j,jr,aglat,i,aglon,alci,alcj,nface,lci,lcj)    
+    do j = jj,min(jj+readrows-1,dimlen(2)) ! lat index from jj to jj+readrows-1
+      jr = j - jj + 1 ! rows index from 1 to readrows
+      aglat = latin(j)
+      do i = 1,dimlen(1)
+        aglon = lonin(i)  
+        if ( coverin(i,jr)>=100 .and. coverin(i,jr)<=110 ) then
+          call lltoijmod(aglon,aglat,alci,alcj,nface)
+          lci = nint(alci)
+          lcj = nint(alcj)
+          lcj = lcj + nface*sibdim(1)
+          lcmap(i,jr,1) = lci
+          lcmap(i,jr,2) = lcj
+        else
+          lcmap(i,jr,1) = -1
+          lcmap(i,jr,2) = -1
+        end if
+      end do  
+    end do
+    !$omp end do
+    !$omp do schedule(static)                          &
+    !$omp private(j,jr,i,lci,lcj,iveg,k)
+    do j = jj,min(jj+readrows-1,dimlen(2)) ! lat index from jj to jj+readrows-1
+      jr = j - jj + 1 ! rows index from 1 to readrows    
+      do i = 1,dimlen(1)
+        lci = lcmap(i,jr,1)
+        lcj = lcmap(i,jr,2)
+        if ( lcj==j ) then
+          iveg = -1
+          do k = 1,class_num
+            if ( mapjveg(k)==coverin(i,jr) ) then
+              iveg = k
+              exit
+            end if
+          end do
+          if ( iveg==-1 ) then
+            write(6,*) "ERROR: lcz data is not defined in mapping data"
+            write(6,*) "Invalid lcz index ",iveg,coverin(i,jr)," at lat,lon=",latin(j),lonin(i)
+            write(6,*) "Valid indices are ",mapjveg(1:class_num)
+            call finishbanner
+            stop -1
+          end if
+          datalocal(lci,lcj,iveg) = datalocal(lci,lcj,iveg) + 1. 
+          countlocal(lci,lcj) = countlocal(lci,lcj) + 1
+        end if
+      end do
+    end do  
+    !$omp end do
+    !$omp master
+    write(6,*) "Urban ",jj,"/",dimlen(2)
+    !$omp end master
+  end do
+  !$omp end parallel
+  
+  ! Average LAI before redistributing vegetation classes
+  lailocal(:,:,:) = 0.
+  if ( month==0 ) then
+    do imonth = 1,12
+      do iveg = 1,class_num
+        lailocal(:,:,imonth) = lailocal(:,:,imonth) + dataout(:,:,iveg)*dataout(:,:,class_num+(iveg-1)*12+imonth) 
+      end do
+      do iveg = 1,class_num
+        where ( countlocal(:,:)>0 )
+          dataout(:,:,class_num+(iveg-1)*12+imonth) = lailocal(:,:,imonth)
+        end where
+      end do
+    end do
+  else
+    do iveg = 1,class_num
+      lailocal(:,:,month) = lailocal(:,:,month) + dataout(:,:,iveg)*dataout(:,:,class_num+(iveg-1)+1)
+    end do
+    do iveg = 1,class_num
+      where ( countlocal(:,:)>0 )
+        dataout(:,:,class_num+(iveg-1)+1) = lailocal(:,:,month)
+      end where
+    end do
+  end if
+  
+  ! replace dataout with non-trival input data
+  do iveg = 0,class_num     
+    where ( countlocal(:,:)>0 )
+      dataout(:,:,iveg) = datalocal(:,:,iveg)/real(countlocal(:,:))
+    end where
+  end do ! iveg
+    
+  deallocate( coverin, lonin, latin )
+  deallocate( lcmap )
+  ierr = nf_close(ncid)
+  
+end if
+
+return
+end subroutine urbanlanddata    
+    
 subroutine modifylanddata(dataout,glonlat,sibdim,num,month,datafilename,laifilename,class_num, &
                           mapjveg,grid,ovegfrac)
 

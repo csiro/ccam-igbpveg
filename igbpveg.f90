@@ -1343,13 +1343,13 @@ save_crop_c4 = 0.
 
 ! Read default igbp data
 call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,landmode,fastigbp,binlimit,month,year, &
-             fname(4),fname(6),fname(17),class_num,mapjveg,mapwater)
+             fname(4),fname(6),class_num,mapjveg,mapwater)
 call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,binlimit,month,year, &
-             fname(5),fname(6),fname(17),class_num,mapjveg,mapwater)
+             fname(5),fname(6),class_num,mapjveg,mapwater)
 call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,binlimit,month,year, &
-             fname(7),fname(6),fname(17),class_num,mapjveg,mapwater)
+             fname(7),fname(6),class_num,mapjveg,mapwater)
 call getdata(albnirdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albnir',fastigbp,binlimit,month,year, &
-             fname(8),fname(6),fname(17),class_num,mapjveg,mapwater)
+             fname(8),fname(6),class_num,mapjveg,mapwater)
 
 ! Remove small fractions before land-cover change
 do j = 1,sibdim(2)
@@ -1384,7 +1384,7 @@ if ( fname(15)/='' ) then
   allocate( noveg(class_num) )
   ! read land-use change dataset
   call getdata(changedata,lonlat,gridout,rlld,sibdim,2,sibsize,'change',fastigbp,binlimit,month,year, &
-               fname(15),fname(6),fname(17),class_num,mapjveg,mapwater)
+               fname(15),fname(6),class_num,mapjveg,mapwater)
   ! reduce natural vegetation and add land-use changes
   noveg(1:class_num) = mapwater(1:class_num)
   noveg(13) = .true. ! IGBP urban
@@ -1413,6 +1413,10 @@ if ( fname(15)/='' ) then
   end do  
   deallocate( changedata )
   deallocate( noveg )
+end if
+
+if ( fname(17)/='' ) then
+  call urbanlanddata(landdata,lonlat,sibdim,class_num*(1+mthrng),month,fname(17),class_num,mapjveg,gridout)  
 end if
 
 ! Read user defined data
