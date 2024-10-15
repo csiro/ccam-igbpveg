@@ -32,13 +32,12 @@ Implicit None
 include 'version.h'
 
 character(len=1024), dimension(:,:), allocatable :: options
-character(len=1024), dimension(17) :: fname
+character(len=1024), dimension(16) :: fname
 character(len=1024) topofile
 character(len=1024) landtypeout
 character(len=1024) newtopofile
 character(len=1024) outputmode
 character(len=1024) veginput, soilinput, laiinput, albvisinput, albnirinput
-character(len=1024) urbaninput
 character(len=1024) veg2input
 character(len=1024) pftconfig, mapconfig, atebconfig
 character(len=1024) user_veginput, user_laiinput
@@ -58,8 +57,7 @@ namelist/vegnml/ topofile,fastigbp,                  &
                  user_veginput, user_laiinput,       &
                  ovegfrac,zerozs,soilconfig,         &
                  change_landuse,year,                &
-                 natural_maxtile,urbaninput,         &
-                 veg2input
+                 natural_maxtile,veg2input
 
 ! Start banner
 write(6,*) "=============================================================================="
@@ -99,7 +97,6 @@ user_laiinput=''
 zerozs=.true.
 soilconfig=''
 change_landuse=''
-urbaninput=''
 month=0
 year=0
 natural_maxtile = 5
@@ -134,7 +131,6 @@ fname(13)=atebconfig
 fname(14)=soilconfig
 fname(15)=change_landuse
 fname(16)=veg2input
-fname(17)=urbaninput
 
 outmode=1
 if ( outputmode=='igbp' ) then
@@ -331,7 +327,7 @@ Implicit None
 Logical, intent(in) :: fastigbp,igbplsmask,tile,zerozs,ovegfrac
 Integer, intent(in) :: nopts,binlimit,month,year,outmode,natural_maxtile
 Character(len=*), dimension(nopts,2), intent(in) :: options
-Character(len=*), dimension(17), intent(inout) :: fname
+Character(len=*), dimension(16), intent(inout) :: fname
 character(len=1024) filename
 Character(len=80), dimension(1:3) :: outputdesc
 Character(len=1024) returnoption,csize
@@ -1415,10 +1411,6 @@ if ( fname(15)/='' ) then
   deallocate( noveg )
 end if
 
-if ( fname(17)/='' ) then
-  call urbanlanddata(landdata,lonlat,sibdim,class_num*(1+mthrng),month,fname(17),class_num,mapjveg,gridout)  
-end if
-
 ! Read user defined data
 if ( fname(11)/='' .or. fname(12)/='' ) then
   call modifylanddata(landdata,lonlat,sibdim,class_num*(1+mthrng),month,fname(11),fname(12),class_num,mapjveg,gridout,ovegfrac)
@@ -1462,8 +1454,6 @@ do i = 1,class_num
     landdata(:,:,i) = 0. ! remove 100% urban classes
   end if
 end do
-
-print *,"urbantype ",minval(urbantype),maxval(urbantype)
 
 call igbpfix(landdata,rlld,sibdim,class_num,mthrng,mapwater)
 
