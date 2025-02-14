@@ -1387,9 +1387,10 @@ if ( fname(15)/='' ) then
   do j = 1,sibdim(2)
     do i = 1,sibdim(1)
       nsum = sum(landdata(i,j,1:class_num),mask=.not.noveg(1:class_num))
-      if ( nsum>0. ) then
+      if ( nsum>0.01 ) then
         ! convert existing crops and grassland into grassland.
-        landdata(i,j,10) = landdata(i,j,10) + landdata(i,j,12) + landdata(i,j,14)
+        landdata(i,j,10) = landdata(i,j,10) + landdata(i,j,12) + landdata(i,j,14) ! implies nsum=newsum
+        !landdata(i,j,10) = landdata(i,j,10) ! may drop newsum to 0.
         ! expand crops with CMIP forcing as needed.
         change_crop_c3 = changedata(i,j,0)
         change_crop_c4 = changedata(i,j,1)
@@ -1399,11 +1400,13 @@ if ( fname(15)/='' ) then
         landdata(i,j,12) = 0. ! IGBP crops=12
         landdata(i,j,14) = 0. ! IGBP crops/natural vegetation mosaic=14
         newsum = sum(landdata(i,j,1:class_num),mask=.not.noveg(1:class_num)) 
-        where ( .not.noveg(1:class_num) .and. newsum>0. )
+        where ( .not.noveg(1:class_num) .and. newsum>0.01 )
           landdata(i,j,1:class_num) = landdata(i,j,1:class_num)*max(1.-change_crop_c3-change_crop_c4-change_pasture,0.001) &
                                       *nsum/newsum
-        end where  
-        landdata(i,j,12) = max(landdata(i,j,12) + (change_crop_c3+change_crop_c4+change_pasture)*nsum,1.e-3)
+        end where
+        if ( newsum>0.01 ) then
+          landdata(i,j,12) = max(landdata(i,j,12) + (change_crop_c3+change_crop_c4+change_pasture)*nsum,1.e-3)
+        end if
       end if  
     end do
   end do  
