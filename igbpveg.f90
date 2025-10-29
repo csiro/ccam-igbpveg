@@ -2993,6 +2993,7 @@ if ( ierr /= nf_noerr ) then
 end if
 if ( ierr /= nf_noerr ) then
   write(6,*) "WARN: Landuse is not a netcdf file.  Assuming older configuration"
+  landmode = "land"
   return
 end if
   
