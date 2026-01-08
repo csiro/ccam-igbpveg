@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -21,7 +21,7 @@
     
 Program igbpveg
 
-! This code creates CCAM vegie data using the 1km SiB dataset
+! This code creates CCAM vegie data using the 500m MODIS IGBP dataset
 
 #ifdef _OPENMP
 use omp_lib, only : omp_get_max_threads
@@ -1331,7 +1331,7 @@ call checklanduse(fname,landmode)
 allocate( sermsk(class_num) )
 allocate(albvisdata(sibdim(1),sibdim(2)))
 allocate(albnirdata(sibdim(1),sibdim(2)))
-allocate(soildata(sibdim(1),sibdim(2),0:8))
+allocate(soildata(sibdim(1),sibdim(2),0:soil_len))
 allocate(landdata(sibdim(1),sibdim(2),0:class_num*(1+mthrng)))
 allocate( save_crop_c3(sibdim(1),sibdim(2)), save_crop_c4(sibdim(1),sibdim(2)) )
 save_crop_c3 = 0.
@@ -1340,7 +1340,7 @@ save_crop_c4 = 0.
 ! Read default igbp data
 call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,landmode,fastigbp,binlimit,month,year, &
              fname(4),fname(6),class_num,mapjveg,mapwater)
-call getdata(soildata,lonlat,gridout,rlld,sibdim,8,sibsize,'soil',fastigbp,binlimit,month,year, &
+call getdata(soildata,lonlat,gridout,rlld,sibdim,soil_len,sibsize,'soil',fastigbp,binlimit,month,year, &
              fname(5),fname(6),class_num,mapjveg,mapwater)
 call getdata(albvisdata,lonlat,gridout,rlld,sibdim,0,sibsize,'albvis',fastigbp,binlimit,month,year, &
              fname(7),fname(6),class_num,mapjveg,mapwater)
@@ -1515,9 +1515,9 @@ urbandata=min(urbandata,(1.-lsdata))
 write(6,*) "Clean landuse data"
 call cleanigbp(landdata,lsdata,rlld,sibdim,class_num,mthrng,mapwater)
 write(6,*) "Clean soil data"
-call cleanreal(soildata,8,lsdata,rlld,sibdim)
+call cleanreal(soildata,soil_len,lsdata,rlld,sibdim)
 write(6,*) "Calculate soil texture"
-call calsoilnear(landdata,soildata,lsdata,sibdim,idata,class_num,mapwater,mapice)
+call calsoilnear(landdata,soildata,lsdata,sibdim,idata,class_num,soil_len,mapwater,mapice)
 write(6,*) "Clean albedo data"
 where (lsdata>=0.5)
   albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
@@ -1888,6 +1888,7 @@ do tt=1,mthrng
     outputdesc(2)='Fraction of spaces with cooling devices'
     outputdesc(3)='none'
     call ncadd_1dvar(ncidarr,outputdesc,5,ateb_dimid)
+
     outputdesc(1)='soilname'
     outputdesc(2)='Soil type description'
     outputdesc(3)='none'
@@ -2993,7 +2994,7 @@ if ( ierr /= nf_noerr ) then
 end if
 if ( ierr /= nf_noerr ) then
   write(6,*) "WARN: Landuse is not a netcdf file.  Assuming older configuration"
-  landmode = "land"
+  landmode = "land" ! for reading binary file
   return
 end if
   

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -2268,15 +2268,15 @@ End
 ! Calculate zobler soil texture from FAO
 !
 
-subroutine calsoilnear(landdata,soildata,lsdata,sibdim,tdata,class_num,mapwater,mapice)
+subroutine calsoilnear(landdata,soildata,lsdata,sibdim,tdata,class_num,soil_len,mapwater,mapice)
 
 implicit none
 
-integer, intent(in) :: class_num
+integer, intent(in) :: class_num, soil_len
 integer, dimension(1:2), intent(in) :: sibdim
 integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: tdata
-real, dimension(1:sibdim(1),1:sibdim(2),0:17), intent(in) :: landdata
-real, dimension(1:sibdim(1),1:sibdim(2),0:8), intent(in) :: soildata
+real, dimension(1:sibdim(1),1:sibdim(2),0:class_num), intent(in) :: landdata
+real, dimension(1:sibdim(1),1:sibdim(2),0:soil_len), intent(in) :: soildata
 real, dimension(1:sibdim(1),1:sibdim(2)), intent(in) :: lsdata
 real testdata
 integer ilon,ilat,pos(1),i
