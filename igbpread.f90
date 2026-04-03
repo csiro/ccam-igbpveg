@@ -54,7 +54,7 @@ Real, dimension(sibdim(1),sibdim(2)), intent(in) :: grid
 Real, dimension(sibdim(1),sibdim(2),2), intent(in) :: tlld
 Real, dimension(sibdim(1),sibdim(2),2) :: rlld
 Real, dimension(sibdim(1),sibdim(2)) :: zsum
-real, dimension(0:num) :: newdata, newcover
+real, dimension(0:num) :: newdata, newcover, locout
 Real, dimension(2), intent(in) :: glonlat
 Real, dimension(:,:,:), allocatable :: coverout
 Real, dimension(1:2) :: latlon
@@ -353,7 +353,8 @@ If (fastigbp) then
                                ncid,varid,ncfile)
               Case('soil')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
-                Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename,ncid(0),varid(0),ncfile(0))
+                Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename,ncid(0),varid(0), &
+                              ncfile(0),num)
               Case('albvis','albnir')
                 Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
                 Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype,datafilename,ncid(0),varid(0),ncfile(0))
@@ -425,14 +426,16 @@ If (fastigbp) then
               end do
 !$OMP END PARALLEL DO
             else
-!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(jj,j,i,lci,lcj)
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) PRIVATE(jj,j,i,lci,lcj,locout) &
+!$OMP   SHARED(sibdim,lldim,lcmap,ltest,coverout,countn,dataout,num)
               do jj = 1,sibdim(2)  
                 do j = 1,lldim(2)
                   do i = 1,lldim(1)              
                     lci = lcmap(i,j,1)
                     lcj = lcmap(i,j,2)
                     if ( lcj==jj .and. ltest(lci,lcj) ) then
-                      if ( sum(abs(coverout(i,j,:)))<=0.01 ) then
+                      locout(0:num) = coverout(i,j,0:num)  
+                      if ( sum(abs(locout))<=0.01 ) then
                         if ( countn(lci,lcj)==0 ) then
                           dataout(lci,lcj,:) = -1. ! Missing value?
                           countn(lci,lcj) = 1
@@ -442,7 +445,7 @@ If (fastigbp) then
                           dataout(lci,lcj,:) = 0. ! reset missing point after finding non-trival data
                           countn(lci,lcj) = 0
                         end If
-                        dataout(lci,lcj,:) = dataout(lci,lcj,:) + coverout(i,j,:)
+                        dataout(lci,lcj,:) = dataout(lci,lcj,:) + locout
                         countn(lci,lcj) = countn(lci,lcj) + 1                      
                       end if
                     end if
@@ -478,7 +481,8 @@ Else
       Call modisstream(sibdim,dataout,countn,num,month,datafilename,laifilename,class_num,mapjveg, &
                        ncid,varid,ncfile)
     Case('soil')
-      Call soilstream(sibdim,dataout,countn,datafilename,ncid(0),varid(0),ncfile(0))
+      Call soilstream(sibdim,dataout,countn,datafilename,ncid(0),varid(0), &
+                      ncfile(0),num)
     Case('albvis','albnir')
       Call albedostream(sibdim,dataout(:,:,0),countn,datatype,datafilename,ncid(0),varid(0),ncfile(0))
     case('change')
@@ -552,7 +556,8 @@ If (subsec/=0) then
                            ncid,varid,ncfile)
           Case('soil')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
-            Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename,ncid(0),varid(0),ncfile(0))
+            Call soilread(latlon,nscale_x,lldim_x,coverout,datafilename,ncid(0),varid(0), &
+                          ncfile(0),num)
           Case('albvis','albnir')
             Call kmconvert(nscale,nscale_x,lldim,lldim_x,40)
             Call albedoread(latlon,nscale_x,lldim_x,coverout(:,:,0),datatype,datafilename,ncid(0),varid(0),ncfile(0))
@@ -566,7 +571,7 @@ If (subsec/=0) then
         End Select
 
 !$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(sibdim,countn,rlld,latlon,nscale,lldim,coverout,dataout) &
-!$OMP   PRIVATE(lcj,lci,aglon,aglat,serlon,serlat,i,j)          
+!$OMP   PRIVATE(lcj,lci,aglon,aglat,serlon,serlat,i,j,locout,num)          
         Do lcj=1,sibdim(2)
           Do lci=1,sibdim(1)        
             If (countn(lci,lcj)==0) then
@@ -577,8 +582,9 @@ If (subsec/=0) then
               i=nint(serlon)
               j=nint(serlat)
               if (i>0.and.i<=lldim(1).and.j>0.and.j<=lldim(2)) then
-                if (any(coverout(i,j,:)>0.)) then
-                  dataout(lci,lcj,:)=coverout(i,j,:)
+                locout(0:num) = coverout(i,j,0:num)  
+                if (any(locout>0.)) then
+                  dataout(lci,lcj,:)=locout
                   countn(lci,lcj)=1
                 else
                   ! missing
@@ -1015,16 +1021,17 @@ End
 ! (i.e., 4km) resolution.
 !
 
-Subroutine soilread(latlon,nscale_4,lldim_4,coverout,soildatafile,ncid,varid,ncfile)
+Subroutine soilread(latlon,nscale_4,lldim_4,coverout,soildatafile,ncid,varid, &
+                    ncfile,num)
 
 use netcdf_m
 
 Implicit None
 
-Integer, intent(in) :: nscale_4
+Integer, intent(in) :: nscale_4, num
 Real, dimension(2), intent(in) :: latlon
 Integer, dimension(2), intent(in) :: lldim_4
-Real, dimension(lldim_4(1),lldim_4(2),0:8), intent(out) :: coverout
+Real, dimension(lldim_4(1),lldim_4(2),0:num), intent(out) :: coverout
 real, dimension(0:13) :: faosoil
 integer, dimension(nscale_4,nscale_4) :: dataslice
 Integer, dimension(10800,1:nscale_4) :: databuffer
@@ -1077,7 +1084,7 @@ Do ilat=1,lldim_4(2)
     if (nsum>0.) then
       coverout(ilon,ilat,:)=0.
       do i=1,13
-        coverout(ilon,ilat,masmap(i)-1)=coverout(ilon,ilat,masmap(i)-1)+faosoil(i)/nsum
+        coverout(ilon,ilat,masmap(i))=coverout(ilon,ilat,masmap(i))+faosoil(i)/nsum
       end do
     else
       coverout(ilon,ilat,:)=0.
@@ -1560,15 +1567,16 @@ End
 ! (i.e., no storage, simply read and bin)
 !
 
-Subroutine soilstream(sibdim,coverout,countn,soilfilename,ncid,varid,ncfile)
+Subroutine soilstream(sibdim,coverout,countn,soilfilename,ncid,varid,ncfile,num)
 
 Use ccinterp
 use netcdf_m
 
 Implicit None
 
+integer, intent(in) :: num
 Integer, dimension(2), intent(in) :: sibdim
-Real, dimension(sibdim(1),sibdim(2),0:8), intent(out) :: coverout
+Real, dimension(sibdim(1),sibdim(2),0:num), intent(out) :: coverout
 Real aglon,aglat,alci,alcj
 Real callon,callat
 Integer, dimension(sibdim(1),sibdim(2)), intent(out) :: countn
@@ -1616,7 +1624,7 @@ Do ilat=1,5400
         coverout(lci,lcj,:)=0.
         countn(lci,lcj)=0
       End If
-      coverout(lci,lcj,masmap(cpos)-1)=coverout(lci,lcj,masmap(cpos)-1)+1.
+      coverout(lci,lcj,masmap(cpos))=coverout(lci,lcj,masmap(cpos))+1.
       countn(lci,lcj)=countn(lci,lcj)+1
     else
       If (countn(lci,lcj).EQ.0) then
@@ -2268,26 +2276,31 @@ End
 ! Calculate zobler soil texture from FAO
 !
 
-subroutine calsoilnear(landdata,soildata,lsdata,sibdim,tdata,class_num,soil_len,mapwater,mapice)
+subroutine calsoilnear(landdata,soildata,lsdata,sibdim,tdata,class_num,soil_len, &
+                       mthrng,mapwater,mapice)
 
 implicit none
 
-integer, intent(in) :: class_num, soil_len
+integer, intent(in) :: class_num, soil_len, mthrng
 integer, dimension(1:2), intent(in) :: sibdim
 integer, dimension(1:sibdim(1),1:sibdim(2)), intent(out) :: tdata
-real, dimension(1:sibdim(1),1:sibdim(2),0:class_num), intent(in) :: landdata
+real, dimension(1:sibdim(1),1:sibdim(2),0:class_num*(1+mthrng)), intent(in) :: landdata
 real, dimension(1:sibdim(1),1:sibdim(2),0:soil_len), intent(in) :: soildata
 real, dimension(1:sibdim(1),1:sibdim(2)), intent(in) :: lsdata
 real testdata
-integer ilon,ilat,pos(1),i
+real, dimension(class_num) :: locdata
+real, dimension(soil_len) :: socdata
+integer ilon,ilat,pos(1)
 logical, dimension(class_num), intent(in) :: mapwater, mapice
 
-!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ilat,ilon,pos,testdata)
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) PRIVATE(ilat,ilon,pos,testdata,locdata,socdata)  &
+!$OMP   SHARED(sibdim,landdata,tdata,lsdata,soildata,class_num,soil_len,mapwater,mapice)
 do ilat=1,sibdim(2)
   do ilon=1,sibdim(1)
-    pos=Maxloc(landdata(ilon,ilat,1:class_num),.not.mapwater)
+    locdata(1:class_num)=landdata(ilon,ilat,1:class_num)
+    pos=Maxloc(locdata,.not.mapwater)
     if (1-nint(lsdata(ilon,ilat))==0) then
-      testdata=sum(landdata(ilon,ilat,1:class_num),mapwater)
+      testdata=sum(locdata,mapwater)
       if (landdata(ilon,ilat,0)>=testdata) then
         tdata(ilon,ilat)=0  ! ocean
       else
@@ -2296,8 +2309,16 @@ do ilat=1,sibdim(2)
     else if ( mapice(pos(1)) ) then
       tdata(ilon,ilat)=9 ! ice
     else
-      pos=Maxloc(soildata(ilon,ilat,:))
+      socdata(1:soil_len)=soildata(ilon,ilat,1:soil_len)  
+      pos=Maxloc(socdata,.not.mapice) ! remove ice
       tdata(ilon,ilat)=pos(1)
+      if ( tdata(ilon,ilat)>soil_len ) then
+        write(6,*) "ERROR: Invalid soil texture"
+        write(6,*) "ilon,ilat,pos ",ilon,ilat,pos(1)
+        write(6,*) "socdata ",socdata
+        call finishbanner
+        stop -1
+      end if
     end if
   end do
 end do

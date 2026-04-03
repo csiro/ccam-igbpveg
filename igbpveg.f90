@@ -1518,6 +1518,7 @@ write(6,*) "Clean soil data"
 call cleanreal(soildata,soil_len,lsdata,rlld,sibdim)
 write(6,*) "Calculate soil texture"
 call calsoilnear(landdata,soildata,lsdata,sibdim,idata,class_num,soil_len,mapwater,mapice)
+write(6,*) "-> Soil texture range = ",minval(idata),maxval(idata)
 write(6,*) "Clean albedo data"
 where (lsdata>=0.5)
   albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
