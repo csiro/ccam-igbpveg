@@ -54,7 +54,7 @@ Real, dimension(sibdim(1),sibdim(2)), intent(in) :: grid
 Real, dimension(sibdim(1),sibdim(2),2), intent(in) :: tlld
 Real, dimension(sibdim(1),sibdim(2),2) :: rlld
 Real, dimension(sibdim(1),sibdim(2)) :: zsum
-real, dimension(0:num) :: newdata, newcover, locout
+real, dimension(0:num) :: newdata, newcover
 Real, dimension(2), intent(in) :: glonlat
 Real, dimension(:,:,:), allocatable :: coverout
 Real, dimension(1:2) :: latlon
@@ -426,7 +426,7 @@ If (fastigbp) then
               end do
 !$OMP END PARALLEL DO
             else
-!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) PRIVATE(jj,j,i,lci,lcj,locout) &
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) PRIVATE(jj,j,i,lci,lcj,newcover) &
 !$OMP   SHARED(sibdim,lldim,lcmap,ltest,coverout,countn,dataout,num)
               do jj = 1,sibdim(2)  
                 do j = 1,lldim(2)
@@ -434,8 +434,8 @@ If (fastigbp) then
                     lci = lcmap(i,j,1)
                     lcj = lcmap(i,j,2)
                     if ( lcj==jj .and. ltest(lci,lcj) ) then
-                      locout(0:num) = coverout(i,j,0:num)  
-                      if ( sum(abs(locout))<=0.01 ) then
+                      newcover(0:num) = coverout(i,j,0:num)  
+                      if ( sum(abs(newcover))<=0.01 ) then
                         if ( countn(lci,lcj)==0 ) then
                           dataout(lci,lcj,:) = -1. ! Missing value?
                           countn(lci,lcj) = 1
@@ -445,7 +445,7 @@ If (fastigbp) then
                           dataout(lci,lcj,:) = 0. ! reset missing point after finding non-trival data
                           countn(lci,lcj) = 0
                         end If
-                        dataout(lci,lcj,:) = dataout(lci,lcj,:) + locout
+                        dataout(lci,lcj,:) = dataout(lci,lcj,:) + newcover
                         countn(lci,lcj) = countn(lci,lcj) + 1                      
                       end if
                     end if
@@ -570,8 +570,8 @@ If (subsec/=0) then
             Stop -1
         End Select
 
-!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(sibdim,countn,rlld,latlon,nscale,lldim,coverout,dataout) &
-!$OMP   PRIVATE(lcj,lci,aglon,aglat,serlon,serlat,i,j,locout,num)          
+!$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) SHARED(sibdim,countn,rlld,latlon,nscale,lldim,coverout,dataout,num) &
+!$OMP   PRIVATE(lcj,lci,aglon,aglat,serlon,serlat,i,j,newcover)          
         Do lcj=1,sibdim(2)
           Do lci=1,sibdim(1)        
             If (countn(lci,lcj)==0) then
@@ -582,9 +582,9 @@ If (subsec/=0) then
               i=nint(serlon)
               j=nint(serlat)
               if (i>0.and.i<=lldim(1).and.j>0.and.j<=lldim(2)) then
-                locout(0:num) = coverout(i,j,0:num)  
-                if (any(locout>0.)) then
-                  dataout(lci,lcj,:)=locout
+                newcover(0:num) = coverout(i,j,0:num)  
+                if (any(newcover>0.)) then
+                  dataout(lci,lcj,:)=newcover
                   countn(lci,lcj)=1
                 else
                   ! missing
