@@ -2307,10 +2307,10 @@ do ilat=1,sibdim(2)
         tdata(ilon,ilat)=-1 ! in-land water  
       end if
     else if ( mapice(pos(1)) ) then
-      tdata(ilon,ilat)=9 ! ice
+      tdata(ilon,ilat)=9 ! ice - need to remove hardcoding ice=9
     else
       socdata(1:soil_len)=soildata(ilon,ilat,1:soil_len)  
-      pos=Maxloc(socdata,.not.mapice) ! remove ice
+      pos=Maxloc(socdata(1:soil_len))
       tdata(ilon,ilat)=pos(1)
       if ( tdata(ilon,ilat)>soil_len ) then
         write(6,*) "ERROR: Invalid soil texture"
