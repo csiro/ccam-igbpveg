@@ -1081,16 +1081,16 @@ else
   ateb_desc(6) = "Industrial-low"
   ateb_desc(7) = "Industrial-medium"
   ateb_desc(8) = "Industrial-high"
-  ateb_desc(9) = "lcz1"
-  ateb_desc(10) = "lcz2"
-  ateb_desc(11) = "lcz3"
-  ateb_desc(12) = "lcz4"
-  ateb_desc(13) = "lcz5"
-  ateb_desc(14) = "lcz6"
-  ateb_desc(15) = "lcz7"
-  ateb_desc(16) = "lcz8"
-  ateb_desc(17) = "lcz9"
-  ateb_desc(18) = "lcz10"
+  ateb_desc(9) = "Compact_high-rise "
+  ateb_desc(10) = "Compact_midrise"
+  ateb_desc(11) = "Compact_low-rise"
+  ateb_desc(12) = "Open_high-rise"
+  ateb_desc(13) = "Open_midrise"
+  ateb_desc(14) = "Open_low-rise"
+  ateb_desc(15) = "Lightweight_low-rise"
+  ateb_desc(16) = "Large_low-rise"
+  ateb_desc(17) = "Sparsely_built"
+  ateb_desc(18) = "Heavy_industry"
   bldheight(:) = (/ 6.,   4.,   6.,   8.,  18.,   4.,   8.,  12., 50., 17.5, 6.5, 50., 17.5, 6.5, 5., 6.5, 6.5, 10. /)
   hwratio(:) = (/ 0.4,  0.2,  0.4,  0.6,   2.,  0.5,   1.,  1.5, 2.5, 1.25, 1.25, 1., 0.5, 0.5, 1.5, 0.2, 0.15, 0.35 /)
   sigvegc(:) = (/ 0.38, 0.45, 0.38, 0.34, 0.05, 0.40, 0.30, 0.20, 0.05, 0.1, 0.15, 0.35, 0.3, 0.45, 0.15, 0.1, 0.7, 0.45 /)
@@ -1523,10 +1523,10 @@ write(6,*) "Clean albedo data"
 where (lsdata>=0.5)
   albvisdata(:,:)=0.08 ! 0.07 in Masson (2003)
   albnirdata(:,:)=0.08 ! 0.20 in Masson (2003)
-elsewhere (idata==9 .and. alb3939)
+elsewhere (idata==9 .and. alb3939) ! need to remove hardcoding ice=9
   albvisdata(:,:)=0.80
   albnirdata(:,:)=0.40
-elsewhere (idata==9 )    
+elsewhere (idata==9 )              ! need to remove hardcoding ice=9
   albvisdata(:,:)=0.90 ! Based on CABLE 2.5
   albnirdata(:,:)=0.60 ! Based on CABLE 2.5
 end where
