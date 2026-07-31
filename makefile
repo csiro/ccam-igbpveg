@@ -7,6 +7,7 @@ endif
 XFLAGS = -qopenmp -xHost -assume byterecl -fp-model precise -traceback
 ifeq ($(ZEN3),yes)
 XFLAGS = -qopenmp -axCORE-AVX2 -assume byterecl -fp-model precise -traceback
+XFLAGS = -axCORE-AVX2 -assume byterecl -fp-model precise -traceback
 endif
 INC = -I $(NETCDF_ROOT)/include
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf

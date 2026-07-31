@@ -1289,8 +1289,10 @@ Do ilat=1,lldim_30(2)
       sermask = databuffer(llint_301+1:llint_301+nscale_30,1:nscale_30)>=0. .and. &
                 databuffer(llint_301+1:llint_301+nscale_30,1:nscale_30)<=1.
       nsum=count(sermask)
-      coverout(ilon,ilat,indx)=coverout(ilon,ilat,indx) &
-          +sum(databuffer(llint_301+1:llint_301+nscale_30,1:nscale_30),mask=sermask)/real(nsum)  
+      if ( nsum>0 ) then
+        coverout(ilon,ilat,indx)=coverout(ilon,ilat,indx) &
+            +sum(databuffer(llint_301+1:llint_301+nscale_30,1:nscale_30),mask=sermask)/real(nsum)  
+      end if
     End Do
 !$OMP END PARALLEL DO    
     
