@@ -1196,7 +1196,7 @@ Integer, intent(in) :: nscale_30, year
 Real, dimension(2), intent(in) :: latlon
 Integer, dimension(2), intent(in) :: lldim_30
 Real, dimension(lldim_30(1),lldim_30(2),0:2), intent(out) :: coverout
-Integer, dimension(1440,1:nscale_30) :: databuffer
+real, dimension(1440,1:nscale_30) :: databuffer
 real, dimension(1440) :: datatemp
 Integer, dimension(2,2) :: jin,jout
 Integer ilat,ilon,jlat,recpos,i

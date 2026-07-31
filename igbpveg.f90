@@ -340,7 +340,6 @@ real, dimension(:,:,:), allocatable :: changedata
 Real, dimension(:,:), allocatable :: gridout,lsdata,urbandata,oceandata,albvisdata,albnirdata
 real, dimension(:,:), allocatable :: testdata
 real, dimension(:,:), allocatable :: rdata
-real, dimension(:,:), allocatable :: save_crop_c3, save_crop_c4
 real, dimension(:,:), allocatable :: lsdata_dem
 Real, dimension(3,2) :: alonlat
 Real, dimension(2) :: lonlat
@@ -1333,9 +1332,6 @@ allocate(albvisdata(sibdim(1),sibdim(2)))
 allocate(albnirdata(sibdim(1),sibdim(2)))
 allocate(soildata(sibdim(1),sibdim(2),0:soil_len))
 allocate(landdata(sibdim(1),sibdim(2),0:class_num*(1+mthrng)))
-allocate( save_crop_c3(sibdim(1),sibdim(2)), save_crop_c4(sibdim(1),sibdim(2)) )
-save_crop_c3 = 0.
-save_crop_c4 = 0.
 
 ! Read default igbp data
 call getdata(landdata,lonlat,gridout,rlld,sibdim,class_num*(1+mthrng),sibsize,landmode,fastigbp,binlimit,month,year, &
@@ -1382,7 +1378,7 @@ if ( fname(15)/='' ) then
   call getdata(changedata,lonlat,gridout,rlld,sibdim,2,sibsize,'change',fastigbp,binlimit,month,year, &
                fname(15),fname(6),class_num,mapjveg,mapwater)
   ! reduce natural vegetation and add land-use changes
-  noveg(1:class_num) = mapwater(1:class_num)
+  noveg(1:class_num) = mapwater(1:class_num) .or. mapice(1:class_num)
   noveg(13) = .true. ! IGBP urban
   do j = 1,sibdim(2)
     do i = 1,sibdim(1)
@@ -1395,8 +1391,6 @@ if ( fname(15)/='' ) then
         change_crop_c3 = changedata(i,j,0)
         change_crop_c4 = changedata(i,j,1)
         change_pasture = changedata(i,j,2)
-        save_crop_c3(i,j) = change_crop_c3
-        save_crop_c4(i,j) = change_crop_c4
         landdata(i,j,12) = 0. ! IGBP crops=12
         landdata(i,j,14) = 0. ! IGBP crops/natural vegetation mosaic=14
         newsum = sum(landdata(i,j,1:class_num),mask=.not.noveg(1:class_num)) 
@@ -2020,7 +2014,7 @@ do tt=1,mthrng
   end do
   if ( outmode==1 ) then
     call convertigbp(vtype,vfrac,vlai,sibdim,lsdata,rlld,class_num,mapindex,mapfrac,pft_len, &
-         save_crop_c3,save_crop_c4,natural_maxtile,fname(15))
+         natural_maxtile,fname(15))
   end if
   dimcount=(/ sibdim(1), sibdim(2), 1, 1 /)
   do j = 1,natural_maxtile+2
@@ -2167,7 +2161,6 @@ deallocate( roofthick, roofcp, roofcond )
 deallocate( wallthick, wallcp, wallcond )
 deallocate( slabthick, slabcp, slabcond )
 deallocate( roadthick, roadcp, roadcond )
-deallocate( save_crop_c3, save_crop_c4 )  
 
 if ( outmode==1 ) then
   deallocate( silt, clay, sand, swilt, sfc, ssat )
@@ -2574,7 +2567,7 @@ Return
 End
 
 subroutine convertigbp(vtype,vfrac,vlai,sibdim,lsdata,rlld,class_num,mapindex,mapfrac,pft_len, &
-    save_crop_c3,save_crop_c4,natural_maxtile,change_landuse)
+    natural_maxtile,change_landuse)
 
 implicit none
 
@@ -2591,7 +2584,6 @@ real, dimension(pft_len) :: newlai
 real, dimension(pft_len) :: newgrid
 real, dimension(sibdim(1),sibdim(2)), intent(in) :: lsdata
 real, dimension(sibdim(1),sibdim(2),2), intent(in) :: rlld
-real, dimension(sibdim(1),sibdim(2)), intent(in) :: save_crop_c3, save_crop_c4
 real fc3, fc4, ftu, fg3, fg4, clat, nsum
 real fmixed, fneedlebroad
 real xp
@@ -2676,9 +2668,6 @@ do j = 1,sibdim(2)
       else
         fc3=0.7
       end if
-      if ( save_crop_c3(i,j)+save_crop_c4(i,j)>0.001 ) then
-        fc3 = save_crop_c3(i,j)/(save_crop_c3(i,j)+save_crop_c4(i,j))
-      end if    
       fc4=max(1.-fc3,0.)
       ! mixed
       if (abs(clat)>25.5) then
